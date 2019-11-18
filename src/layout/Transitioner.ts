@@ -166,7 +166,7 @@ export class Transitionable<T extends ValueType = ValueType> {
         this._changePercent = changePercent = typeof changePercent === 'number' ? changePercent : this._computePercentChange()
         deltaTime *= config.multiplier
         
-        if (changePercent > config.threshold) {
+        if (changePercent >= config.threshold) {
             if (this._delayTime > config.delay) {
                 if (typeof target === 'number') this.committedTarget = target as any
                 else {
@@ -184,7 +184,7 @@ export class Transitionable<T extends ValueType = ValueType> {
 
         if (typeof this.committedTarget !== 'undefined') {
             this._waitTime += deltaTime
-            if (this._debounceTime > config.debounce || this._waitTime > config.maxWait) {
+            if (this._debounceTime >= config.debounce || this._waitTime >= config.maxWait) {
                 queue.push({
                     value: this.committedTarget,
                     easing: config.easing,
@@ -196,16 +196,16 @@ export class Transitionable<T extends ValueType = ValueType> {
             }
         }
         
-        while (queue.length && queue[0].elapsed > queue[0].duration) {
+        while (queue.length && queue[0].elapsed >= queue[0].duration) {
             this.start = queue.shift()!.value
         }
         
         this._setCurrent(this.start)
         let previousTarget = this.start
-        for (const target of queue) {
-            target.elapsed += deltaTime
-            this._addTargetInfluence(previousTarget, target)
-            previousTarget = target.value
+        for (const t of queue) {
+            t.elapsed += deltaTime
+            this._addTargetInfluence(previousTarget, t)
+            previousTarget = t.value
         }
     }
 
