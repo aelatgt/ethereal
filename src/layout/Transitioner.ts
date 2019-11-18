@@ -67,7 +67,7 @@ export type ValueRange<T> = T extends THREE.Vector2|THREE.Vector3 ? T :
 
 export type TransitionableConstructorKeys = 
     'target'|'multiplier'|'duration'|'easing'|'threshold'|
-    'delay'|'debounce'|'maxWait'
+    'delay'|'debounce'|'maxWait'|'path'
 export type TransitionerConstructOptions<T extends ValueType> = Pick<Transitionable<T>, TransitionableConstructorKeys>
 
 export type TransitionableConfig = Pick<Transitionable<ValueType>,'delay'|'debounce'|'maxWait'|'multiplier'|'duration'|'easing'|'threshold'>
@@ -97,6 +97,11 @@ export class Transitionable<T extends ValueType = ValueType> {
      * The start value
      */
     start : WidenLiteral<T>
+
+    /**
+     * The property path that should be used to store the current value
+     */
+    path? : string
     
     /**
      * The typical range of the target value, used to determine percentage change
@@ -606,6 +611,7 @@ export class Transitioner {
             this.matrixLocal.current.copy(this.matrixLocal.target)
             for (const t of this.customTransitionables) {
                 t._setCurrent(t.target)
+                this._setPropertyAtPath(t)
             }
             return
         }
@@ -619,9 +625,20 @@ export class Transitioner {
         this.matrixLocal.update(deltaTime, this)
         for (const t of this.customTransitionables) {
             t.update(deltaTime, this)
+            this._setPropertyAtPath(t)
         }
 
         this.object.updateWorldMatrix(false, true)
+    }
+
+    private _setPropertyAtPath(t:Transitionable) {
+        if (t.path) {
+            if (typeof t.current === 'number') {
+                set(t.path, this.object, t.current)
+            } else {
+                resolve(t.path, this.object).copy(t.current)
+            }
+        }
     }
 
     /**
@@ -655,14 +672,16 @@ export class Transitioner {
     }
 }
 
-// function resolve(path:string, obj=self as any, separator='.') {
-//     var properties = Array.isArray(path) ? path : path.split(separator)
-//     return properties.reduce((prev, curr) => prev && prev[curr], obj)
-// }
+const next = (prev, curr) => prev && prev[curr]
 
-// function set(path:string, obj=self as any, value:any, separator='.') {
-//     var properties = Array.isArray(path) ? path : path.split(separator)
-//     var lastPropertKey = properties.pop()
-//     const property = properties.reduce((prev, curr) => prev && prev[curr], obj)
-//     property[lastPropertKey] = value
-// }
+function resolve(path:string, obj=self as any, separator='.') {
+    var properties = Array.isArray(path) ? path : path.split(separator)
+    return properties.reduce(next, obj)
+}
+
+function set(path:string, obj=self as any, value:any, separator='.') {
+    var properties = Array.isArray(path) ? path : path.split(separator)
+    var lastPropertKey = properties.pop()
+    const property = properties.reduce(next, obj)
+    property[lastPropertKey] = value
+}
