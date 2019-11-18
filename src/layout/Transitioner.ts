@@ -182,17 +182,18 @@ export class Transitionable<T extends ValueType = ValueType> {
             this._debounceTime += deltaTime
         }
 
-        if (this.committedTarget) this._waitTime += deltaTime
-
-        if (this.committedTarget && (this._debounceTime > config.debounce || this._waitTime > config.maxWait)) {
-            queue.push({
-                value: this.committedTarget,
-                easing: config.easing,
-                duration: config.duration,
-                elapsed: 0
-            })
-            this.committedTarget = undefined
-            this._waitTime = 0
+        if (typeof this.committedTarget !== 'undefined') {
+            this._waitTime += deltaTime
+            if (this._debounceTime > config.debounce || this._waitTime > config.maxWait) {
+                queue.push({
+                    value: this.committedTarget,
+                    easing: config.easing,
+                    duration: config.duration,
+                    elapsed: 0
+                })
+                this.committedTarget = undefined
+                this._waitTime = 0
+            }
         }
         
         while (queue.length && queue[0].elapsed > queue[0].duration) {
