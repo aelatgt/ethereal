@@ -2918,7 +2918,7 @@ Transitionable.prototype.update = function update (deltaTime, c, changePercent) 
   this._changePercent = changePercent = typeof changePercent === 'number' ? changePercent : this._computePercentChange();
   deltaTime *= config.multiplier;
 
-  if (changePercent > config.threshold) {
+  if (changePercent >= config.threshold) {
     if (this._delayTime > config.delay) {
       if (typeof target === 'number') { this.committedTarget = target; }else {
         if (this.committedTarget) { this.committedTarget.copy(target); }else { this.committedTarget = target.clone(); }
@@ -2936,7 +2936,7 @@ Transitionable.prototype.update = function update (deltaTime, c, changePercent) 
   if (typeof this.committedTarget !== 'undefined') {
     this._waitTime += deltaTime;
 
-    if (this._debounceTime > config.debounce || this._waitTime > config.maxWait) {
+    if (this._debounceTime >= config.debounce || this._waitTime >= config.maxWait) {
       queue.push({
         value: this.committedTarget,
         easing: config.easing,
@@ -2948,7 +2948,7 @@ Transitionable.prototype.update = function update (deltaTime, c, changePercent) 
     }
   }
 
-  while (queue.length && queue[0].elapsed > queue[0].duration) {
+  while (queue.length && queue[0].elapsed >= queue[0].duration) {
     this.start = queue.shift().value;
   }
 
@@ -2957,13 +2957,13 @@ Transitionable.prototype.update = function update (deltaTime, c, changePercent) 
   var previousTarget = this.start;
 
   for (var i = 0, list = queue; i < list.length; i += 1) {
-    var target$1 = list[i];
+    var t = list[i];
 
-      target$1.elapsed += deltaTime;
+      t.elapsed += deltaTime;
 
-    this._addTargetInfluence(previousTarget, target$1);
+    this._addTargetInfluence(previousTarget, t);
 
-    previousTarget = target$1.value;
+    previousTarget = t.value;
   }
 };
 
