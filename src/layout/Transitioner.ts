@@ -1,6 +1,41 @@
 import * as THREE from 'three'
 import { vectors2, vectors, quaternions, matrices, V_00, V_000, Q_IDENTITY } from '../utils'
-import * as easing from '@popmotion/easing'
+import * as e from '@popmotion/easing'
+import { isUndefined } from 'util';
+
+// redecalre popmotion types here so that the consumer doesn't have to 
+// add '@popmotion/easing' as a dependency to get the types
+/**
+ * Easing functions from '@popmotion/easing'
+ */
+namespace Easings {
+    export declare type Easing = (v: number) => number;
+    export declare type EasingModifier = (easing: Easing) => Easing;
+    export declare const reversed: EasingModifier;
+    export declare const mirrored: EasingModifier;
+    export declare const createReversedEasing: EasingModifier;
+    export declare const createMirroredEasing: EasingModifier;
+    export declare const createExpoIn: (power: number) => Easing;
+    export declare const createBackIn: (power: number) => Easing;
+    export declare const createAnticipateEasing: (power: number) => Easing;
+    export declare const linear: Easing;
+    export declare const easeIn: Easing;
+    export declare const easeOut: Easing;
+    export declare const easeInOut: Easing;
+    export declare const circIn: Easing;
+    export declare const circOut: Easing;
+    export declare const circInOut: Easing;
+    export declare const backIn: Easing;
+    export declare const backOut: Easing;
+    export declare const backInOut: Easing;
+    export declare const anticipate: Easing;
+    export declare const bounceOut: (p: number) => number;
+    export declare const bounceIn: (p: number) => number;
+    export declare const bounceInOut: (p: number) => number;
+    export declare function cubicBezier(mX1: number, mY1: number, mX2: number, mY2: number): (aX: number) => number;
+}
+
+const easing = (e as any) as typeof Easings
 
 export {easing}
 
