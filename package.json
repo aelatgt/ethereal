@@ -1,0 +1,67 @@
+{
+  "name": "ethereal",
+  "version": "1.0.1",
+  "description": "A Spatial Adaptivity Engine for the Immersive Web! ",
+  "source": "src/index.ts",
+  "main": "dist/ethereal.js",
+  "module": "dist/ethereal.mjs",
+  "umd:main": "dist/ethereal.umd.js",
+  "types": "dist/src/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "scripts": {
+    "prebuild": "rimraf dist && rimraf docs",
+    "build": "npm run build.library && npm run build.example",
+    "build.library": "microbundle build --external three",
+    "build.example": "parcel build example/index.html -d docs --public-url /ethereal/",
+    "start": "parcel example/index.html --https -d docs --host 0.0.0.0 --no-hmr"
+  },
+  "staticFiles": {
+    "staticPath": "example/static",
+    "watcherGlob": "**"
+  },
+  "peerDependencies": {
+    "three": "> 0.100"
+  },
+  "devDependencies": {
+    "microbundle": "^0.11.0",
+    "parcel": "^1.12.3",
+    "parcel-plugin-static-files-copy": "^2.2.1",
+    "postprocessing": "^6.8.3",
+    "three": "^0.109.0",
+    "three-web-layer": "0.0.40",
+    "@popmotion/easing": "^1.0.2",
+    "emotion": "^10.0.17",
+    "three-mesh-bvh": "^0.1.4",
+    "typescript": "^3.7.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aelatgt/ethereal.git"
+  },
+  "keywords": [
+    "3d",
+    "adaptive",
+    "layout",
+    "three",
+    "three.js",
+    "vr",
+    "ar",
+    "xr",
+    "webvr",
+    "webxr",
+    "immersive"
+  ],
+  "author": "Gheric Speiginer",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/aelatgt/ethereal/issues"
+  },
+  "homepage": "https://github.com/aelatgt/ethereal#readme",
+  "browserslist": [
+    "last 2 ios versions",
+    "last 2 chrome versions",
+    "last 2 firefox versions"
+  ]
+}
