@@ -1,5 +1,34 @@
 import * as THREE from 'three';
-import * as easing from '@popmotion/easing';
+/**
+ * Easing functions from '@popmotion/easing'
+ */
+declare namespace Easings {
+    type Easing = (v: number) => number;
+    type EasingModifier = (easing: Easing) => Easing;
+    const reversed: EasingModifier;
+    const mirrored: EasingModifier;
+    const createReversedEasing: EasingModifier;
+    const createMirroredEasing: EasingModifier;
+    const createExpoIn: (power: number) => Easing;
+    const createBackIn: (power: number) => Easing;
+    const createAnticipateEasing: (power: number) => Easing;
+    const linear: Easing;
+    const easeIn: Easing;
+    const easeOut: Easing;
+    const easeInOut: Easing;
+    const circIn: Easing;
+    const circOut: Easing;
+    const circInOut: Easing;
+    const backIn: Easing;
+    const backOut: Easing;
+    const backInOut: Easing;
+    const anticipate: Easing;
+    const bounceOut: (p: number) => number;
+    const bounceIn: (p: number) => number;
+    const bounceInOut: (p: number) => number;
+    function cubicBezier(mX1: number, mY1: number, mX2: number, mY2: number): (aX: number) => number;
+}
+declare const easing: typeof Easings;
 export { easing };
 declare type WidenLiteral<T> = T extends number ? number : T;
 export declare type Multiplier<T> = number | (T extends THREE.Matrix4 ? {
@@ -17,7 +46,7 @@ export declare class TransitionTarget<T extends ValueType = ValueType> {
 declare type ValueTypes = number | THREE.Vector2 | THREE.Vector3 | THREE.Quaternion | THREE.Color | THREE.Matrix4 | THREE.Box3;
 export declare type ValueType<T extends ValueTypes = ValueTypes> = WidenLiteral<T>;
 export declare type ValueRange<T> = T extends THREE.Vector2 | THREE.Vector3 ? T : T extends THREE.Matrix4 | THREE.Box3 ? THREE.Vector3 : T extends number ? number : never;
-export declare type TransitionableConstructorKeys = 'target' | 'multiplier' | 'duration' | 'easing' | 'threshold' | 'delay' | 'debounce' | 'maxWait';
+export declare type TransitionableConstructorKeys = 'target' | 'multiplier' | 'duration' | 'easing' | 'threshold' | 'delay' | 'debounce' | 'maxWait' | 'path';
 export declare type TransitionerConstructOptions<T extends ValueType> = Pick<Transitionable<T>, TransitionableConstructorKeys>;
 export declare type TransitionableConfig = Pick<Transitionable<ValueType>, 'delay' | 'debounce' | 'maxWait' | 'multiplier' | 'duration' | 'easing' | 'threshold'>;
 export declare class Transitionable<T extends ValueType = ValueType> {
@@ -34,6 +63,10 @@ export declare class Transitionable<T extends ValueType = ValueType> {
      * The start value
      */
     start: WidenLiteral<T>;
+    /**
+     * The property path that should be used to store the current value
+     */
+    path?: string;
     /**
      * The typical range of the target value, used to determine percentage change
      */
@@ -202,6 +235,7 @@ export declare class Transitioner {
      * this method will smoothly switch to the new coordinate system.
      */
     update(deltaTime: number, autoActive?: boolean): void;
+    private _setPropertyAtPath;
     /**
      * Ensure that this `object` is attached to the `targetParent` Object3D instance.
      * When the `transitioner` is active, this method ensures a smooth transition

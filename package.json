@@ -1,6 +1,6 @@
 {
   "name": "ethereal",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A Spatial Adaptivity Engine for the Immersive Web! ",
   "source": "src/index.ts",
   "main": "dist/ethereal.js",
@@ -13,7 +13,7 @@
   "scripts": {
     "prebuild": "rimraf dist && rimraf docs",
     "build": "npm run build.library && npm run build.example",
-    "build.library": "microbundle build --external three",
+    "build.library": "microbundle build --external three --no-compress",
     "build.example": "parcel build example/index.html -d docs --public-url /ethereal/",
     "start": "parcel example/index.html --https -d docs --host 0.0.0.0 --no-hmr"
   },
