@@ -93,9 +93,7 @@ THREE.Object3D.prototype.updateWorldMatrix = function(this:THREE.Object3D, updat
 
         updateChildren && this.layout.invalidateBounds() // only invalidate when traversing down
         this.layout.updateMatrix()
-        const layoutMatrix = this.layout.matrix
         const transitioner = this.transitioner as Transitioner
-        // const {matrixTarget, layoutMatrixTarget} = transitioner
         
         transitioner.matrixLocal.target.multiplyMatrices( this.layout.matrix, this.matrix )
         const matrixLocal = transitioner.active ? transitioner.matrixLocal.current : transitioner.matrixLocal.target
@@ -103,16 +101,9 @@ THREE.Object3D.prototype.updateWorldMatrix = function(this:THREE.Object3D, updat
         if ( parent === null ) {
             transitioner.matrixWorldTarget.copy(transitioner.matrixLocal.target)
             this.matrixWorld.copy(matrixLocal)
-            // this.matrixWorld.multiplyMatrices( layoutMatrix, this.matrix )
-            // transitioner.targetMatrixWorld.multiplyMatrices( layoutMatrixTarget, matrixTarget )
-            
         } else {
-
             transitioner.matrixWorldTarget.multiplyMatrices( parent.transitioner.matrixWorldTarget, transitioner.matrixLocal.target)
             this.matrixWorld.multiplyMatrices( parent.matrixWorld, matrixLocal )
-            // this.matrixWorld.multiplyMatrices( parent.matrixWorld, layoutMatrix ).multiply(this.matrix)
-            // transitioner.targetMatrixWorld.multiplyMatrices( parent.transitioner.targetMatrixWorld, layoutMatrixTarget).multiply( matrixTarget )
-
         }
 
         // update children with layout

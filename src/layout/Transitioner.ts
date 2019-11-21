@@ -487,7 +487,7 @@ export class Transitioner {
         threshold: 1e-2,
         delay: 0,
         debounce: 0,
-        maxWait: 10
+        maxWait: 4
     }
 
     /**

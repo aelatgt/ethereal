@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader'
 import {BufferGeometryUtils} from 'three/examples/jsm/utils/BufferGeometryUtils'
 import '../src/index'
-import {vectors, vectors2, SpatialMetrics, AdaptivityManager, easing} from '../src/index'
+import {vectors, vectors2, SpatialMetrics, AdaptivityManager, easing, V_000, V_111} from '../src/index'
 import { GlobalAdaptivityDemo } from './demos/GlobalAdaptivityDemo'
 import { DemoBase } from './demos/DemoBase'
 
@@ -45,7 +45,7 @@ export class DemoApp extends AppBase {
         this.loadSky()
         this.loadRoom()
         this.setupLights()
-        this.cameraDolly.transitioner.duration = 2
+        // this.cameraDolly.transitioner.duration = 2
         this.cameraDolly.transitioner.debounce = 0
         this.cameraDolly.transitioner.delay = 0
         this.cameraDolly.transitioner.easing = easing.easeInOut
@@ -194,9 +194,7 @@ export class DemoApp extends AppBase {
             roomLines.layout.forceBoundsExclusion = true
             this.room.add( roomLines )
 
-            this.surfaceWallA.position
-            this.surfaceWallA.layout.relative.min.set(-1,-1,-1)
-            this.surfaceWallA.layout.relative.max.set(1,1,1)
+            this.surfaceWallA.layout.relative.setFromCenterAndSize(V_000, V_111)
         })
     }
 

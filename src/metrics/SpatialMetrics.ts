@@ -154,7 +154,7 @@ export class Box3 extends THREE.Box3 {
             const size = this._size
             this.getCenter(center)
             this.getSize(size)
-            out.copy(relativePosition).multiplyScalar(0.5).multiply(size).add(center)
+            out.copy(relativePosition).multiply(size).add(center)
         } else {
             out.copy(relativePosition).multiplyScalar(0)
         }
@@ -170,7 +170,7 @@ export class Box3 extends THREE.Box3 {
             const size = this._size
             this.getCenter(center)
             this.getSize(size)
-            out.copy(absolutePosition).sub(center).divide(size).multiplyScalar(2)
+            out.copy(absolutePosition).sub(center).divide(size)
         } else {
             out.copy(absolutePosition).multiplyScalar(0)
         }

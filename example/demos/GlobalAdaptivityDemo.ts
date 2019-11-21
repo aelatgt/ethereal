@@ -1,7 +1,7 @@
 import WebLayer3D from 'three-web-layer'
 import * as THREE from 'three'
 import {DemoBase} from './DemoBase'
-import {LayoutHelper, AdaptivityManager, SpatialMetrics, vectors, AdaptiveClippingBehavior, easing} from '../../src/'
+import {LayoutHelper, AdaptivityManager, SpatialMetrics, vectors, AdaptiveClippingBehavior, easing, V_000, V_111} from '../../src/'
 import {css} from 'emotion'
 import { Vector3 } from 'three'
 
@@ -81,32 +81,35 @@ export class GlobalAdaptivityDemo extends DemoBase {
         }
 
         this.container.add(this.orientedContainerTop)
-        this.orientedContainerTop.layout.relative.min.set(0,1,0)
+        this.orientedContainerTop.layout.relative.min.set(0,0.5,0)
         this.orientedContainerTop.add(new THREE.AxesHelper)
 
         const logo = this.etherealLogo
         ;(logo.mesh.material as THREE.MeshBasicMaterial).side = THREE.DoubleSide
         logo.add(new LayoutHelper)
-        logo.layout.relative.min.set(-1, 1, -1)
-        logo.layout.relative.max.set(1, NaN, NaN)
+        logo.layout.relative.min.set(-0.5, 0.5, -0.5)
+        logo.layout.relative.max.set(0.5, NaN, NaN)
         logo.layout.minRelativeSize.x = 0.5
         logo.transitioner.active = true
         logo.transitioner.delay = 0.5
         logo.transitioner.debounce = 0.5
         logo.transitioner.threshold = 0.1
-        logo.transitioner.easing = easing.anticipate
+        // logo.transitioner.easing = easing.anticipate
         logo.transitioner.matrixLocal.scale.start.setScalar(0.0001)
         this.container.add(logo)
         
         const info = this.layoutInfo
         info.add(new LayoutHelper)
-        info.layout.relative.min.set(1.1, NaN, 1)
-        info.layout.relative.max.set(2, 1, NaN)
+        info.layout.relative.min.set(0.55, -0.7, 0.5)
+        info.layout.relative.max.set(1.6, 0.7, NaN)
+        info.layout.fitAlign.set(-0.5,0.5,0)
+        // info.layout.fit = 'fill'
+        info.layout.minRelativeSize.y = 0.5
         info.transitioner.active = true
         info.transitioner.delay = 0.5
         info.transitioner.debounce = 0.5
         info.transitioner.threshold = 0.1
-        info.transitioner.easing = easing.anticipate
+        // info.transitioner.easing = easing.anticipate
         info.transitioner.matrixLocal.scale.start.setScalar(0.0001)
         this.container.add(this.layoutInfo)
         
@@ -126,7 +129,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
             AdaptivityManager.ensureUpdate(this.orientedContainerTop)
             const camera = AdaptivityManager.currentCamera
             const cameraPositionTop = SpatialMetrics.get(this.orientedContainerTop).getPositionOf(camera, vectors.get())
-            logo.layout.relative.min.set(-1, 1, (cameraPositionTop.y > 0) ? -1 : 1)
+            logo.layout.relative.min.z = (cameraPositionTop.y > 0) ? -0.5 : 0.5
 
             const layoutInfoText = `relative-min: ${JSON.stringify(logo.layout.relative.min, null, '\t')}
                                     relative-max: ${JSON.stringify(logo.layout.relative.max, null, '\t')}`
@@ -143,5 +146,6 @@ export class GlobalAdaptivityDemo extends DemoBase {
         })
 
         AdaptivityManager.addBehavior(this.etherealLogo, this.adaptiveOcclusion)
+        AdaptivityManager.addBehavior(this.layoutInfo, new AdaptiveClippingBehavior)
     }
 }
