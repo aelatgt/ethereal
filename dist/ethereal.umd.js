@@ -1465,7 +1465,7 @@
         var size = this._size;
         this.getCenter(center);
         this.getSize(size);
-        out.copy(relativePosition).multiplyScalar(0.5).multiply(size).add(center);
+        out.copy(relativePosition).multiply(size).add(center);
       } else {
         out.copy(relativePosition).multiplyScalar(0);
       } // if (!isFinite(out.x)) out.x = 0
@@ -1484,7 +1484,7 @@
         var size = this._size;
         this.getCenter(center);
         this.getSize(size);
-        out.copy(absolutePosition).sub(center).divide(size).multiplyScalar(2);
+        out.copy(absolutePosition).sub(center).divide(size);
       } else {
         out.copy(absolutePosition).multiplyScalar(0);
       } // if (!isFinite(out.x)) out.x = 0
@@ -2279,7 +2279,7 @@
 
     this.absolute = new Box3();
     /**
-     * Specify relative layout bounds, with -1 to 1 spanning the
+     * Specify relative layout bounds, with -0.5 to 0.5 spanning the
      * range of `computedOuterBounds` for each dimension. A mininum or
      * maximum boundary can be set to `NaN` in any dimension to remain
      * unspecified.
@@ -2536,14 +2536,13 @@
       var position = vectors.get().setFromMatrixPosition(o.matrix);
       var projectionMatrixInverse = matrices.get().getInverse(cameraParent.projectionMatrix);
       var near = parentBounds.min.set(0, 0, -1).applyMatrix4(projectionMatrixInverse).z;
-      var far = parentBounds.min.set(0, 0, 1).applyMatrix4(projectionMatrixInverse).z;
       var projectionZ = parentBounds.min.set(0, 0, position.z).applyMatrix4(cameraParent.projectionMatrix).z;
       parentBounds.min.set(-1, -1, projectionZ);
       parentBounds.max.set(1, 1, projectionZ);
       parentBounds.min.applyMatrix4(projectionMatrixInverse);
       parentBounds.max.applyMatrix4(projectionMatrixInverse);
-      parentBounds.min.z = far;
-      parentBounds.max.z = near;
+      parentBounds.min.z = 0;
+      parentBounds.max.z = near - position.z;
       vectors.pool(position);
       matrices.pool(projectionMatrixInverse);
     } else if (parent) {
@@ -3427,7 +3426,7 @@
     threshold: 1e-2,
     delay: 0,
     debounce: 0,
-    maxWait: 10
+    maxWait: 4
   };
   /**
    * The amount of time (in milliseconds) it takes to smoothly
@@ -5885,19 +5884,16 @@
       updateChildren && this.layout.invalidateBounds(); // only invalidate when traversing down
 
       this.layout.updateMatrix();
-      var transitioner = this.transitioner; // const {matrixTarget, layoutMatrixTarget} = transitioner
-
+      var transitioner = this.transitioner;
       transitioner.matrixLocal.target.multiplyMatrices(this.layout.matrix, this.matrix);
       var matrixLocal = transitioner.active ? transitioner.matrixLocal.current : transitioner.matrixLocal.target;
 
       if (parent === null) {
         transitioner.matrixWorldTarget.copy(transitioner.matrixLocal.target);
-        this.matrixWorld.copy(matrixLocal); // this.matrixWorld.multiplyMatrices( layoutMatrix, this.matrix )
-        // transitioner.targetMatrixWorld.multiplyMatrices( layoutMatrixTarget, matrixTarget )
+        this.matrixWorld.copy(matrixLocal);
       } else {
         transitioner.matrixWorldTarget.multiplyMatrices(parent.transitioner.matrixWorldTarget, transitioner.matrixLocal.target);
-        this.matrixWorld.multiplyMatrices(parent.matrixWorld, matrixLocal); // this.matrixWorld.multiplyMatrices( parent.matrixWorld, layoutMatrix ).multiply(this.matrix)
-        // transitioner.targetMatrixWorld.multiplyMatrices( parent.transitioner.targetMatrixWorld, layoutMatrixTarget).multiply( matrixTarget )
+        this.matrixWorld.multiplyMatrices(parent.matrixWorld, matrixLocal);
       } // update children with layout
 
 
@@ -6072,6 +6068,12 @@
       Behavior$$1.apply(this, arguments);
       this._boxA = new Box3();
       this._boxB = new Box3();
+      this._visualFrustum = new VisualFrustum(this.object);
+      this._frustum = new THREE.Frustum();
+      this._line = new THREE.Line3();
+      this._corners = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+      this._newCorners = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+      this._intersectionCornerMap = new WeakMap();
       this.occluders = [];
       this.occluderInfluenceDelay = 0.5;
       this.occlusionTime = new WeakMap();
@@ -6082,24 +6084,173 @@
     AdaptiveClippingBehavior.prototype.constructor = AdaptiveClippingBehavior;
 
     AdaptiveClippingBehavior.prototype.update = function update (deltaTime) {
+      var object = this.object;
+      var clip = object.layout.clip.makeEmpty();
       var camera = AdaptivityManager.currentCamera;
       var cameraMetrics = SpatialMetrics.get(camera);
-      var object = this.object;
-      object.layout.clip.makeEmpty();
       object.updateWorldMatrix(true, true);
       var objectMetrics = SpatialMetrics.get(object);
       var objectDistance = cameraMetrics.getDistanceOf(object);
 
       var objectBounds = this._boxA.copy(object.layout.computedInnerBounds);
 
+      var cameraToObjectMatrix = matrices.get().getInverse(object.matrixWorld).multiply(camera.matrixWorld);
+      /***
+       *
+       *  First: clip based on viewing frustum
+       *
+       */
+
+      var corners = this._corners;
+      corners[0].set(objectBounds.min.x, objectBounds.min.y, objectBounds.min.z);
+      corners[1].set(objectBounds.min.x, objectBounds.min.y, objectBounds.max.z);
+      corners[2].set(objectBounds.min.x, objectBounds.max.y, objectBounds.min.z);
+      corners[3].set(objectBounds.min.x, objectBounds.max.y, objectBounds.max.z);
+      corners[4].set(objectBounds.max.x, objectBounds.min.y, objectBounds.min.z);
+      corners[5].set(objectBounds.max.x, objectBounds.min.y, objectBounds.max.z);
+      corners[6].set(objectBounds.max.x, objectBounds.max.y, objectBounds.min.z);
+      corners[7].set(objectBounds.max.x, objectBounds.max.y, objectBounds.max.z);
+      var newCorners = this._newCorners;
+
+      for (var i$4 = 0, list = newCorners.entries(); i$4 < list.length; i$4 += 1) {
+        var ref = list[i$4];
+        var i = ref[0];
+        var corner = ref[1];
+
+        corner.copy(corners[i]);
+
+        this._intersectionCornerMap.set(corner, i);
+      } // 0:right, 1:left, 2:bottom, 3:top, 4:far, 5:near
+
+
+      var frustum = this._frustum.setFromMatrix(camera.projectionMatrix);
+
+      for (var i$5 = 0, list$1 = frustum.planes; i$5 < list$1.length; i$5 += 1) {
+        var p = list$1[i$5];
+
+        p.applyMatrix4(cameraToObjectMatrix);
+      }
+
+      var line = this._line;
+      var intersectionScratch1 = vectors.get();
+
+      for (var i$7 = 0, list$3 = frustum.planes; i$7 < list$3.length; i$7 += 1) {
+        var p$1 = list$3[i$7];
+
+        for (var i$6 = 0, list$2 = corners.entries(); i$6 < list$2.length; i$6 += 1) {
+          var ref$1 = list$2[i$6];
+          var i = ref$1[0];
+          var corner = ref$1[1];
+
+          if (!frustum.containsPoint(corner$1)) {
+            line.end.copy(corner$1);
+            line.start.copy(corners[7 - i$1]);
+            var intersection = p$1.intersectLine(line, intersectionScratch1);
+            if (intersection) { newCorners[i$1].copy(intersection); }
+          }
+        }
+      } // const alignPosition = objectBounds.relativeToAbsolute(object.layout.fitAlign, vectors.get())
+      // newCorners.sort((a,b) => {
+      //     // const cornerA = this._intersectionCornerMap.get(a)!
+      //     // const cornerB = this._intersectionCornerMap.get(b)!
+      //     // return corners[cornerB].distanceToSquared(b) - corners[cornerA].distanceToSquared(a)
+      //     return alignPosition.distanceToSquared(b) - alignPosition.distanceToSquared(a)
+      // })
+
+
+      clip.min.copy(corners[0]);
+      clip.max.copy(corners[7]);
+      var finalIntersections = [];
+
+      for (var i$8 = 0, list$4 = newCorners; i$8 < list$4.length; i$8 += 1) {
+        var i$2 = list$4[i$8];
+
+        var corner$2 = this._intersectionCornerMap.get(i$2); // make sure intersection is not adjacent to any others
+
+
+        if (finalIntersections.indexOf(corner$2) > -1) { continue; }
+        if (i$2.equals(corners[corner$2])) { continue; }
+
+        switch (corner$2) {
+          case 0:
+            clip.min.x = Math.max(i$2.x, clip.min.x);
+            clip.min.y = Math.max(i$2.y, clip.min.y);
+            clip.min.z = Math.max(i$2.z, clip.min.z);
+            break;
+
+          case 1:
+            clip.min.x = Math.max(i$2.x, clip.min.x);
+            clip.min.y = Math.max(i$2.y, clip.min.y);
+            clip.max.z = Math.min(i$2.z, clip.max.z);
+            break;
+
+          case 2:
+            clip.min.x = Math.max(i$2.x, clip.min.x);
+            clip.max.y = Math.min(i$2.y, clip.max.y);
+            clip.min.z = Math.max(i$2.z, clip.min.z);
+            break;
+
+          case 3:
+            clip.min.x = Math.max(i$2.x, clip.min.x);
+            clip.max.y = Math.min(i$2.y, clip.max.y);
+            clip.max.z = Math.min(i$2.z, clip.max.z);
+            break;
+
+          case 4:
+            clip.max.x = Math.min(i$2.x, clip.max.x);
+            clip.min.y = Math.max(i$2.y, clip.min.y);
+            clip.min.z = Math.max(i$2.z, clip.min.z);
+            break;
+
+          case 5:
+            clip.max.x = Math.min(i$2.x, clip.max.x);
+            clip.min.y = Math.max(i$2.y, clip.min.y);
+            clip.max.z = Math.min(i$2.z, clip.max.z);
+            break;
+
+          case 6:
+            clip.max.x = Math.min(i$2.x, clip.max.x);
+            clip.max.y = Math.min(i$2.y, clip.max.y);
+            clip.min.z = Math.max(i$2.z, clip.min.z);
+            break;
+
+          case 7:
+            clip.max.x = Math.min(i$2.x, clip.max.x);
+            clip.max.y = Math.min(i$2.y, clip.max.y);
+            clip.max.z = Math.min(i$2.z, clip.max.z);
+            break;
+        }
+
+        finalIntersections.push(corner$2);
+      }
+
+      var newClipSize = objectBounds.getSize(vectors.get());
+      var clipCenter = clip.getCenter(vectors.get());
+      var clipSize = clip.getSize(vectors.get());
+      var epsilon = 1e-6;
+      newClipSize.x = clipSize.x <= epsilon && clipSize.y >= epsilon ? newClipSize.x : clipSize.x;
+      newClipSize.y = clipSize.y <= epsilon && clipSize.x >= epsilon ? newClipSize.y : clipSize.y;
+      newClipSize.z = clipSize.z <= epsilon ? newClipSize.z : clipSize.z;
+
+      if (clipSize.x <= epsilon && clipSize.y <= epsilon && clipSize.z <= epsilon) {
+        objectBounds.getCenter(clipCenter);
+        objectBounds.getSize(newClipSize);
+      }
+
+      clip.setFromCenterAndSize(clipCenter, newClipSize);
+      /***
+       *
+       *  Second: clip based on occluders
+       *
+       */
+
       objectBounds.min.z = -Infinity;
       objectBounds.max.z = Infinity;
-      var clip = object.layout.clip; // const clip = this.clipTarget.target.makeEmpty()
-      // for each occluder, need to crop the layout by at most 
+      var objectBoundsSize = objectBounds.getSize(vectors.get()); // for each occluder, need to crop the layout by at most 
       // a single cut that minimizes the lost space 
 
-      for (var i = 0; i < this.occluders.length; i++) {
-        var occluder = this.occluders[i]; // todo: add priority rule to allow adaptation to background (rather than foreground) objects
+      for (var i$3 = 0; i$3 < this.occluders.length; i$3++) {
+        var occluder = this.occluders[i$3]; // todo: add priority rule to allow adaptation to background (rather than foreground) objects
 
         var occluderDistance = cameraMetrics.getDistanceOf(occluder);
 
@@ -6126,11 +6277,24 @@
           continue;
         }
 
-        var occluderCenter = occluderBounds.getCenter(vectors.get());
-        if (occluderCenter.x > 0) { clip.max.x = isFinite(clip.max.x) ? Math.min(occluderBounds.min.x, clip.max.x) : occluderBounds.min.x; }
-        if (occluderCenter.x < 0) { clip.min.x = isFinite(clip.min.x) ? Math.max(occluderBounds.max.x, clip.min.x) : occluderBounds.max.x; }
-        if (occluderCenter.y > 0) { clip.max.y = isFinite(clip.max.y) ? Math.min(occluderBounds.min.y, clip.max.y) : occluderBounds.min.y; }
-        if (occluderCenter.y < 0) { clip.min.y = isFinite(clip.min.y) ? Math.max(occluderBounds.max.y, clip.min.y) : occluderBounds.max.y; }
+        var leftClipSpan = occluderBounds.max.x - objectBounds.min.x;
+        var rightClipSpan = objectBounds.max.x - occluderBounds.min.x;
+        var bottomClipSpan = occluderBounds.max.y - objectBounds.min.y;
+        var topClipSpan = objectBounds.max.y - occluderBounds.min.y;
+        var leftArea = leftClipSpan * objectBoundsSize.y;
+        var rightArea = rightClipSpan * objectBoundsSize.y;
+        var bottomArea = bottomClipSpan * objectBoundsSize.x;
+        var topArea = topClipSpan * objectBoundsSize.x;
+
+        if (leftArea < rightArea && leftArea < bottomArea && leftArea < topArea) {
+          clip.min.x = isFinite(clip.min.x) ? Math.max(occluderBounds.max.x, clip.min.x) : occluderBounds.max.x;
+        } else if (rightArea < leftArea && rightArea < bottomArea && rightArea < topArea) {
+          clip.max.x = isFinite(clip.max.x) ? Math.min(occluderBounds.min.x, clip.max.x) : occluderBounds.min.x;
+        } else if (topArea < rightArea && topArea < bottomArea && topArea < leftArea) {
+          clip.max.y = isFinite(clip.max.y) ? Math.min(occluderBounds.min.y, clip.max.y) : occluderBounds.min.y;
+        } else {
+          clip.min.y = isFinite(clip.min.y) ? Math.max(occluderBounds.max.y, clip.min.y) : occluderBounds.max.y;
+        }
       }
     };
 

@@ -5,5 +5,5 @@ export * from './layout/Transitioner';
 export * from './layout/LayoutHelper';
 export * from './adaptivity/Behavior';
 export * from './adaptivity/AdaptivityManager';
-export * from './adaptivity/AdaptiveOcclusionBehavior';
+export * from './adaptivity/AdaptiveClippingBehavior';
 export * from './utils';

@@ -42,7 +42,7 @@ export declare class Layout {
      */
     absolute: Box3;
     /**
-     * Specify relative layout bounds, with -1 to 1 spanning the
+     * Specify relative layout bounds, with -0.5 to 0.5 spanning the
      * range of `computedOuterBounds` for each dimension. A mininum or
      * maximum boundary can be set to `NaN` in any dimension to remain
      * unspecified.
