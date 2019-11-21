@@ -60,7 +60,7 @@ export class Layout {
     absolute =  new Box3
 
     /**
-     * Specify relative layout bounds, with -1 to 1 spanning the 
+     * Specify relative layout bounds, with -0.5 to 0.5 spanning the 
      * range of `computedOuterBounds` for each dimension. A mininum or 
      * maximum boundary can be set to `NaN` in any dimension to remain 
      * unspecified. 
@@ -312,14 +312,13 @@ export class Layout {
             const position = vectors.get().setFromMatrixPosition(o.matrix)
             const projectionMatrixInverse = matrices.get().getInverse(cameraParent.projectionMatrix)
             const near = parentBounds.min.set(0,0,-1).applyMatrix4(projectionMatrixInverse).z
-            const far = parentBounds.min.set(0,0,1).applyMatrix4(projectionMatrixInverse).z
             const projectionZ = parentBounds.min.set(0,0,position.z).applyMatrix4(cameraParent.projectionMatrix).z
             parentBounds.min.set(-1, -1, projectionZ)
             parentBounds.max.set(1, 1, projectionZ)
             parentBounds.min.applyMatrix4(projectionMatrixInverse)
             parentBounds.max.applyMatrix4(projectionMatrixInverse)
-            parentBounds.min.z = far
-            parentBounds.max.z = near
+            parentBounds.min.z = 0
+            parentBounds.max.z = near - position.z
             vectors.pool(position)
             matrices.pool(projectionMatrixInverse)
         } else if (parent) {
