@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import { SpatialMetrics, Box3 } from '../metrics/SpatialMetrics'
-import { matrices, vectors } from '../utils'
 
 export const LayoutFit = {
     contain: 'contain',
@@ -26,6 +25,14 @@ export type LayoutX = number|'center'|'left'|'right'
 export type LayoutY = number|'center'|'top'|'bottom'
 export type LayoutZ = number|'center'|'front'|'back'
 
+const scratchV_1 = new THREE.Vector3
+const scratchV_2 = new THREE.Vector3
+const scratchV_3 = new THREE.Vector3
+const scratchV_4 = new THREE.Vector3
+const scratchV_5 = new THREE.Vector3
+const scratchV_6 = new THREE.Vector3
+const scratchV_7 = new THREE.Vector3
+const scratchMat_1 = new THREE.Matrix4
 
 /**
  * Extend THREE.Object3D functionality with 3D layout functionality.
@@ -211,8 +218,8 @@ export class Layout {
         if (!clip.isEmpty()) {
             // const clipMax = vectors.get().copy(clip.max)//.subVectors(clip.max, bounds.max).min(V_000)
             // const clipMin = vectors.get().copy(clip.min)//.subVectors(clip.min, bounds.min).max(V_000)
-            const clipMax = computedInnerBounds.absoluteToRelative(clip.max, vectors.get())//.subVectors(clip.max, bounds.max).min(V_000)
-            const clipMin = computedInnerBounds.absoluteToRelative(clip.min, vectors.get())//.subVectors(clip.min, bounds.min).max(V_000)
+            const clipMax = computedInnerBounds.absoluteToRelative(clip.max, scratchV_1)//.subVectors(clip.max, bounds.max).min(V_000)
+            const clipMin = computedInnerBounds.absoluteToRelative(clip.min, scratchV_2)//.subVectors(clip.min, bounds.min).max(V_000)
             bounds.relativeToAbsolute(clipMax, clipMax)//.subVectors(clip.max, bounds.max).min(V_000)
             bounds.relativeToAbsolute(clipMin, clipMin)//.subVectors(clip.min, bounds.min).max(V_000)
             if (!isFinite(clipMax.x)) clipMax.x = Infinity
@@ -223,19 +230,17 @@ export class Layout {
             if (!isFinite(clipMin.z)) clipMin.z = -Infinity
             bounds.max.min(clipMax)
             bounds.min.max(clipMin)
-            vectors.pool(clipMax)
-            vectors.pool(clipMin)
         }
 
         // compute min size
-        const minSize = computedOuterBounds.getSize(vectors.get())
+        const minSize = computedOuterBounds.getSize(scratchV_1)
             .multiply(this.minRelativeSize).max(this.minAbsoluteSize)
 
         // compute final size
-        const innerSize = computedInnerBounds.getSize(vectors.get())
-        const layoutScale = bounds.getSize(vectors.get()).max(minSize).divide(innerSize)
+        const innerSize = computedInnerBounds.getSize(scratchV_2)
+        const layoutScale = bounds.getSize(scratchV_3).max(minSize).divide(innerSize)
         Layout.adjustScaleForFit(fitTargets, layoutScale)
-        const finalSize = vectors.get().multiplyVectors(innerSize, layoutScale)
+        const finalSize = scratchV_4.multiplyVectors(innerSize, layoutScale)
         finalSize.x = Math.abs(finalSize.x)
         finalSize.y = Math.abs(finalSize.y)
         finalSize.z = Math.abs(finalSize.z)
@@ -259,32 +264,24 @@ export class Layout {
         if (!isFinite(bounds.min.y)) bounds.min.y = bounds.max.y - finalSize.y
         if (!isFinite(bounds.min.z)) bounds.min.z = bounds.max.z - finalSize.z
 
-        const orient = matrices.get().makeRotationFromQuaternion(orientation)
+        const orient = scratchMat_1.makeRotationFromQuaternion(orientation)
         const halfFinalSize = finalSize.divideScalar(2)
 
-        const layoutAlignOffset = bounds.relativeToAbsolute(this.fitAlign, vectors.get())
+        const layoutAlignOffset = bounds.relativeToAbsolute(this.fitAlign, scratchV_5)
         bounds.min.copy(layoutAlignOffset).sub(halfFinalSize)
         bounds.max.copy(layoutAlignOffset).add(halfFinalSize)
         bounds.applyMatrix4(orient)
 
-        const innerAlignOffset = computedInnerBounds.relativeToAbsolute(this.fitAlign, vectors.get())
+        const innerAlignOffset = computedInnerBounds.relativeToAbsolute(this.fitAlign, scratchV_6)
         innerAlignOffset.multiply(layoutScale).applyMatrix4(orient)
         bounds.min.sub(innerAlignOffset)
         bounds.max.sub(innerAlignOffset)
 
         // compose layout matrix
 
-        const layoutPosition = bounds.getCenter(vectors.get())
+        const layoutPosition = bounds.getCenter(scratchV_7)
         this.matrix.compose(layoutPosition, orientation, layoutScale)
-        
-        // cleanup
 
-        vectors.pool(innerSize)
-        vectors.pool(minSize)
-        vectors.pool(finalSize)
-        vectors.pool(layoutPosition)
-        vectors.pool(layoutScale)
-        vectors.pool(layoutAlignOffset)
         // vectors.pool(innerAlignOffset)
     }
 
@@ -309,8 +306,8 @@ export class Layout {
         const parent = o.parent
         const cameraParent = parent as THREE.Camera
         if (cameraParent && cameraParent.isCamera) {
-            const position = vectors.get().setFromMatrixPosition(o.matrix)
-            const projectionMatrixInverse = matrices.get().getInverse(cameraParent.projectionMatrix)
+            const position = scratchV_1.setFromMatrixPosition(o.matrix)
+            const projectionMatrixInverse = scratchMat_1.getInverse(cameraParent.projectionMatrix)
             const near = parentBounds.min.set(0,0,-1).applyMatrix4(projectionMatrixInverse).z
             const projectionZ = parentBounds.min.set(0,0,position.z).applyMatrix4(cameraParent.projectionMatrix).z
             parentBounds.min.set(-1, -1, projectionZ)
@@ -319,17 +316,14 @@ export class Layout {
             parentBounds.max.applyMatrix4(projectionMatrixInverse)
             parentBounds.min.z = 0
             parentBounds.max.z = near - position.z
-            vectors.pool(position)
-            matrices.pool(projectionMatrixInverse)
         } else if (parent) {
             parentBounds.copy(parent.layout.computedInnerBounds)
         } else {
             parentBounds.makeEmpty()
         }
 
-        const orient = matrices.get().makeRotationFromQuaternion(layout.orientation)
+        const orient = scratchMat_1.makeRotationFromQuaternion(layout.orientation)
         parentBounds.applyMatrix4(orient.getInverse(orient))
-        matrices.pool(orient)
         return parentBounds
     }
 

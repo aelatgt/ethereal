@@ -1,7 +1,6 @@
 import * as THREE from 'three'
-import { vectors2, vectors, quaternions, matrices, V_00, V_000, Q_IDENTITY } from '../utils'
+import { V_00, V_000, Q_IDENTITY } from '../utils'
 import * as e from '@popmotion/easing'
-import { isUndefined } from 'util';
 
 // redecalre popmotion types here so that the consumer doesn't have to 
 // add '@popmotion/easing' as a dependency to get the types
@@ -71,6 +70,20 @@ export type TransitionableConstructorKeys =
 export type TransitionerConstructOptions<T extends ValueType> = Pick<Transitionable<T>, TransitionableConstructorKeys>
 
 export type TransitionableConfig = Pick<Transitionable<ValueType>,'delay'|'debounce'|'maxWait'|'multiplier'|'duration'|'easing'|'threshold'>
+
+
+const scratchV2 = new THREE.Vector2
+const scratchP_1 = new THREE.Vector3
+const scratchP_2 = new THREE.Vector3
+const scratchP_3 = new THREE.Vector3
+const scratchQ_1 = new THREE.Quaternion
+const scratchQ_2 = new THREE.Quaternion
+const scratchQ_3 = new THREE.Quaternion
+const scratchS_1 = new THREE.Vector3
+const scratchS_2 = new THREE.Vector3
+const scratchS_3 = new THREE.Vector3
+const scratchMat_1 = new THREE.Matrix4
+const scratchMat_2 = new THREE.Matrix4
 
 export class Transitionable<T extends ValueType = ValueType> {
 
@@ -220,34 +233,24 @@ export class Transitionable<T extends ValueType = ValueType> {
             const s = start as THREE.Matrix4
             const e = target.value as THREE.Matrix4
 
-            const pos = vectors.get()
-            const quat = quaternions.get()
-            const scale = vectors.get()
+            const pos = scratchP_1
+            const quat = scratchQ_1
+            const scale = scratchS_1
             c.decompose(pos, quat, scale)
 
-            const sPos = vectors.get()
-            const sQuat = quaternions.get()
-            const sScale = vectors.get()
+            const sPos = scratchP_2
+            const sQuat = scratchQ_2
+            const sScale = scratchS_2
             s.decompose(sPos, sQuat, sScale)
     
-            const tPos = vectors.get()
-            const tQuat = quaternions.get()
-            const tScale = vectors.get()
+            const tPos = scratchP_3
+            const tQuat = scratchQ_3
+            const tScale = scratchS_3
             e.decompose(tPos, tQuat, tScale)
     
             pos.add(tPos.sub(sPos).lerp(V_000, 1-alpha))
             quat.multiply(sQuat.inverse().multiply(tQuat).slerp(Q_IDENTITY, 1-alpha)).normalize()
             scale.add(tScale.sub(sScale).lerp(V_000, 1-alpha))
-    
-            vectors.pool(pos)
-            quaternions.pool(quat)
-            vectors.pool(scale)
-            vectors.pool(sPos)
-            quaternions.pool(sQuat)
-            vectors.pool(sScale)
-            vectors.pool(tPos)
-            quaternions.pool(tQuat)
-            vectors.pool(tScale)
             return
         }
 
@@ -260,9 +263,8 @@ export class Transitionable<T extends ValueType = ValueType> {
             const c = this.current as THREE.Vector3
             const s = start as THREE.Vector3
             const e = target.value as THREE.Vector3
-            const amount = vectors.get().copy(e).sub(s).lerp(V_000, 1-alpha)
+            const amount = scratchP_1.copy(e).sub(s).lerp(V_000, 1-alpha)
             c.add(amount)
-            vectors.pool(amount)
             return
         } 
         
@@ -270,9 +272,8 @@ export class Transitionable<T extends ValueType = ValueType> {
             const c = this.current as THREE.Vector2
             const s = start as THREE.Vector2
             const e = target.value as THREE.Vector2
-            const amount = vectors2.get().copy(e).sub(s).lerp(V_00, 1-alpha)
+            const amount = scratchV2.copy(e).sub(s).lerp(V_00, 1-alpha)
             c.add(amount)
-            vectors2.pool(amount)
             return
         } 
         
@@ -280,9 +281,8 @@ export class Transitionable<T extends ValueType = ValueType> {
             const c = this.current as THREE.Quaternion
             const s = start as THREE.Quaternion
             const e = target.value as THREE.Quaternion
-            const amount = quaternions.get().copy(s).inverse().multiply(e).slerp(Q_IDENTITY, 1-alpha)
+            const amount = scratchQ_1.copy(s).inverse().multiply(e).slerp(Q_IDENTITY, 1-alpha)
             c.multiply(amount).normalize()
-            quaternions.pool(amount)
             return
         } 
         
@@ -299,8 +299,8 @@ export class Transitionable<T extends ValueType = ValueType> {
             const c = this.current as THREE.Box3
             const s = start as THREE.Box3
             const e = target.value as THREE.Box3
-            const minAmount = vectors.get().copy(e.min).sub(s.min).lerp(V_000, 1-alpha)
-            const maxAmount = vectors.get().copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
+            const minAmount = scratchP_1.copy(e.min).sub(s.min).lerp(V_000, 1-alpha)
+            const maxAmount = scratchP_2.copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
             if (isFinite(c.min.x)) c.min.x = 0
             if (isFinite(c.min.y)) c.min.y = 0
             if (isFinite(c.min.z)) c.min.z = 0
@@ -335,13 +335,13 @@ export class Transitionable<T extends ValueType = ValueType> {
         if ('isMatrix4' in start) {
             const s = start as THREE.Matrix4
             const e = end as THREE.Matrix4
-            const sPos = vectors.get()
-            const sQuat = quaternions.get()
-            const sScale = vectors.get()
+            const sPos = scratchP_1
+            const sQuat = scratchQ_1
+            const sScale = scratchS_1
             s.decompose(sPos, sQuat, sScale)
-            const ePos = vectors.get()
-            const eQuat = quaternions.get()
-            const eScale = vectors.get()
+            const ePos = scratchP_2
+            const eQuat = scratchQ_2
+            const eScale = scratchS_2
             e.decompose(ePos, eQuat, eScale)
 
             const posPercent = sPos.equals(ePos) ? 0 : Infinity
@@ -349,13 +349,6 @@ export class Transitionable<T extends ValueType = ValueType> {
             const quatPercent = Math.abs(sQuat.angleTo(eQuat) / Math.PI)
 
             const scalePercent = sScale.equals(eScale) ? 0 : Infinity
-            
-            vectors.pool(sPos)
-            quaternions.pool(sQuat)
-            vectors.pool(sScale)
-            vectors.pool(ePos)
-            quaternions.pool(eQuat)
-            vectors.pool(eScale)
 
             return Math.max(posPercent, quatPercent, scalePercent)
         }
@@ -364,9 +357,8 @@ export class Transitionable<T extends ValueType = ValueType> {
             const s = start as THREE.Vector3
             const e = end as THREE.Vector3
             if (!this.range) return e.equals(s) ? 0 : Infinity
-            const percent = vectors.get().subVectors(e, s).divide(this.range as THREE.Vector3)
+            const percent = scratchP_1.subVectors(e, s).divide(this.range as THREE.Vector3)
             const {x,y,z} = percent
-            vectors.pool(percent)
             return Math.max(Math.abs(x||0),Math.abs(y||0),Math.abs(z||0))
         } 
         
@@ -374,9 +366,8 @@ export class Transitionable<T extends ValueType = ValueType> {
             const s = start as THREE.Vector2
             const e = end as THREE.Vector2
             if (!this.range) return e.equals(s) ? 0 : Infinity
-            const percent = vectors2.get().subVectors(e, s).divide(this.range as THREE.Vector2)
+            const percent = scratchV2.subVectors(e, s).divide(this.range as THREE.Vector2)
             const {x,y} = percent
-            vectors2.pool(percent)
             return Math.max(Math.abs(x||0),Math.abs(y||0))
         } 
         
@@ -401,12 +392,10 @@ export class Transitionable<T extends ValueType = ValueType> {
             const e = end as THREE.Box3
             if (!this.range) return e.equals(s) ? 0 : Infinity
             const size = this.range as ValueRange<THREE.Box3>
-            const minPercent = vectors.get().subVectors(e.min, s.min).divide(size)
-            const maxPercent = vectors.get().subVectors(e.max, s.max).divide(size)
+            const minPercent = scratchP_1.subVectors(e.min, s.min).divide(size)
+            const maxPercent = scratchP_2.subVectors(e.max, s.max).divide(size)
             const min = Math.max(Math.abs(minPercent.x||0), Math.abs(minPercent.y||0), Math.abs(minPercent.z||0))
             const max = Math.max(Math.abs(maxPercent.x||0), Math.abs(maxPercent.y||0), Math.abs(maxPercent.z||0))
-            vectors.pool(minPercent)
-            vectors.pool(maxPercent)
             return Math.max(min, max)
         }
 
@@ -654,11 +643,11 @@ export class Transitioner {
         if (!parent) return
         if (o.parent !== parent) {
             o.updateWorldMatrix(true, true)
-            const originalMatrixWorld = matrices.get().copy(o.matrixWorld)
+            const originalMatrixWorld = scratchMat_1.copy(o.matrixWorld)
             o.parent && o.parent.remove(o)
             parent && parent.add(o)
             parent.updateWorldMatrix(true, true)
-            const inverseParentMatrixWorld = parent ? matrices.get().getInverse(parent.matrixWorld) : matrices.get().identity()
+            const inverseParentMatrixWorld = parent ? scratchMat_2.getInverse(parent.matrixWorld) : scratchMat_2.identity()
             o.matrix.copy(inverseParentMatrixWorld.multiply(originalMatrixWorld))
             // const transitioner = o.layout.transitioner
             // if (transitioner.active) {
@@ -667,8 +656,6 @@ export class Transitioner {
             // } else {
             // }
             o.matrix.decompose(o.position, o.quaternion, o.scale)
-            matrices.pool(originalMatrixWorld)
-            matrices.pool(inverseParentMatrixWorld)
         }
     }
 }
