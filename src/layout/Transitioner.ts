@@ -618,7 +618,9 @@ export class Transitioner {
             this._setPropertyAtPath(t)
         }
 
-        this.object.updateWorldMatrix(false, true)
+        // only update children if we have transitions running on matrixLocal
+        if (this.matrixLocal.targetQueue.length > 0) 
+            this.object.updateWorldMatrix(false, true)
     }
 
     private _setPropertyAtPath(t:Transitionable) {
