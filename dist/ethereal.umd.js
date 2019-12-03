@@ -3356,9 +3356,10 @@
         t$1.update(deltaTime, this);
 
       this._setPropertyAtPath(t$1);
-    }
+    } // only update children if we have transitions running on matrixLocal
 
-    this.object.updateWorldMatrix(false, true);
+
+    if (this.matrixLocal.targetQueue.length > 0) { this.object.updateWorldMatrix(false, true); }
   };
 
   Transitioner.prototype._setPropertyAtPath = function _setPropertyAtPath (t) {
