@@ -2245,6 +2245,14 @@
     fill: 'fill',
     fill3d: 'fill3d'
   };
+  var scratchV_1 = new THREE.Vector3();
+  var scratchV_2 = new THREE.Vector3();
+  var scratchV_3 = new THREE.Vector3();
+  var scratchV_4 = new THREE.Vector3();
+  var scratchV_5 = new THREE.Vector3();
+  var scratchV_6 = new THREE.Vector3();
+  var scratchV_7 = new THREE.Vector3();
+  var scratchMat_1 = new THREE.Matrix4();
   /**
    * Extend THREE.Object3D functionality with 3D layout functionality.
    *
@@ -2439,9 +2447,9 @@
     if (!clip.isEmpty()) {
       // const clipMax = vectors.get().copy(clip.max)//.subVectors(clip.max, bounds.max).min(V_000)
       // const clipMin = vectors.get().copy(clip.min)//.subVectors(clip.min, bounds.min).max(V_000)
-      var clipMax = computedInnerBounds.absoluteToRelative(clip.max, vectors.get()); //.subVectors(clip.max, bounds.max).min(V_000)
+      var clipMax = computedInnerBounds.absoluteToRelative(clip.max, scratchV_1); //.subVectors(clip.max, bounds.max).min(V_000)
 
-      var clipMin = computedInnerBounds.absoluteToRelative(clip.min, vectors.get()); //.subVectors(clip.min, bounds.min).max(V_000)
+      var clipMin = computedInnerBounds.absoluteToRelative(clip.min, scratchV_2); //.subVectors(clip.min, bounds.min).max(V_000)
 
       bounds.relativeToAbsolute(clipMax, clipMax); //.subVectors(clip.max, bounds.max).min(V_000)
 
@@ -2455,17 +2463,15 @@
       if (!isFinite(clipMin.z)) { clipMin.z = -Infinity; }
       bounds.max.min(clipMax);
       bounds.min.max(clipMin);
-      vectors.pool(clipMax);
-      vectors.pool(clipMin);
     } // compute min size
 
 
-    var minSize = computedOuterBounds.getSize(vectors.get()).multiply(this.minRelativeSize).max(this.minAbsoluteSize); // compute final size
+    var minSize = computedOuterBounds.getSize(scratchV_1).multiply(this.minRelativeSize).max(this.minAbsoluteSize); // compute final size
 
-    var innerSize = computedInnerBounds.getSize(vectors.get());
-    var layoutScale = bounds.getSize(vectors.get()).max(minSize).divide(innerSize);
+    var innerSize = computedInnerBounds.getSize(scratchV_2);
+    var layoutScale = bounds.getSize(scratchV_3).max(minSize).divide(innerSize);
     Layout.adjustScaleForFit(fitTargets, layoutScale);
-    var finalSize = vectors.get().multiplyVectors(innerSize, layoutScale);
+    var finalSize = scratchV_4.multiplyVectors(innerSize, layoutScale);
     finalSize.x = Math.abs(finalSize.x);
     finalSize.y = Math.abs(finalSize.y);
     finalSize.z = Math.abs(finalSize.z);
@@ -2491,26 +2497,19 @@
     if (!isFinite(bounds.min.x)) { bounds.min.x = bounds.max.x - finalSize.x; }
     if (!isFinite(bounds.min.y)) { bounds.min.y = bounds.max.y - finalSize.y; }
     if (!isFinite(bounds.min.z)) { bounds.min.z = bounds.max.z - finalSize.z; }
-    var orient = matrices.get().makeRotationFromQuaternion(orientation);
+    var orient = scratchMat_1.makeRotationFromQuaternion(orientation);
     var halfFinalSize = finalSize.divideScalar(2);
-    var layoutAlignOffset = bounds.relativeToAbsolute(this.fitAlign, vectors.get());
+    var layoutAlignOffset = bounds.relativeToAbsolute(this.fitAlign, scratchV_5);
     bounds.min.copy(layoutAlignOffset).sub(halfFinalSize);
     bounds.max.copy(layoutAlignOffset).add(halfFinalSize);
     bounds.applyMatrix4(orient);
-    var innerAlignOffset = computedInnerBounds.relativeToAbsolute(this.fitAlign, vectors.get());
+    var innerAlignOffset = computedInnerBounds.relativeToAbsolute(this.fitAlign, scratchV_6);
     innerAlignOffset.multiply(layoutScale).applyMatrix4(orient);
     bounds.min.sub(innerAlignOffset);
     bounds.max.sub(innerAlignOffset); // compose layout matrix
 
-    var layoutPosition = bounds.getCenter(vectors.get());
-    this.matrix.compose(layoutPosition, orientation, layoutScale); // cleanup
-
-    vectors.pool(innerSize);
-    vectors.pool(minSize);
-    vectors.pool(finalSize);
-    vectors.pool(layoutPosition);
-    vectors.pool(layoutScale);
-    vectors.pool(layoutAlignOffset); // vectors.pool(innerAlignOffset)
+    var layoutPosition = bounds.getCenter(scratchV_7);
+    this.matrix.compose(layoutPosition, orientation, layoutScale); // vectors.pool(innerAlignOffset)
   };
 
   Layout.updateInnerBounds = function updateInnerBounds (o) {
@@ -2533,8 +2532,8 @@
     var cameraParent = parent;
 
     if (cameraParent && cameraParent.isCamera) {
-      var position = vectors.get().setFromMatrixPosition(o.matrix);
-      var projectionMatrixInverse = matrices.get().getInverse(cameraParent.projectionMatrix);
+      var position = scratchV_1.setFromMatrixPosition(o.matrix);
+      var projectionMatrixInverse = scratchMat_1.getInverse(cameraParent.projectionMatrix);
       var near = parentBounds.min.set(0, 0, -1).applyMatrix4(projectionMatrixInverse).z;
       var projectionZ = parentBounds.min.set(0, 0, position.z).applyMatrix4(cameraParent.projectionMatrix).z;
       parentBounds.min.set(-1, -1, projectionZ);
@@ -2543,17 +2542,14 @@
       parentBounds.max.applyMatrix4(projectionMatrixInverse);
       parentBounds.min.z = 0;
       parentBounds.max.z = near - position.z;
-      vectors.pool(position);
-      matrices.pool(projectionMatrixInverse);
     } else if (parent) {
       parentBounds.copy(parent.layout.computedInnerBounds);
     } else {
       parentBounds.makeEmpty();
     }
 
-    var orient = matrices.get().makeRotationFromQuaternion(layout.orientation);
+    var orient = scratchMat_1.makeRotationFromQuaternion(layout.orientation);
     parentBounds.applyMatrix4(orient.getInverse(orient));
-    matrices.pool(orient);
     return parentBounds;
   };
 
@@ -2851,6 +2847,18 @@
     this.duration = duration;
     this.easing = easing;
   };
+  var scratchV2 = new THREE.Vector2();
+  var scratchP_1 = new THREE.Vector3();
+  var scratchP_2 = new THREE.Vector3();
+  var scratchP_3 = new THREE.Vector3();
+  var scratchQ_1 = new THREE.Quaternion();
+  var scratchQ_2 = new THREE.Quaternion();
+  var scratchQ_3 = new THREE.Quaternion();
+  var scratchS_1 = new THREE.Vector3();
+  var scratchS_2 = new THREE.Vector3();
+  var scratchS_3 = new THREE.Vector3();
+  var scratchMat_1$1 = new THREE.Matrix4();
+  var scratchMat_2 = new THREE.Matrix4();
   var Transitionable = function Transitionable(config) {
     /**
      * A multiplier to influence the speed of the transition
@@ -2976,30 +2984,21 @@
       var c = this.current;
       var s = start;
       var e = target.value;
-      var pos = vectors.get();
-      var quat = quaternions.get();
-      var scale = vectors.get();
+      var pos = scratchP_1;
+      var quat = scratchQ_1;
+      var scale = scratchS_1;
       c.decompose(pos, quat, scale);
-      var sPos = vectors.get();
-      var sQuat = quaternions.get();
-      var sScale = vectors.get();
+      var sPos = scratchP_2;
+      var sQuat = scratchQ_2;
+      var sScale = scratchS_2;
       s.decompose(sPos, sQuat, sScale);
-      var tPos = vectors.get();
-      var tQuat = quaternions.get();
-      var tScale = vectors.get();
+      var tPos = scratchP_3;
+      var tQuat = scratchQ_3;
+      var tScale = scratchS_3;
       e.decompose(tPos, tQuat, tScale);
       pos.add(tPos.sub(sPos).lerp(V_000, 1 - alpha));
       quat.multiply(sQuat.inverse().multiply(tQuat).slerp(Q_IDENTITY, 1 - alpha)).normalize();
       scale.add(tScale.sub(sScale).lerp(V_000, 1 - alpha));
-      vectors.pool(pos);
-      quaternions.pool(quat);
-      vectors.pool(scale);
-      vectors.pool(sPos);
-      quaternions.pool(sQuat);
-      vectors.pool(sScale);
-      vectors.pool(tPos);
-      quaternions.pool(tQuat);
-      vectors.pool(tScale);
       return;
     }
 
@@ -3012,9 +3011,8 @@
       var c$1 = this.current;
       var s$1 = start;
       var e$1 = target.value;
-      var amount = vectors.get().copy(e$1).sub(s$1).lerp(V_000, 1 - alpha);
+      var amount = scratchP_1.copy(e$1).sub(s$1).lerp(V_000, 1 - alpha);
       c$1.add(amount);
-      vectors.pool(amount);
       return;
     }
 
@@ -3022,9 +3020,8 @@
       var c$2 = this.current;
       var s$2 = start;
       var e$2 = target.value;
-      var amount$1 = vectors2.get().copy(e$2).sub(s$2).lerp(V_00, 1 - alpha);
+      var amount$1 = scratchV2.copy(e$2).sub(s$2).lerp(V_00, 1 - alpha);
       c$2.add(amount$1);
-      vectors2.pool(amount$1);
       return;
     }
 
@@ -3032,9 +3029,8 @@
       var c$3 = this.current;
       var s$3 = start;
       var e$3 = target.value;
-      var amount$2 = quaternions.get().copy(s$3).inverse().multiply(e$3).slerp(Q_IDENTITY, 1 - alpha);
+      var amount$2 = scratchQ_1.copy(s$3).inverse().multiply(e$3).slerp(Q_IDENTITY, 1 - alpha);
       c$3.multiply(amount$2).normalize();
-      quaternions.pool(amount$2);
       return;
     }
 
@@ -3053,8 +3049,8 @@
       var c$5 = this.current;
       var s$5 = start;
       var e$5 = target.value;
-      var minAmount = vectors.get().copy(e$5.min).sub(s$5.min).lerp(V_000, 1 - alpha);
-      var maxAmount = vectors.get().copy(e$5.max).sub(s$5.max).lerp(V_000, 1 - alpha);
+      var minAmount = scratchP_1.copy(e$5.min).sub(s$5.min).lerp(V_000, 1 - alpha);
+      var maxAmount = scratchP_2.copy(e$5.max).sub(s$5.max).lerp(V_000, 1 - alpha);
       if (isFinite(c$5.min.x)) { c$5.min.x = 0; }
       if (isFinite(c$5.min.y)) { c$5.min.y = 0; }
       if (isFinite(c$5.min.z)) { c$5.min.z = 0; }
@@ -3088,23 +3084,17 @@
     if ('isMatrix4' in start) {
       var s$1 = start;
       var e$1 = end;
-      var sPos = vectors.get();
-      var sQuat = quaternions.get();
-      var sScale = vectors.get();
+      var sPos = scratchP_1;
+      var sQuat = scratchQ_1;
+      var sScale = scratchS_1;
       s$1.decompose(sPos, sQuat, sScale);
-      var ePos = vectors.get();
-      var eQuat = quaternions.get();
-      var eScale = vectors.get();
+      var ePos = scratchP_2;
+      var eQuat = scratchQ_2;
+      var eScale = scratchS_2;
       e$1.decompose(ePos, eQuat, eScale);
       var posPercent = sPos.equals(ePos) ? 0 : Infinity;
       var quatPercent = Math.abs(sQuat.angleTo(eQuat) / Math.PI);
       var scalePercent = sScale.equals(eScale) ? 0 : Infinity;
-      vectors.pool(sPos);
-      quaternions.pool(sQuat);
-      vectors.pool(sScale);
-      vectors.pool(ePos);
-      quaternions.pool(eQuat);
-      vectors.pool(eScale);
       return Math.max(posPercent, quatPercent, scalePercent);
     }
 
@@ -3112,11 +3102,10 @@
       var s$2 = start;
       var e$2 = end;
       if (!this.range) { return e$2.equals(s$2) ? 0 : Infinity; }
-      var percent = vectors.get().subVectors(e$2, s$2).divide(this.range);
+      var percent = scratchP_1.subVectors(e$2, s$2).divide(this.range);
       var x = percent.x;
         var y = percent.y;
         var z = percent.z;
-      vectors.pool(percent);
       return Math.max(Math.abs(x || 0), Math.abs(y || 0), Math.abs(z || 0));
     }
 
@@ -3124,11 +3113,10 @@
       var s$3 = start;
       var e$3 = end;
       if (!this.range) { return e$3.equals(s$3) ? 0 : Infinity; }
-      var percent$1 = vectors2.get().subVectors(e$3, s$3).divide(this.range);
+      var percent$1 = scratchV2.subVectors(e$3, s$3).divide(this.range);
       var ref = percent$1;
         var x$1 = ref.x;
         var y$1 = ref.y;
-      vectors2.pool(percent$1);
       return Math.max(Math.abs(x$1 || 0), Math.abs(y$1 || 0));
     }
 
@@ -3149,12 +3137,10 @@
       var e$6 = end;
       if (!this.range) { return e$6.equals(s$6) ? 0 : Infinity; }
       var size = this.range;
-      var minPercent = vectors.get().subVectors(e$6.min, s$6.min).divide(size);
-      var maxPercent = vectors.get().subVectors(e$6.max, s$6.max).divide(size);
+      var minPercent = scratchP_1.subVectors(e$6.min, s$6.min).divide(size);
+      var maxPercent = scratchP_2.subVectors(e$6.max, s$6.max).divide(size);
       var min = Math.max(Math.abs(minPercent.x || 0), Math.abs(minPercent.y || 0), Math.abs(minPercent.z || 0));
       var max = Math.max(Math.abs(maxPercent.x || 0), Math.abs(maxPercent.y || 0), Math.abs(maxPercent.z || 0));
-      vectors.pool(minPercent);
-      vectors.pool(maxPercent);
       return Math.max(min, max);
     }
 
@@ -3399,11 +3385,11 @@
 
     if (o.parent !== parent) {
       o.updateWorldMatrix(true, true);
-      var originalMatrixWorld = matrices.get().copy(o.matrixWorld);
+      var originalMatrixWorld = scratchMat_1$1.copy(o.matrixWorld);
       o.parent && o.parent.remove(o);
       parent && parent.add(o);
       parent.updateWorldMatrix(true, true);
-      var inverseParentMatrixWorld = parent ? matrices.get().getInverse(parent.matrixWorld) : matrices.get().identity();
+      var inverseParentMatrixWorld = parent ? scratchMat_2.getInverse(parent.matrixWorld) : scratchMat_2.identity();
       o.matrix.copy(inverseParentMatrixWorld.multiply(originalMatrixWorld)); // const transitioner = o.layout.transitioner
       // if (transitioner.active) {
       //   transitioner.layout.weight = 0
@@ -3412,8 +3398,6 @@
       // }
 
       o.matrix.decompose(o.position, o.quaternion, o.scale);
-      matrices.pool(originalMatrixWorld);
-      matrices.pool(inverseParentMatrixWorld);
     }
   };
 

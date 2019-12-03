@@ -28,9 +28,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
                         -1px 1px 0 #000,
                         1px 1px 0 #000`
         })}>ethereal.js</div>
-    `), {
-        pixelRatio: 3
-    })
+    `))
 
     layoutInfo = new WebLayer3D(DOM(`
         <div class=${css({
@@ -44,7 +42,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
                         1px 1px 0 #000`
         })}></div>
     `), {
-        pixelRatio: 3
+        pixelRatio: 1
     })
 
     _euler = new THREE.Euler
