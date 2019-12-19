@@ -1,0 +1,31 @@
+{
+  "name": "ethereal-docs",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "parcel build index.html -d ../../docs --public-url /ethereal/",
+    "start": "parcel index.html --https -d ../../docs --host 0.0.0.0 --no-hmr"
+  },
+  "staticFiles": {
+    "staticPath": "static",
+    "watcherGlob": "**"
+  },
+  "browserslist": [
+    "last 2 ios versions",
+    "last 2 chrome versions",
+    "last 2 firefox versions"
+  ],
+  "dependencies": {
+    "emotion": "^10.0.17",
+    "ethereal": "^1.0.7",
+    "parcel": "^1.12.3",
+    "parcel-plugin-static-files-copy": "^2.2.1",
+    "postprocessing": "^6.8.3",
+    "three": "~0.111.0",
+    "three-web-layer": "^2.0.11"
+  },
+  "devDependencies": {
+    "typescript": "^3.7.3"
+  }
+}

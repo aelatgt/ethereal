@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "incremental": true,
+    "target": "esnext",
+    "allowJs": true,
+    "outDir": "dist",
+    "moduleResolution": "node",
+    "strictNullChecks": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.js"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules"
+  ]
+}
