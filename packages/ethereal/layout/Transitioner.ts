@@ -112,9 +112,9 @@ export class Transitionable<T extends ValueType = ValueType> {
     start : WidenLiteral<T>
 
     /**
-     * The property path that should be used to store the current value
+     * The property path(s) that should be used to store the current value
      */
-    path? : string
+    path? : string | string[]
     
     /**
      * The typical range of the target value, used to determine percentage change
@@ -625,11 +625,22 @@ export class Transitioner {
 
     private _setPropertyAtPath(t:Transitionable) {
         if (t.path) {
-            if (typeof t.current === 'number') {
-                set(t.path, this.object, t.current)
+            if (typeof t.path === 'string') {
+                if (typeof t.current === 'number') {
+                    set(t.path, this.object, t.current)
+                } else {
+                    const property = resolve(t.path, this.object)
+                    if (property) property.copy(t.current)
+                }
             } else {
-                const property = resolve(t.path, this.object)
-                if (property) property.copy(t.current)
+                for (const p of t.path) {
+                    if (typeof t.current === 'number') {
+                        set(p, this.object, t.current)
+                    } else {
+                        const property = resolve(p, this.object)
+                        if (property) property.copy(t.current)
+                    }
+                }
             }
         }
     }
