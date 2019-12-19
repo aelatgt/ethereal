@@ -95,7 +95,7 @@ THREE.Object3D.prototype.updateWorldMatrix = function(this:THREE.Object3D, updat
         this.layout.updateMatrix()
         const transitioner = this.transitioner as Transitioner
         
-        transitioner.matrixLocal.target.multiplyMatrices( this.layout.matrix, this.matrix )
+        transitioner.matrixLocal.target.multiplyMatrices( this.matrix, this.layout.matrix )
         const matrixLocal = transitioner.active ? transitioner.matrixLocal.current : transitioner.matrixLocal.target
 
         if ( parent === null ) {
