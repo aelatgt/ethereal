@@ -628,7 +628,8 @@ export class Transitioner {
             if (typeof t.current === 'number') {
                 set(t.path, this.object, t.current)
             } else {
-                resolve(t.path, this.object).copy(t.current)
+                const property = resolve(t.path, this.object)
+                if (property) property.copy(t.current)
             }
         }
     }
@@ -673,5 +674,9 @@ function set(path:string, obj=self as any, value:any, separator='.') {
     var properties = Array.isArray(path) ? path : path.split(separator)
     var lastPropertKey = properties.pop()
     const property = properties.reduce(next, obj)
-    property[lastPropertKey] = value
+    if (property) {
+        property[lastPropertKey] = value
+        return true
+    }
+    return false
 }
