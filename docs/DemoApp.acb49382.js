@@ -50459,7 +50459,7 @@ THREE.Object3D.prototype.updateWorldMatrix = function (updateParents, updateChil
 
     this.layout.updateMatrix();
     const transitioner = this.transitioner;
-    transitioner.matrixLocal.target.multiplyMatrices(this.layout.matrix, this.matrix);
+    transitioner.matrixLocal.target.multiplyMatrices(this.matrix, this.layout.matrix);
     const matrixLocal = transitioner.active ? transitioner.matrixLocal.current : transitioner.matrixLocal.target;
 
     if (parent === null) {

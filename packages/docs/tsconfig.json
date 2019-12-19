@@ -5,7 +5,11 @@
     "allowJs": true,
     "outDir": "dist",
     "moduleResolution": "node",
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "baseUrl": "./",
+    "paths": {
+        "*": [ "node_modules/*", "*"]
+    }
   },
   "include": [
     "**/*.ts",
