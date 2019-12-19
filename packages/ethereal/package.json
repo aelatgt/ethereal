@@ -1,6 +1,6 @@
 {
   "name": "ethereal",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "A Spatial Adaptivity Engine for the Immersive Web! ",
   "source": "index.ts",
   "main": "dist/ethereal.js",
