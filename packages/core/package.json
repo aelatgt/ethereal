@@ -1,0 +1,37 @@
+{
+    "name": "@etherealjs/core",
+    "version": "1.1.2",
+    "module": "dist/module/index.js",
+    "typings": "dist/types/index.d.ts",
+    "source": "src/index.ts",
+    "alias": {
+        "@glimmer/env": "./src/env.ts"
+    },
+    "targets": {
+        "module": {
+            "includeNodeModules": {
+                "three": true,
+                "@glimmer/validator": true,
+                "@glimmer/tracking": true
+            },
+            "sourceMap": true
+        }
+    },
+    "browserslist": [
+        "last 2 ios versions",
+        "last 2 chrome versions",
+        "last 2 firefox versions"
+    ],
+    "scripts": {
+        "postbundlex": "rm -rf dist/types && dts-bundle-generator --config=./dts_bundle_config.json",
+        "postbundle": "rm -rf dist/types && api-extractor run --local --verbose"
+    },
+    "dependencies": {
+        "@glimmer/tracking": "^1.0.0",
+        "@glimmer/validator": "^0.50.0",
+        "@popmotion/easing": "latest"
+    },
+    "devDependencies": {
+        "typescript": "^3.8.3"
+    }
+}

@@ -1,11 +1,15 @@
 {
+  "version": "0.0.0",
   "packages": [
     "packages/*"
   ],
-  "version": "1.1.2",
   "command": {
-    "run": {
-      "stream": true
+    "version": {
+      "allowBranch": "master",
+      "conventionalCommits": true,
+      "exact": true,
+      "gitRemote": "upstream",
+      "message": "chore(release): %s"
     }
   }
 }

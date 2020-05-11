@@ -63,6 +63,7 @@ temp
 .cache
 .parcel-cache
 dist
+lib
 
 # Rush files
 common/temp/**

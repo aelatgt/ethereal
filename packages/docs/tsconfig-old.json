@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "allowJs": true,
+    "outDir": "dist",
+    "moduleResolution": "node",
+    "strictNullChecks": true,
+    "baseUrl": "./",
+    "paths": {
+        "*": [ "node_modules/*", "*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

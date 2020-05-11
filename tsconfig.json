@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "pretty": true,
+    "module": "CommonJS",
+    "target": "ES2016",
+    "lib": ["ES2018", "DOM"],
+    "outDir": "lib",
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "strictNullChecks": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "preserveConstEnums": true,
+    "esModuleInterop": true,
+    "downlevelIteration": true,
+    "experimentalDecorators": true,
+    "isolatedModules": true,
+    "stripInternal": true,
+    "allowJs": true,
+    "strict": true,
+    "baseUrl": ".",
+    "paths": { 
+      "*": ["packages/ethereal/node_modules/*", "*"],
+      "@etherealjs/*": ["packages/*/src"]
+    },
+  },
+  "include": ["./packages/*/src/**/*"],
+}

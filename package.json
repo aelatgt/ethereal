@@ -2,12 +2,43 @@
   "name": "root",
   "private": true,
   "scripts": {
-    "postinstall": "lerna bootstrap",
-    "build": "lerna run build",
-    "start": "lerna run start --parallel"
+    "build": "tsc && npm run clean && npm run bundle",
+    "clean": "rm -rf .parcel-cache && lerna exec -- rm -rf ./dist && rm -rf tsconfig.tsbuildinfo",
+    "bundle": "parcel build packages/* && lerna run postbundle",
+    "start": "parcel packages/docs --host 0.0.0.0",
+    "release": "lerna publish",
+    "test": "ava"
   },
   "devDependencies": {
-    "lerna": "^3.19.0"
+    "@ava/babel": "^1.0.1",
+    "@babel/core": "^7.9.6",
+    "@babel/plugin-proposal-class-properties": "^7.8.3",
+    "@babel/plugin-proposal-decorators": "^7.8.3",
+    "@babel/plugin-proposal-private-methods": "^7.8.3",
+    "@babel/plugin-transform-typescript": "^7.9.6",
+    "@babel/register": "^7.9.0",
+    "@microsoft/api-extractor": "^7.7.13",
+    "@parcel/transformer-typescript-tsc": "^2.0.0-alpha.3",
+    "ava": "^3.8.1",
+    "dts-bundle-generator": "^4.3.0",
+    "lerna": "^3.19.0",
+    "parcel": "^2.0.0-nightly.261",
+    "rimraf": "~3.0.0",
+    "three": "^0.113.2",
+    "typescript": "^3.9.0-dev.20200427"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@etherealjs/core": "file:packages/core",
+    "ethereal": "file:packages/ethereal",
+    "ethereal-docs": "file:packages/docs"
+  },
+  "ava": {
+    "extensions": [
+      "ts"
+    ],
+    "require": [
+      "./babel-register"
+    ],
+    "babel": true
+  }
 }
