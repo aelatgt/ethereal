@@ -19,7 +19,7 @@
     "stripInternal": true,
     "allowJs": true,
     "strict": true,
-    "baseUrl": ".",
+    "baseUrl": "./",
     "paths": { 
       "*": ["packages/ethereal/node_modules/*", "*"],
       "@etherealjs/*": ["packages/*/src"]
