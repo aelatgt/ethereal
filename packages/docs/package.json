@@ -1,30 +1,26 @@
 {
   "name": "ethereal-docs",
   "private": true,
+  "author": "Gheric Speiginer",
+  "license": "MIT",
   "version": "1.1.2",
-  "source": "src/index.html",
+  "source": "index.html",
+  "default": "bla/index.html",
   "targets": {
     "default": {
-      "publicUrl": "/ethereal/",
-      "distDir": "../../docs"
+      "publicUrl": "/ethereal/"
     }
   },
   "staticFiles": {
     "staticPath": "static",
     "watcherGlob": "**"
   },
-  "browserslist": [
-    "last 2 ios versions",
-    "last 2 chrome versions",
-    "last 2 firefox versions"
-  ],
   "dependencies": {
-    "emotion": "^10.0.17",
-    "ethereal": "file:../ethereal",
-    "mobx": "^5.15.4",
-    "parcel-plugin-static-files-copy": "^2.2.1",
-    "postprocessing": "^6.8.3",
-    "three-web-layer": "^2.0.11",
-    "typescript": "^3.7.5"
-  }
+    "emotion": "latest",
+    "postprocessing": "latest"
+  },
+  "browserslist": [
+    "last 1 chrome versions",
+    "last 1 firefox versions"
+  ]
 }

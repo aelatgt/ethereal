@@ -1,0 +1,30 @@
+{
+  "name": "@etherealjs/web-layer",
+  "version": "1.0.0",
+  "description": "Use web content in WebGL scenes!",
+  "module": "mod.ts",
+  "keywords": [
+    "web",
+    "three",
+    "3D",
+    "DOM",
+    "VR",
+    "AR",
+    "XR"
+  ],
+  "author": "Gheric Speiginer",
+  "license": "MIT",
+  "peerDependencies": {
+    "three": "> 0.100"
+  },
+  "dependencies": {
+    "@speigg/html2canvas": "latest",
+    "fast-sha256": "latest",
+    "lru_map": "latest",
+    "resize-observer-polyfill": "latest"
+  },
+  "browserslist": [
+    "last 1 chrome versions",
+    "last 1 firefox versions"
+  ]
+}
