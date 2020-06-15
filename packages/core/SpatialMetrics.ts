@@ -1,8 +1,9 @@
 
 import { Box3, Vector3, Quaternion, Matrix4, V_000, Q_IDENTITY, V_111 } from './math'
-import { tracked, cached, TrackedArray } from './tracking'
+import { tracked, cached, TrackedArray, isTracking } from './tracking'
 import { EtherealSystem, Node3D, NodeState } from './EtherealSystem'
 import { LayoutFrustum } from './LayoutFrustum'
+import { SpatialAdapter } from './SpatialAdapter'
 
 /**
  * Efficiently and reactively compute spatial metrics 
@@ -12,31 +13,39 @@ import { LayoutFrustum } from './LayoutFrustum'
  */
 export class SpatialMetrics<N extends Node3D = Node3D> {
     
-    constructor(public system:EtherealSystem, node:N) {
-        this.node = node
-    }
+    constructor(public system:EtherealSystem, public node:N) {}
+
+    needsUpdate = false
 
     /**
-     * 
+     * Update metrics, if necessary
      */
-    @tracked node:N
-
-    /**
-     * Node adapter, if it exists and is enabled
-     */
-    private get _adapter() {
-        const adapter = this.system.nodeAdapters.get(this.node)
-        adapter?.update()
-        return adapter?.enabled ? adapter : undefined
+    update(force=false) {
+        const adapter = this.system.getAdapter(this.node)
+        if (!isTracking() && (this.needsUpdate || force)) {
+            this.needsUpdate = false
+            const parent = this.currentState.parent
+            const parentMetrics = parent && this.system.getMetrics(parent)
+            parentMetrics?.update(force)
+            if (adapter) {
+                for (const b of adapter.behaviors) b()
+                this.system.optimizer.update(adapter)
+                adapter.orientation.update(force)
+                adapter.opacity.update(force)
+                adapter.bounds.update(force)
+            }
+        }
+        return adapter // ?.enabled ? adapter : undefined
     }
 
     /**
      * True if this node contains the passed node
      */
-    @cached containsNode(node:Node3D) {
-        let parentMetrics = this.system.getMetrics(node)
+    containsNode(node:Node3D) {
+        let parentMetrics = this.system.getMetrics(node) as SpatialMetrics|null
         while (parentMetrics) {
             if (parentMetrics === this) return true
+            parentMetrics = parentMetrics.parentMetrics
         }
         return false
     }
@@ -62,59 +71,55 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /** 
      * The target parent
      */
-    @cached get currentParent() {
-        return this.currentState.parent
+    get parentNode() : Node3D|null {
+        return this._cachedParentNode(this.update())
     }
-
-    /**
-     * The current children
-     */
-    @cached get currentChildren() : ReadonlyArray<Node3D> {
-        this.system.time
-        this.system.bindings.getCurrentChildren(this.node, this._currentChildren)
-        return this._currentChildren
-    }
-    private _currentChildren = new TrackedArray as Node3D[]
-
-    /** 
-     * The target parent
-     */
-    @cached get parentNode() {
-        return this._adapter?.parentNode ?? this.currentState.parent
-    }
-
-    /**
-     * The target children
-     */
-    @cached get children() : ReadonlyArray<Node3D> {
-        const currentChildren = this.currentChildren
-        const targetChildren = currentChildren.slice()
-        targetChildren.filter(this._hasThisParent)
-        for (const adapter of this.system.nodeAdapters.values()) {
-            if (this._hasThisParent(adapter.node)) {
-                targetChildren.push(adapter.node)
-            }
+    @cached private _cachedParentNode(adapter?:SpatialAdapter) {
+        if (typeof adapter?.parentNode === 'undefined') {
+            return this.currentState.parent
         }
-        return targetChildren
-    }
-    private _hasThisParent = (n:Node3D) => {
-        return this.system.getMetrics(n).parentNode === this.node
+        return adapter?.parentNode
     }
     
     /**
      * The target parent metrics
      */
-    @cached get parentMetrics() {
+    get parentMetrics() {
         const parent = this.parentNode
         if (!parent) return null
         return this.system.getMetrics(parent)
     }
 
     /**
+     * The target children
+     */
+    get children() : ReadonlyArray<Node3D> {
+        return this._cachedChildren(this.update())
+    }
+    @cached private _cachedChildren(adapter?:SpatialAdapter) {
+        const children = this._children
+        children.length = 0
+        for (const child of this.currentState.children) {
+            const metrics = this.system.getMetrics(child)
+            if (metrics.parentNode === this.node) children.push(child)
+        }
+        if (adapter?.addedChildren?.size) {
+            for (const child of adapter.addedChildren) {
+                const metrics = this.system.getMetrics(child)
+                if (metrics.parentNode === this.node && !children.includes(child)) 
+                    children.push(child)
+            }
+        }
+        return children
+    }
+    private _children = [] as Node3D[]
+
+    /**
      * 
      */
     get opacity() : number {
-        return this._adapter?.opacity.target ?? this.currentState.opacity
+        const adapter = this.update()
+        return adapter?.opacity.target ?? this.currentState.opacity
     }
 
     /**
@@ -139,16 +144,21 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * 
      */
-    @tracked isBoundingContext = false
-    
+    get isBoundingContext() {
+        const adapter = this.update()
+        return adapter?.orientation.active || adapter?.bounds.active
+    }
+
     /**
      * The bounds of this node and non-adaptive child nodes in the local coordinate system
      */
     get innerBounds() {
-        if (this._adapter?.innerBounds.target) {
-            return this._innerBounds.copy(this._adapter.innerBounds.target)
-        }
-
+        this.update()
+        return this._cachedInnerBounds()
+    }
+    private _innerBounds = new Box3
+    private _childBounds = new Box3
+    @cached private _cachedInnerBounds() {
         const inner = this._innerBounds
         inner.copy(this.intrinsicBounds)
         const childBounds = this._childBounds
@@ -161,13 +171,11 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
         }
         return inner
     }
-    private _innerBounds = new Box3
-    private _childBounds = new Box3
     
     /**
      * inner center
      */
-    @cached get innerCenter() {
+    get innerCenter() {
         return this.innerBounds.getCenter(this._innerCenter)
     }
     private _innerCenter = new Vector3
@@ -175,43 +183,49 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * inner size
      */
-    @cached get innerSize() {
+    get innerSize() {
         return this.innerBounds.getSize(this._innerSize)
     }
     private _innerSize = new Vector3
 
-    @cached private get localComponents() {
-        const s = this.currentState
-        const c = this._localComponents
-        if (this._adapter) {
-            c.orientation.copy(this._adapter.orientation.target ?? s.orientation)
-
-            const layoutBounds = this._adapter.bounds.target 
-            if (layoutBounds) {
-                layoutBounds.getCenter(c.position)
-                layoutBounds.getSize(c.scale)
-                if (!this.innerBounds.isEmpty()) c.scale.divide(this.innerSize)
-                const scaledInnerCenter = this._scaledCenter.copy(this.innerCenter).multiply(c.scale)
-                c.position.sub(scaledInnerCenter)
-                this.parentMetrics && c.position.add(this.parentMetrics.worldCenter)
-                const worldMatrix = this._localComponentsMatrix.compose(c.position,c.orientation,c.scale)
-                const localMatrix = worldMatrix.premultiply(this.parentFromWorld)
-                localMatrix.decompose(c.position,c.orientation,c.scale)
-            } else {
-                c.position.copy(s.position)
-                c.scale.copy(s.scale)
-            }
-
-        } else {
-            c.position.copy(s.position)
-            c.orientation.copy(s.orientation)
-            c.scale.copy(s.scale)
-        }
-        return c
+    private get localComponents() {
+        return this._cachedLocalComponents(this.update())
     }
     private _scaledCenter = new Vector3
     private _localComponentsMatrix = new Matrix4
     private _localComponents = {position:new Vector3, orientation: new Quaternion, scale:new Vector3}
+    @cached private _cachedLocalComponents(adapter?:SpatialAdapter) {
+        const s = this.currentState
+        const c = this._localComponents
+
+        if (adapter?.orientation.active && adapter.orientation.target) {
+            c.orientation.copy(adapter.orientation.target)
+        } else {
+            c.orientation.copy(s.orientation)
+        }
+
+        if (adapter?.bounds.active && adapter.bounds.target) {
+            const layoutBounds = adapter.bounds.target
+            layoutBounds.getCenter(c.position)
+            layoutBounds.getSize(c.scale)
+            const scaleEpsillon = this.system.epsillonRatio
+            if (Math.abs(c.scale.x) <= scaleEpsillon) c.scale.x = (Math.sign(c.scale.x) || 1) * scaleEpsillon * 10
+            if (Math.abs(c.scale.y) <= scaleEpsillon) c.scale.y = (Math.sign(c.scale.y) || 1) * scaleEpsillon * 10
+            if (Math.abs(c.scale.z) <= scaleEpsillon) c.scale.z = (Math.sign(c.scale.z) || 1) * scaleEpsillon * 10
+            if (!this.innerBounds.isEmpty()) c.scale.divide(this.innerSize)
+            const scaledInnerCenter = this._scaledCenter.copy(this.innerCenter).multiply(c.scale)
+            c.position.sub(scaledInnerCenter)
+            this.parentMetrics && c.position.add(this.parentMetrics.worldCenter)
+            const worldMatrix = this._localComponentsMatrix.compose(c.position,c.orientation,c.scale)
+            const localMatrix = worldMatrix.premultiply(this.parentFromWorld)
+            localMatrix.decompose(c.position,c.orientation,c.scale)
+        } else {
+            c.position.copy(s.position)
+            c.scale.copy(s.scale)
+        }
+
+        return c
+    }
 
 
     /**
@@ -239,7 +253,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Inverse orientation relative to local origin
      */
-    @cached get localOrientationInverse() {
+    get localOrientationInverse() {
         return this._localOrientationInverse.copy(this.localOrientation).inverse()
     }
     private _localOrientationInverse = new Quaternion
@@ -247,7 +261,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Local rotation matrix
      */
-    @cached get localRotation() {
+    get localRotation() {
         return this._localRotation.makeRotationFromQuaternion(this.localOrientation)
     }
     private _localRotation = new Matrix4
@@ -255,7 +269,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Local Orientation matrix inverse
      */
-    @cached get localRotationInverse() {
+    get localRotationInverse() {
         return this._localRotationInverse.makeRotationFromQuaternion(this.localOrientationInverse)
     }
     private _localRotationInverse = new Matrix4
@@ -263,7 +277,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The local matrix
      */
-    @cached get parentFromLocal() {
+    get parentFromLocal() {
         return this._parentFromLocal.compose(this.localPosition, this.localOrientation, this.localScale)
     }
     private _parentFromLocal = new Matrix4
@@ -271,7 +285,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The inverse local matrix
      */
-    @cached get localFromParent() {
+    get localFromParent() {
         return this._localFromParent.getInverse(this.parentFromLocal)
     }
     private _localFromParent = new Matrix4
@@ -279,7 +293,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Convert to parent space from world space (the parent inverse world matrix)
      */
-    @cached get parentFromWorld() {
+    get parentFromWorld() {
         return this.parentMetrics ? this.parentMetrics.localFromWorld : this._identity.identity()
     }
     private _identity = new Matrix4
@@ -287,17 +301,21 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The world matrix
      */
-    @cached get worldFromLocal() : Matrix4 {
+    get worldFromLocal() : Matrix4 {
+        this.update()
+        return this._cachedWorldFromLocal()
+    }
+    private _worldFromLocal = new Matrix4
+    @cached private _cachedWorldFromLocal() {
         const worldFromParent = this.parentMetrics?.worldFromLocal
         if (!worldFromParent) return this._worldFromLocal.copy(this.parentFromLocal)
         return this._worldFromLocal.multiplyMatrices(worldFromParent, this.parentFromLocal)
     }
-    private _worldFromLocal = new Matrix4
 
     /**
      * The inverse world matrix
      */
-    @cached get localFromWorld() : Matrix4 {
+    get localFromWorld() : Matrix4 {
         return this._localFromWorld.getInverse(this.worldFromLocal)
     }
     private _localFromWorld = new Matrix4
@@ -305,7 +323,11 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * World components
      */
-    @cached private get worldComponents() {
+    private get worldComponents() {
+        this.update()
+        return this.cachedWorldComponents()
+    }
+    @cached private  cachedWorldComponents() {
         const c = this._worldComponents
         this.worldFromLocal.decompose(c.position, c.orientation, c.scale)
         return c
@@ -337,6 +359,10 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
      * The world bounds center
      */
     get worldCenter() {
+        this.update()
+        return this.cachedWorldCenter()
+    }
+    @cached private cachedWorldCenter() {
         return this._worldCenter.copy(this.innerCenter).applyMatrix4(this.worldFromLocal)
     }
     private _worldCenter = new Vector3
@@ -344,7 +370,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Inverse world orientation
      */
-    @cached get worldOrientationInverse() {
+    get worldOrientationInverse() {
         return this._worldOrientationInverse.copy(this.worldOrientation).inverse()
     }
     private _worldOrientationInverse = new Quaternion
@@ -352,7 +378,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * World orientation matrix
      */
-    @cached get worldOrientationMatrix() {
+    get worldOrientationMatrix() {
         return this._worldOrientationMatrix.makeRotationFromQuaternion(this.worldOrientation)
     }
     private _worldOrientationMatrix = new Matrix4
@@ -360,7 +386,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * World Orientation matrix inverse
      */
-    @cached get worldOrientationMatrixInverse() {
+    get worldOrientationMatrixInverse() {
         return this._worldOrientationMatrixInverse.makeRotationFromQuaternion(this.worldOrientationInverse)
     }
     private _worldOrientationMatrixInverse = new Matrix4
@@ -373,7 +399,11 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
      * 2) is rotated by the local orientation
      * 3) has unscaled world units (meters)
      */
-    @cached get worldFromLayout() {
+    get worldFromLayout() {
+        this.update()
+        return this._cachedWorldFromLayout()
+    }
+    @cached private _cachedWorldFromLayout() {
         const worldFromLayout = this._worldFromLayout
         const parentWorldCenter = this.parentMetrics?.worldCenter || V_000
         const parentWorldOrientation = this.parentMetrics?.worldOrientation || Q_IDENTITY
@@ -390,7 +420,11 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Convert to local space from layout space
      */
-    @cached get localFromLayout() {
+    get localFromLayout() {
+        this.update()
+        return this._cachedLocalFromLayout()
+    }
+    @cached private _cachedLocalFromLayout() {
         return this._localFromLayout.multiplyMatrices(this.localFromWorld, this.worldFromLayout)
     }
     private _localFromLayout = new Matrix4
@@ -398,7 +432,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Convert to layout space from local space
      */
-    @cached get layoutFromLocal() {
+    get layoutFromLocal() {
         return this._layoutFromLocal.getInverse(this.localFromLayout)
     }
     private _layoutFromLocal = new Matrix4
@@ -406,7 +440,11 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Convert to layout space from parent space
      */
-    @cached get layoutFromParent() {
+    get layoutFromParent() {
+        this.update
+        return this._cachedlayoutFromParent()
+    }
+    @cached private _cachedlayoutFromParent() {
         return this._layoutFromParent.multiplyMatrices(this.layoutFromLocal, this.localFromParent)
     }
     private _layoutFromParent = new Matrix4
@@ -414,14 +452,18 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The layout orientation
      */
-    @cached get layoutOrientation() {
+    get layoutOrientation() {
         return this.localOrientation
     }
     
     /**
      * The layout bounds 
      */
-    @cached get layoutBounds() {
+    get layoutBounds() {
+        this.update()
+        return this._cachedLayoutBounds()
+    }
+    @cached private _cachedLayoutBounds() {
         if (this.innerBounds.isEmpty()) {
             this._layoutBounds.setFromCenterAndSize(V_000,V_111)
         } else {
@@ -434,7 +476,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The layout size
      */
-    @cached get layoutSize() {
+    get layoutSize() {
         return this.layoutBounds.getSize(this._layoutSize)
     }
     private _layoutSize = new Vector3
@@ -442,7 +484,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The layout center
      */
-    @cached get layoutCenter() {
+    get layoutCenter() {
         return this.layoutBounds.getCenter(this._layoutCenter)
     }
     private _layoutCenter = new Vector3
@@ -450,7 +492,11 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The parent bounds in layout space
      */
-    @cached get outerBounds() {
+    get outerBounds() {
+        this.update()
+        return this._cachedOuterBounds()
+    }
+    @cached private _cachedOuterBounds() {
         const parentMetrics = this.parentMetrics
         if (!parentMetrics || parentMetrics?.innerBounds.isEmpty()) {
             this._outerBounds.setFromCenterAndSize(V_000,V_111)
@@ -464,7 +510,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * 
      */
-    @cached get outerCenter() {
+    get outerCenter() {
         return this.outerBounds.getCenter(this._outerCenter)
     }
     private _outerCenter = new Vector3
@@ -472,7 +518,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * 
      */
-    @cached get outerSize() {
+    get outerSize() {
         return this.outerBounds.getSize(this._outerSize)
     }
     private _outerSize = new Vector3
@@ -480,7 +526,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The layout bounds in proportional units ( identity with parent layout is center=[0,0,0] size=[1,1,1] )
      */
-    @cached get proportionalBounds() {
+    get proportionalBounds() {
         const proportional = this._proportionalBounds.copy(this.layoutBounds)
         proportional.min.divide(this.outerSize)
         proportional.max.divide(this.outerSize)
@@ -491,7 +537,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * Proportional size ( identity with parent layout is size=[1,1,1] )
      */
-    @cached get proportionalSize() {
+    get proportionalSize() {
         return this.proportionalBounds.getSize(this._proportionalSize)
     }
     private _proportionalSize = new Vector3
@@ -500,7 +546,11 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The view space from local space
      */
-    @cached get viewFromLocal() {
+    get viewFromLocal() {
+        this.update()
+        return this._cachedViewFromLocal()
+    }
+    @cached private _cachedViewFromLocal() {
         if (this.parentMetrics === this.system.viewMetrics) return this._viewFromLocal.copy(this.parentFromLocal)
         return this._viewFromLocal.multiplyMatrices(this.system.viewMetrics.localFromWorld, this.worldFromLocal)
     }
@@ -509,7 +559,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The view projection space from lacal space
      */
-    @cached get viewProjectionFromLocal() {
+    get viewProjectionFromLocal() {
         return this._viewProjectionFromLocal.multiplyMatrices(this.system.viewFrustum.perspectiveProjectionMatrix, this.viewFromLocal)
     }
     private _viewProjectionFromLocal = new Matrix4
@@ -518,9 +568,13 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The frustum of this node relative to the view
      */
-    @cached get viewFrustum() {
+    get viewFrustum() {
+        this.update()
+        return this._cachedViewFrustum()
+    }
+    @cached private _cachedViewFrustum() {
         const viewBounds = this._viewBounds.copy(this.innerBounds).applyMatrix4(this.viewProjectionFromLocal)
-        const viewPerspectiveMatrix =this._viewPerspective.makePerspective(
+        const viewPerspectiveMatrix = this._viewPerspective.makePerspective(
             viewBounds.min.x, viewBounds.max.x,
             viewBounds.min.y, viewBounds.max.y,
             viewBounds.min.z, viewBounds.max.z

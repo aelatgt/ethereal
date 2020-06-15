@@ -12,7 +12,7 @@ import {
     Transitionable,
     TransitionableConfig,
     MathType
-} from "@etherealjs/core/mod.ts"
+} from "@etherealjs/core/mod"
 
 import type * as THREE from 'three'
 
@@ -91,13 +91,17 @@ export const system = new EtherealSystem(DefaultBindings)
 export const metrics = system.getMetrics
 
 export function adapt<T extends Node3D>(node:T, cb:(adapter:SpatialAdapter<T>) => void) {
-    cb(system.getAdapter(node))
+    const adapter = system.getAdapter(node)
+    adapter.orientation.start = adapter.orientation.target = adapter.metrics.layoutOrientation
+    adapter.bounds.start = adapter.bounds.target = adapter.metrics.layoutBounds
+    adapter.opacity.start = adapter.opacity.target = adapter.metrics.opacity
+    cb(adapter)
 }
 
 export const transitionable = system.createTransitionable
 
 export const objective = SpatialOptimizer.objective
 
-export * from '@etherealjs/core/mod.ts'
+export * from '@etherealjs/core/mod'
 
-export * from '@etherealjs/web-layer/mod.ts'
+export * from '@etherealjs/web-layer/mod'

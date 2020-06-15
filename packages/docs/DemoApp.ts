@@ -6,9 +6,15 @@ import {BufferGeometryUtils} from 'three/examples/jsm/utils/BufferGeometryUtils'
 import { GlobalAdaptivityDemo } from './demos/GlobalAdaptivityDemo'
 import { DemoBase } from './demos/DemoBase'
 // import { EtherealSystem, TrackedNodeState, Node3D, Box3D } from '@etherealjs/core'
-import { system, adapt, metrics, easing, SphericalCoordinate } from 'ethereal'
+import { system, adapt, metrics, easing, transitionable, SphericalCoordinate, V_000 } from 'ethereal/mod'
+
+import * as ethereal from 'ethereal/mod'
 
 export class DemoApp extends AppBase {
+
+    ethereal = ethereal
+    publicUrl = process.env.PUBLIC_URL ?? '/'
+
     gltfLoader = new GLTFLoader()
     cubeTextureLoader = new THREE.CubeTextureLoader()
 
@@ -25,9 +31,14 @@ export class DemoApp extends AppBase {
     
     surfaceAboveBed = new THREE.Mesh(this.plane)
 
-    viewpoint = new THREE.Object3D()
-    belowRoomViewpoint = new THREE.Object3D()
-    roomViewpoint = new THREE.Object3D()
+    viewTarget!: THREE.Object3D
+    belowRoomViewTarget = new THREE.Object3D()
+    roomViewTarget = new THREE.Object3D()
+
+    cameraMovement = transitionable(1, {
+        duration:2, 
+        easing: easing.easeIn
+    })
 
     constructor() {
         super()
@@ -39,48 +50,39 @@ export class DemoApp extends AppBase {
         this.loadRoom()
         this.setupLights()
         this.camera.rotateZ(Math.PI)
-        this.scene.add(this.viewpoint)
-
-        // const cameraMovement = transitionable(1, {
-        //     duration:2, 
-        //     easing: easing.easeIn
-        // })
         
         // const dollyDistance = transitionable(2, {duration:0})
 
-        let cameraMovement = 1
-        let dollyDistance = 2
+        // let cameraMovement = 1
+        // let dollyDistance = 2
         
-        adapt(this.dolly, ({transition, layout, node}) => {
-            transition.debounce = 0
-            transition.delay = 0
-            transition.easing = easing.easeInOut
-            // add a layout to manage pose
-            layout(layout => {
-                const viewpointMetrics = metrics(this.viewpoint)
-                this.viewpoint.localToWorld(node.position.set(0,0,dollyDistance))
-                node.updateWorldMatrix(true, false)
-                node.lookAt(viewpointMetrics.worldPosition as any)
-                layout.setFromNodeState(node)
-            }) // memoization enabled by default, tracking viewpoint metrics
-            // set the initial states
-            node.position.set(0,-50,0)
+        adapt(this.dolly, (adapter) => {
+            adapter.transition.debounce = 0
+            adapter.transition.delay = 0
+            adapter.transition.duration = 4
+            adapter.transition.easing = easing.easeInOut
+
+            adapter.behavior(() => {
+                const viewpointMetrics = metrics(this.viewTarget)
+                adapter.bounds.target?.setFromCenterAndSize(viewpointMetrics.worldPosition, V_000)
+                adapter.orientation.target = viewpointMetrics.worldOrientationInverse
+            })
+            
+            // set the initial state
+            this.dolly.position.set(0,-50,0)
         })
 
         adapt(this.camera, (adapter) => {
             adapter.transition.easing = easing.easeInOut
-            // disable this adapter when not presenting 
-            adapter.layout((layout) => {
-                adapter.enabled = !!this.xrPresenting
-                if (adapter.enabled) {
-                    const viewpointMetrics = metrics(this.viewpoint)
-                    spherical.setWithDegrees(-this.pointer.x * 90, -this.pointer.y * 90, cameraMovement)
-                    spherical.toCartesianPosition(this.camera.position as any)
+            adapter.behavior(() => {
+                if (!this.xrPresenting) {
+                    const viewpointMetrics = metrics(this.viewTarget)
+                    spherical.setWithDegrees(-this.pointer.x * 90, -this.pointer.y * 90, this.cameraMovement.current)
+                    spherical.toCartesianPosition(this.camera.position)
                     this.camera.updateMatrixWorld()
-                    this.camera.lookAt( viewpointMetrics.worldPosition as any)
-                    layout.setFromNodeState(this.camera)
+                    this.camera.lookAt( viewpointMetrics.worldPosition )
                 }
-            }, false) // disable memoization since `xrPresenting` is not a tracked property
+            }) // disable memoization 
         })
         
         let scrollFactor = 0
@@ -91,14 +93,12 @@ export class DemoApp extends AppBase {
 
             if (!this.xrPresenting) {
                 scrollFactor = window.scrollY / window.innerHeight
-                dollyDistance = 2
-                cameraMovement = 15
+                this.cameraMovement.target = 15
 
-                this.viewpoint = this.roomViewpoint
+                this.viewTarget = this.roomViewTarget
                 if (scrollFactor < 0.03) {
-                    this.viewpoint = this.belowRoomViewpoint
-                    dollyDistance = 15
-                    cameraMovement = 1
+                    this.viewTarget = this.belowRoomViewTarget
+                    this.cameraMovement.target = 1
                 } else if (scrollFactor > 0.1) {
                     // nextTarget = demos[scrollFactor]
                 }
@@ -131,16 +131,16 @@ export class DemoApp extends AppBase {
         // this.target.transitioner.active = true
         // this.target.transitioner.easing = easing.easeIn
 
-        this.scene.add(this.belowRoomViewpoint)
-        this.belowRoomViewpoint.position.y = 0
-        this.belowRoomViewpoint.rotateX(Math.PI/2*0.99)
-        this.belowRoomViewpoint.add(new THREE.AxesHelper(2))
+        this.scene.add(this.belowRoomViewTarget)
+        this.belowRoomViewTarget.position.y = 0
+        this.belowRoomViewTarget.rotateX(Math.PI/2*0.99)
+        this.belowRoomViewTarget.add(new THREE.AxesHelper(2))
 
-        this.room.add(this.roomViewpoint)
-        this.roomViewpoint.rotateY(Math.PI/4)
+        this.room.add(this.roomViewTarget)
+        this.roomViewTarget.rotateY(Math.PI/4)
         // this.roomTarget.layout.forceBoundingContext = true
         // this.roomTarget.layout.inner.setFromCenterAndSize(V_000, V_000)
-        this.roomViewpoint.add(new THREE.AxesHelper)
+        this.roomViewTarget.add(new THREE.AxesHelper)
 
         // add demos
         let globalAdaptivityDemo = new GlobalAdaptivityDemo()
@@ -153,7 +153,7 @@ export class DemoApp extends AppBase {
     }
 
     loadSky() {
-		const path = "textures/skies/space5/"
+		const path = `${this.publicUrl}static/textures/skies/space5/`
 		const format = ".jpg";
 		const urls = [
 			path + "px" + format, path + "nx" + format,
@@ -173,7 +173,7 @@ export class DemoApp extends AppBase {
         // this.room.layout.absolute.max.set(NaN, 6, NaN) // ceiling at 6 meters
         // this.room.layout.fit = 'fill' // contain mesh within layout bounds (default behavior)
 
-        this.gltfLoader.load('/models/stylized_room/scene.gltf', (gltf) => {
+        this.gltfLoader.load(`${this.publicUrl}static/models/stylized_room/scene.gltf`, (gltf) => {
             const geometries = [] as THREE.BufferGeometry[]
             gltf.scene.scale.setScalar(0.01)
             gltf.scene.position.y = 8

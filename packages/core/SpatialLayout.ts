@@ -327,18 +327,18 @@ export class SpatialLayout {
     private _constraints = new TrackedArray<ConstraintFunction>()
 
     constructor(public system:EtherealSystem) {
-        Object.seal(this) // seal to preserve call-site monomorphism
+        // Object.seal(this) // seal to preserve call-site monomorphism
     }
 
     /***/
-    @tracked userData? : any
+    userData? : any
     
     /**
      * The parent node 
      * If `undefined`, target parent is the current parent
      * if `null`, this node is considered as flagged to be removed
      */
-    @tracked parentNode? : Node3D|null
+    parentNode? : Node3D|null
 
     /**
      * 
@@ -356,7 +356,7 @@ export class SpatialLayout {
      * The local position constraint spec (local units are ambigious).
      * Copies on assignment
      */
-    @tracked position?: Vector3Spec = {
+    position?: Vector3Spec = {
         x:{ min:-1e6, max:1e6 },
         y:{ min:-1e6, max:1e6 },
         z:{ min:-1e6, max:1e6 }
@@ -368,7 +368,7 @@ export class SpatialLayout {
     /**
      * The local orientation constraint spec
      */
-    @tracked orientation? : QuaternionSpec
+    orientation? : QuaternionSpec
     orientationConstraint = this.addDefaultConstraint((m) => {
         return Constraint.getQuaternionPenalty(m.localOrientation, this.orientation, m.system.epsillonDegrees)
     })
@@ -376,7 +376,7 @@ export class SpatialLayout {
     /**
      * The local scale constraint spec
      */
-    @tracked scale?: Vector3Spec = {
+    scale?: Vector3Spec = {
         x:{ min:1e-6, max:1e6 },
         y:{ min:1e-6, max:1e6 },
         z:{ min:1e-6, max:1e6 }
@@ -388,7 +388,7 @@ export class SpatialLayout {
     /**
      * The opacity constraint spec
      */
-    @tracked opacity?: NumberSpec
+    opacity?: NumberSpec
     opacityConstraint = this.addDefaultConstraint((m) => {
         return Constraint.getNumberPenalty(m.opacity, this.opacity)
     })
@@ -484,17 +484,17 @@ export class SpatialLayout {
     /**
      * Pull influence
      */
-    @tracked pull?: PullSpec
+    pull?: PullSpec
 
     /**
      * Visual-space pull influence
      */
-    @tracked visualPull?: PullSpec
+    visualPull?: PullSpec
 
     /**
      * Occluders to minimize visual overlap with
      */
-    @tracked occluders?: Node3D[]
+    occluders?: Node3D[]
 
     /**
      * The default constraints applied to this layout
@@ -514,18 +514,16 @@ export class SpatialLayout {
      * Add a new layout constraint
      */
     protected addDefaultConstraint( constraint: ConstraintFunction  ) : ConstraintFunction {
-        const c = memo(constraint)
-        this.defaultConstraints.push(c)
-        return c
+        this.defaultConstraints.push(constraint)
+        return constraint
     }
 
     /**
      * Add a new layout constraint
      */
     addConstraint( constraint: ConstraintFunction ) : ConstraintFunction {
-        const c = memo(constraint)
-        this.constraints.push(c)
-        return c
+        this.constraints.push(constraint)
+        return constraint
     }
 
     /**
@@ -539,7 +537,7 @@ export class SpatialLayout {
     get solutions() {
         return this.#solutions
     }
-    #solutions = new TrackedArray<LayoutSolution>()
+    #solutions = new Array<LayoutSolution>()
 
     /**
      * The optimization iteration
@@ -693,6 +691,7 @@ export class LayoutSolution {
     }
 
     perturb(scale=this.stepScale, visualDistance:number) {
+        if (visualDistance < 1e-6) visualDistance = 1e-6
         this.orientation.multiply(LayoutSolution.randomQuaternion(LayoutSolution._scratchQ, scale, scale))
         const stepSizeMeters = scale * visualDistance
         this.bounds.min.x += LayoutSolution.gaussian(0, stepSizeMeters)

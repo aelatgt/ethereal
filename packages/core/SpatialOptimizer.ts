@@ -1,5 +1,5 @@
 import { EtherealSystem } from './EtherealSystem'
-import { tracked, cached } from './tracking'
+import { tracked } from './tracking'
 import { Vector3, computeRelativeDifference, Ray } from './math'
 import { 
     LayoutSolution, 
@@ -17,7 +17,7 @@ export class OptimizerConfig {
     /**
      * The solution swarm size for each layout
      */
-    @tracked swarmSize? : number
+    swarmSize? : number
 
     /**
      * The objectives used to evaluate fitness and thereby rank layout solutions.
@@ -25,12 +25,12 @@ export class OptimizerConfig {
      * 
      * @see `SpatialOptimizer.rankSolutions` to understand how solutions are ranked. 
      */
-    @tracked objectives? : Array<LayoutObjective>
+    objectives? : Array<LayoutObjective>
 
     /**
      * This mutation success rate at which exploration and exploitation are considered balanced
      */
-    @tracked targetSuccessRate? : number //  = 0.2
+    targetSuccessRate? : number //  = 0.2
 
     /**
      * The degree to which the search parameters (pulse rate and step size) should be modified based on the success rate
@@ -39,22 +39,22 @@ export class OptimizerConfig {
      * If the success rate is above the `targetSuccessRate`, the pulse rate and step size are divided by this factor
      * Otherwise, the pulse rate and step size remain the same
      */
-    @tracked adaptivityFactor? : number //  = 0.85
+    adaptivityFactor? : number //  = 0.85
     
     /**
      * The smoothing window that determines the current success rate used for strategy adaptation
      */
-    @tracked adaptivityInterval? : number // = 20
+    adaptivityInterval? : number // = 20
     
     /**
      * The minimal distance that a pulse will cause movement towards a better solution
      */
-    @tracked minPulseFrequency? : number // = 0
+    minPulseFrequency? : number // = 0
     
     /**
      * The minimal distance that a pulse will cause movement towards a better solution
      */
-    @tracked maxPulseFrequency? : number // = 2
+    maxPulseFrequency? : number // = 2
 }
 
 /**
@@ -205,7 +205,7 @@ export class SpatialOptimizer {
 
     /** Default config */
     defaults = new OptimizerConfig({
-        swarmSize: 30,
+        swarmSize: 20,
         objectives: [{fitness: (metrics) => metrics.viewFrustum.area}],
         targetSuccessRate: 0.2, // Rechenberg 1/5th mutation rule
         adaptivityFactor: 0.9925, // slowly increase/decrease exploration/exploitation parameters
@@ -217,7 +217,7 @@ export class SpatialOptimizer {
     /**
      * Max iteractions per layout, per frame
      */
-    maxIterationsPerLayout = 10
+    maxIterationsPerLayout = 1
 
     /**
      * Optimize the layouts defined on this adapter
@@ -265,7 +265,8 @@ export class SpatialOptimizer {
                     } else { // exploit!
                         // gaussian random walk
                         newSolution.bounds.getCenter(solutionCenter)
-                        const solutionDistance = solutionCenter.applyMatrix4(adapter.metrics.viewFromLocal).length()
+                        let solutionDistance = solutionCenter.applyMatrix4(adapter.metrics.viewFromLocal).length() 
+                        if (solutionDistance < 1e6) solutionDistance = 0.1                 
                         newSolution.perturb(solution.stepScale, solutionDistance)
                     }
 
@@ -357,7 +358,7 @@ export class SpatialOptimizer {
      * Positive penalty means the solution is infeasible (constraints are violated).
      * Negative or 0 penalty means the solution is feasible.
      */
-    @cached private _computeSolutionPenalty(adapter:SpatialAdapter, layout:SpatialLayout, solution:LayoutSolution) {
+    private _computeSolutionPenalty(adapter:SpatialAdapter, layout:SpatialLayout, solution:LayoutSolution) {
         const metrics = adapter.metrics
         let maxPenalty = 0
         for (const c of layout.defaultConstraints) {
@@ -371,7 +372,7 @@ export class SpatialOptimizer {
 
     /** The highest the score, the better the fitness. 
      */
-    @cached private _computeSolutionScores(adapter:SpatialAdapter, layout:SpatialLayout, solution:LayoutSolution) {
+    private _computeSolutionScores(adapter:SpatialAdapter, layout:SpatialLayout, solution:LayoutSolution) {
         solution.objectives = adapter.optimize.objectives ?? this.defaults.objectives
         for (const [i,obj] of solution.objectives.entries()) {
             solution.scores[i] = obj.fitness(adapter.metrics, layout)

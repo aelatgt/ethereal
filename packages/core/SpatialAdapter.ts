@@ -1,9 +1,9 @@
 import { EtherealSystem, Node3D } from './EtherealSystem'
-import { cached, tracked, TrackedArray, memo } from './tracking'
+import { tracked, TrackedArray, isTracking } from './tracking'
 import { SpatialLayout } from './SpatialLayout'
 import { Transitionable, TransitionableConfig } from './SpatialTransitioner'
 import { OptimizerConfig } from './SpatialOptimizer'
-import { Quaternion, Box3 } from './math'
+import { Quaternion, Box3, V_000, V_111 } from './math'
 import { SpatialMetrics } from './SpatialMetrics'
 
 
@@ -33,28 +33,19 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
          */
         public system:EtherealSystem,
         /**
-         * The wrapped third-party scenegraph node
+         * The wrapped third-party scenegraph nodes
          */
         public node:T
     ) {
         this.metrics = this.system.getMetrics(this.node)
-        this.metrics.isBoundingContext = true
-        this.parentNode = this.metrics.parentNode
-        this.innerBounds = this.system.createTransitionable(this.metrics.innerBounds, undefined, this.transition)
-        this.orientation = this.system.createTransitionable(this.metrics.layoutOrientation, undefined, this.transition)
-        this.bounds = this.system.createTransitionable(this.metrics.layoutBounds, undefined, this.transition)
-        this.opacity = this.system.createTransitionable(this.metrics.opacity, undefined, this.transition)
+        this.orientation = this.system.createTransitionable(new Quaternion, undefined, this.transition)
+        this.bounds = this.system.createTransitionable(new Box3().setFromCenterAndSize(V_000,V_111), undefined, this.transition)
+        this.opacity = this.system.createTransitionable(0, undefined, this.transition)
         this.orientation.synced = true
         this.bounds.synced = true
         this.opacity.synced = true
-        this.needsUpdate = true
-        this.enabled = true
+        this.metrics.needsUpdate = true
     }
-
-    /**
-     * If false, the adapter will not modify the underlying node state
-     */
-    @tracked enabled = false
 
     /**
      * 
@@ -77,12 +68,30 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
      * If `undefined`, target parent is the current parent
      * if `null`, this node is considered as flagged to be removed
      */
-    @tracked parentNode? : Node3D | null
+    set parentNode(p: Node3D|null|undefined) {
+        const currentParent = this.metrics.parentNode
+        this._parentNode = p
+        if (p === currentParent) return
+        if (currentParent) {
+            const parentAdapter = this.system.getAdapter(currentParent)
+            parentAdapter.addedChildren.delete(this.node)
+            parentAdapter.addedChildren = parentAdapter.addedChildren
+        }
+        if (p) {
+            const parentAdapter = this.system.getAdapter(p)
+            parentAdapter.addedChildren.add(this.node)
+            parentAdapter.addedChildren = parentAdapter.addedChildren
+        }
+    }
+    get parentNode() {
+        return this._parentNode
+    }
+    @tracked private _parentNode? : Node3D | null
 
     /**
-     * Transitionable inner bounds
+     * Children that are to be added to this node
      */
-    readonly innerBounds : Transitionable<Box3>
+    @tracked addedChildren = new Set<Node3D>()
 
     /**
      * Transitionable layout orientation                                                                          
@@ -112,20 +121,19 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
 
     /**
      * Add a behavior. 
-     * By default, the behavior is memoized. 
      */
-    behavior = (cb:()=>void, memoized = true) => {
-        const behavior = memoized ? memo(cb) : cb
-        this.behaviors.push(behavior)
+    behavior = (cb:()=>void) => {
+        this.behaviors.push(cb)
     }
 
     /**
      * Add a layout with an associated behavior.
      * By default, the behavior is memoized. 
      */
-    layout = (cb:(layout:SpatialLayout)=>void, memoized?:boolean) => {
+    layout = (cb:(layout:SpatialLayout)=>void) => {
         const layout = new SpatialLayout(this.system)
-        this.behavior(() => cb(layout), memoized)
+        this.layouts.push(layout)
+        this.behavior(() => cb(layout))
     }
 
 
@@ -143,30 +151,9 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
     // }
 
     /**
-     * Update if necessary
+     * Update if necessary\
      */
-    update(force=false) {
-        if (this.isRunningBehaviors) {
-            console.warn(`Reactive behavior cycle detected. Make sure behaviors are not cyclically dependent`)
-            return
-        }
-        if (this.isUpdating) return // applying solutions while optimizing will trigger updates
-        if (!this.needsUpdate && !force) return
-        this.needsUpdate = false
-        this.isUpdating = true
-        this.isRunningBehaviors = true
-        for (const b of this.behaviors) b()
-        this.isRunningBehaviors = false
-        if (this.enabled) this.system.optimizer.update(this)
-        this.orientation.update(force)
-        this.opacity.update(force)
-        this.bounds.update(force)
-        this.isUpdating = false
-    }
-
-    /** */
-    needsUpdate = true
-    isUpdating = false
-    isRunningBehaviors = false
+    // update(force=false) {
+    // }
 
 }

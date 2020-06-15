@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import {WebLayer3D} from 'ethereal'
+import { WebLayer3D } from 'ethereal/mod'
 import { BlendFunction, BloomEffect, SMAAEffect, SMAAPreset, SSAOEffect, EffectComposer, EffectPass, NormalPass, RenderPass } from "postprocessing"
 
 export interface EnterXREvent {
@@ -254,7 +254,7 @@ export default class AppBase {
     }
 
     public get xrPresenting() {
-        return (this.renderer.vr as any).isPresenting()
+        return this.renderer.xr.isPresenting
     }
 
     // public get device() {

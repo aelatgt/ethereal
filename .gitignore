@@ -65,6 +65,4 @@ temp
 dist
 lib
 
-# Rush files
-common/temp/**
-.rush/temp/**
+.DS_Store

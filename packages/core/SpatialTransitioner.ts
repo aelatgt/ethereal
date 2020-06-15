@@ -114,8 +114,10 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
         public parentConfig:TransitionableConfig = system.transitioner.defaults)
     {
         super(config)
-        this._start = startValue as TransitionableType<T>
-        this._current = startValue as TransitionableType<T>
+        const v = startValue as TransitionableType<T>
+        this._start = this._copy(this._start, v)
+        this._current = this._copy(this._current, v)
+        this._target = this._copy(this._target, v)
     }
 
     private _copy(to?:TransitionableType<T>, from?:TransitionableType<T>) {
@@ -128,7 +130,8 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
         if (from === to) return true
         const epsillon = (this.start as Quaternion).isQuaternion ? 
             this.system.epsillonDegrees : this.system.epsillonMeters
-        return from && to ? computeRelativeDifference(from, to) > epsillon : false
+        return typeof from === 'number' && typeof to === 'number' ? 
+            computeRelativeDifference(from, to) < epsillon : false
     }
 
     /**
@@ -177,13 +180,14 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
      * before settling on one.
      */
     set target(value:TransitionableType<T>|undefined) {
+        this.active = true
         if (this._isEqual(this._target, value)) return
         this._target = this._copy(this._target, value)
     }
     get target() {
         return this._target
     }
-    @tracked private _target?: TransitionableType<T>
+    @tracked private _target!: TransitionableType<T>
 
     
     /**
@@ -191,6 +195,11 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
      * (whose durations have not yet been exceeded)
      */
     readonly transitions: Transition<T>[] = new TrackedArray
+
+    /**
+     * If false, this transitionable is inert
+     */
+    @tracked active = false
 
     /**
      * If true, when another synced transitionable attached
@@ -209,14 +218,15 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
      */
     @cached get relativeDifference() {
         const lastTarget = this.transitions[this.transitions.length-1]?.target || this.start
-        return computeRelativeDifference(lastTarget, this.target)
+        return typeof this.target !== 'undefined' ? computeRelativeDifference(lastTarget, this.target) : 0
     }
 
     /**
      * The relative difference between the target and reference value
      */
     @cached get referenceRelativeDifference() {
-        return this.reference ? computeRelativeDifference(this.reference, this.target) : Infinity
+        return typeof this.reference !== 'undefined' && typeof this.target !== 'undefined' ? 
+            computeRelativeDifference(this.reference, this.target) : Infinity
     }
 
     /**
@@ -288,6 +298,7 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
      * 
      */
     update(force=false) {
+        if (!this.active) return
         if (!this.needsUpdate && !force) return
         this.needsUpdate = false
         this.system.transitioner.update(this, this.system.deltaTime)

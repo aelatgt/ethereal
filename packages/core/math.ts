@@ -120,8 +120,7 @@ export * from 'three/src/math/MathUtils'
 * If there is no change, the relative difference is 0
 * Otherwise, the relative difference is positive. 
 */
-export function computeRelativeDifference<T extends MathType = MathType>(start:T, end?:T) {
-    if (!end) return 0
+export function computeRelativeDifference<T extends MathType = MathType>(start:T, end:T) {
     if (typeof start === 'number') return computedRelativeDifferenceNumber(start, end as number)    
     if ('isVector3' in start) return computedRelativeDifferenceVector3(start as Vector3, end as Vector3)    
     if ('isVector2' in start) return computedRelativeDifferenceVector2(start as Vector2, end as Vector2)    

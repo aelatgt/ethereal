@@ -1,14 +1,17 @@
 {
   "name": "root",
-  "private": true,
   "author": "Gheric Speiginer",
   "license": "MIT",
+  "private": true,
   "scripts": {
-    "postinstall": "lerna bootstrap",
+    "install": "lerna exec -- rm -rf ./node_modules && lerna exec -- npm i",
     "build": "npm run clean && npm run bundle",
-    "clean": "rm -rf .parcel-cache && lerna exec -- rm -rf ./dist",
-    "bundle": "lerna exec -- rm -rf ./dist && tsc -b && parcel build packages/ethereal",
-    "start": "ln -sf ../packages/docs/static ./docs/static && parcel serve packages/docs/index.html --host 0.0.0.0 --dist-dir docs",
+    "clean-cache": "rm -rf .parcel-cache",
+    "clean-dist": "lerna exec -- rm -rf ./dist && rm -rf docs",
+    "clean": "npm run clean-cache && npm run clean-dist",
+    "prepare-docs": "PUBLIC_URL=/ethereal/ && npm run clean-dist && mkdir docs && ln -sf ../packages/docs/static ./docs/static",
+    "bundle": "npm run prepare-docs && parcel build packages/docs --dist-dir docs --public-url $PUBLIC_URL && parcel build packages/ethereal",
+    "start": "npm run prepare-docs && parcel serve packages/docs --dist-dir docs --host 0.0.0.0 ",
     "start-web-layer": "parcel packages/web-layer/src/example/index.html --host 0.0.0.0",
     "release": "lerna publish",
     "test": "ava"
@@ -32,13 +35,6 @@
     "rimraf": "~3.0.0",
     "three": "^0.113.2",
     "typescript": "^3.9.3"
-  },
-  "dependencies": {
-    "@etherealjs/core": "file:packages/core",
-    "@etherealjs/web-layer": "file:packages/web-layer",
-    "@etherealjs/web-layer-example": "file:packages/web-layer/example",
-    "ethereal": "file:packages/ethereal",
-    "ethereal-docs": "file:packages/docs"
   },
   "ava": {
     "extensions": [

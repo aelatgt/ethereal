@@ -89,7 +89,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
         this.orientedContainerTop.add(new THREE.AxesHelper(1))
         this.container.add(this.orientedContainerTop)
         adapt(this.orientedContainerTop, (adapter) => {
-            adapter.innerBounds.target = new Box3().makeEmpty()
+            // adapter.innerBounds.target = new Box3().makeEmpty()
             adapter.layout((layout)=>{
                 layout.bounds.bottom = {percent:50}
             })

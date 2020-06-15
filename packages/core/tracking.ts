@@ -1,29 +1,49 @@
+import { memo as memoizeFn, DirtyableTag, tagFor, trackedData } from '@glimmer/validator'
+export { isConst, isConstMemo, isTracking, tagFor, trackedData } from '@glimmer/validator'
 
-export { tracked } from '@glimmer/tracking'
+export const tracked: PropertyDecorator = (...args: any[]) => {
+  const [target, key, descriptor] = args
+  if (descriptor) {
+    return descriptorForField(target, key, descriptor)
+  }
+  Object.defineProperty(target, key, descriptorForField(target, key))
+}
 
-import { memo as memoizeFn, DirtyableTag } from '@glimmer/validator'
+type DecoratorPropertyDescriptor = (PropertyDescriptor & { initializer?: any }) | undefined;
 
-export { isConst, isConstMemo, isTracking, tagFor } from '@glimmer/validator'
+function descriptorForField<T extends object, K extends keyof T>(
+  _target: T,
+  key: K,
+  desc?: DecoratorPropertyDescriptor
+): PropertyDescriptor {
+  if (desc && (desc.value || desc.get || desc.set)) {
+    throw new Error(
+      `You attempted to use @tracked on ${key}, but that element is not a class field. @tracked is only usable on class fields. Native getters and setters will autotrack add any tracked fields they encounter, so there is no need mark getters and setters with @tracked.`
+    );
+  }
+  const { getter, setter } = trackedData<T, K>(key, desc && desc.initializer)
+  return {
+    enumerable: true,
+    configurable: true,
+    get(this: T): any {
+      return getter(this)
+    },
+    set(this: T, newValue: any): void {
+      setter(this, newValue)
+    },
+  }
+}
 
-// export function memo<T>(fn: () => T): () => T
-// export function memo(obj:any, key:string|symbol, desc:PropertyDescriptor): void
-// export function memo<T>(fnOrObj:() => T|any, key?:string|symbol, desc?:PropertyDescriptor): (() => T)|void {
-//   const fn : () => T = typeof fnOrObj === 'function' ? fnOrObj : desc?.get || desc?.value 
-//   const wrapped = memoizeTracked(fn)
-//   if (!key || !desc) return wrapped
-//   if (desc.value) desc.value = wrapped
-//   if (desc.get) desc.get = wrapped
-// }
-
-export function memo<F extends Function>(callback:F) : F {
+export function memo<F extends Function>(callback:F, debugContext?:any) : F {
   let _this:any
   let _args:any
-  const memoized = memoizeFn( () => callback.apply(_this, _args) )
-  return function (this:any,...args:any) {
+  const memoized = memoizeFn( () => callback.apply(_this, _args), debugContext )
+  const wrapped = function (this:any,...args:any) {
     _this = this
     _args = args
     return memoized()
   } as any
+  return wrapped
 }
 
 export function cached(target:any, key:string|symbol, desc:PropertyDescriptor): PropertyDescriptor {
@@ -34,7 +54,7 @@ export function cached(target:any, key:string|symbol, desc:PropertyDescriptor): 
     get() {
       let memoizedFn = memoMap.get(this)
       if (memoizedFn === undefined) {
-        memoizedFn = memo(fn.bind(this))
+        memoizedFn = memo(fn.bind(this), key)
         memoMap.set(this, memoizedFn)
       }
       if (isGetter) return memoizedFn()
@@ -86,6 +106,8 @@ function createArrayProxy<T>(arr: T[]) {
 
   let boundFns = new Map();
 
+  let prevProp = '' as string|number|Symbol
+
   return new Proxy(arr, {
     get(target, prop, receiver) {
       let index = convertToInt(prop);
@@ -99,10 +121,12 @@ function createArrayProxy<T>(arr: T[]) {
 
         consumeTag(tag);
         consumeTag(collectionTag);
+        prevProp = prop
 
         return target[index];
-      } else if (prop === 'length') {
+      } else if (prop === 'length' && prevProp !== 'push') {
         consumeTag(collectionTag);
+        prevProp = prop
       } else if (ARRAY_GETTER_METHODS.has(prop)) {
         let fn = boundFns.get(prop);
 
@@ -115,9 +139,11 @@ function createArrayProxy<T>(arr: T[]) {
           boundFns.set(prop, fn);
         }
 
+        prevProp = prop
         return fn;
       }
 
+      prevProp = prop
       return (target as any)[prop];
     },
 

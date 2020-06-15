@@ -3,11 +3,10 @@
     "version": "1.1.2",
     "module": "mod.ts",
     "peerDependencies": {
-      "three": "> 0.111"
+        "three": "> 0.111"
     },
-    "dependencies": { 
+    "dependencies": {
         "@popmotion/easing": "latest",
-        "@glimmer/tracking": "latest",
         "@glimmer/validator": "latest"
     }
 }

@@ -5,19 +5,16 @@
   "license": "MIT",
   "version": "1.1.2",
   "source": "index.html",
-  "default": "bla/index.html",
+  "browser": "../../docs/index.html",
   "targets": {
-    "default": {
+    "browser": {
       "publicUrl": "/ethereal/"
     }
   },
-  "staticFiles": {
-    "staticPath": "static",
-    "watcherGlob": "**"
-  },
   "dependencies": {
     "emotion": "latest",
-    "postprocessing": "latest"
+    "postprocessing": "latest",
+    "ethereal": "file:../ethereal"
   },
   "browserslist": [
     "last 1 chrome versions",

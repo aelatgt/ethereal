@@ -1,4 +1,4 @@
-import { tracked, TrackedMap } from './tracking'
+import { tracked, TrackedMap, isTracking } from './tracking'
 import { SpatialMetrics } from './SpatialMetrics'
 import { SpatialAdapter } from './SpatialAdapter'
 import { Vector2, Vector3, Quaternion, Box3, MathType } from './math'
@@ -12,20 +12,22 @@ import { LayoutFrustum } from './LayoutFrustum'
 export type Node3D = { __isSceneGraphNode: true }
 
 export class NodeState {
-    parent : Node3D|null = null
-    position  = new Vector3(0,0,0)
-    orientation = new Quaternion(0,0,0,1)
-    scale  = new Vector3(1,1,1)
-    opacity = 1
+    @tracked parent : Node3D|null = null
+    @tracked children: Node3D[] = []
+    @tracked position  = new Vector3(0,0,0)
+    @tracked orientation = new Quaternion(0,0,0,1)
+    @tracked scale  = new Vector3(1,1,1)
+    @tracked opacity = 1
 }
 
 /**
  * Bindings for a scenegraph node instance (glue layer)
  */
 export abstract class NodeBindings {
+    system?:EtherealSystem
     abstract getCurrentState(node:Node3D, state:NodeState) : NodeState
     abstract setCurrentState(node:Node3D, state:NodeState) : void
-    abstract getCurrentChildren(node:Node3D, children:Node3D[]) : void
+    // abstract getCurrentChildren(node:Node3D, children:Node3D[]) : void
     abstract getIntrinsicBounds(node:Node3D, bounds:Box3) : void
 }
 
@@ -34,7 +36,9 @@ export abstract class NodeBindings {
  */
 export class EtherealSystem {
 
-    constructor(public bindings:NodeBindings) {}
+    constructor(public bindings:NodeBindings) {
+        this.bindings.system = this
+    }
 
     epsillonMeters = 1e-8
     epsillonDegrees = 1e-8
@@ -80,12 +84,12 @@ export class EtherealSystem {
     /** 
      * SpatialMetrics for Node3D
      */
-    nodeMetrics = new TrackedMap<Node3D, SpatialMetrics>()
+    nodeMetrics = new Map<Node3D, SpatialMetrics>()
 
     /** 
      * SpatialAdapter for Node3D
      */
-    nodeAdapters = new TrackedMap<Node3D, SpatialAdapter>()
+    nodeAdapters = new Map<Node3D, SpatialAdapter>()
 
     /**
      * 
@@ -107,6 +111,7 @@ export class EtherealSystem {
         if (!metrics) {
             metrics = new SpatialMetrics(this, node)
             this.nodeMetrics.set(node, metrics)
+            // for (const c of metrics.children) this.getMetrics(c)
         }
         return metrics 
     }
@@ -144,18 +149,17 @@ export class EtherealSystem {
         this.deltaTime = Math.max(deltaTime, this.maxDeltaTime)
         this.time = time
 
-        for (const adapter of this.nodeAdapters.values()) {
-            adapter.needsUpdate = true
+        for (const metrics of this.nodeMetrics.values()) {
+            metrics.needsUpdate = true
         }
-
         for (const transitionable of this.transitionables) {
             transitionable.needsUpdate = true
         }
 
+        this.viewMetrics.update()
         for (const adapter of this.nodeAdapters.values()) {
-            adapter.update()
+            adapter.metrics.update()
         }
-        
         for (const transitionable of this.transitionables) {
             transitionable.update()
         }
