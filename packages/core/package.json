@@ -1,12 +1,12 @@
 {
-    "name": "@etherealjs/core",
-    "version": "1.1.2",
-    "module": "mod.ts",
-    "peerDependencies": {
-        "three": "> 0.111"
-    },
-    "dependencies": {
-        "@popmotion/easing": "latest",
-        "@glimmer/validator": "latest"
-    }
+  "name": "@etherealjs/core",
+  "version": "1.1.2",
+  "dependencies": {
+    "@popmotion/easing": "latest"
+  },
+  "module": "mod.js",
+  "peerDependencies": {
+    "three": ">=0.113.2"
+  },
+  "type": "module"
 }

@@ -1,1 +1,0 @@
-export let DEBUG = process.env.NODE_ENV === 'development' || false

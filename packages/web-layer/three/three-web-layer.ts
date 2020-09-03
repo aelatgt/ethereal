@@ -32,7 +32,7 @@ import {
 
 import { WebRenderer, WebLayer } from '../web-renderer'
 
-import {Bounds, getBounds, getViewportBounds, traverseChildElements } from '../dom-utils'
+import {Bounds, getBounds, getViewportBounds, traverseChildElements, DOM } from '../dom-utils'
 
 export interface WebLayer3DOptions {
   pixelRatio?: number
@@ -46,13 +46,14 @@ export type WebLayerHit = ReturnType<typeof WebLayer3D.prototype.hitTest> & {}
 
 const scratchVector = new Vector3()
 const scratchVector2 = new Vector3()
-const microtask = Promise.resolve()
 const scratchBounds = new Bounds()
 const scratchBounds2 = new Bounds()
 
 export class WebLayer3DBase extends Object3D {
-  constructor(public element: Element, public options: WebLayer3DOptions = {}) {
+  public element:Element
+  constructor(elementOrHTML: Element|string, public options: WebLayer3DOptions = {}) {
     super()
+    const element = this.element = typeof elementOrHTML === 'string' ? DOM(elementOrHTML) : elementOrHTML
     this.name = element.id
 
     // this.layout.forceBoundsExclusion = true
@@ -119,7 +120,7 @@ export class WebLayer3DBase extends Object3D {
     new MeshBasicMaterial({
       transparent: true,
       alphaTest: 0.001,
-      opacity: 0
+      opacity: 1
     })
   )
 
@@ -555,9 +556,12 @@ export class WebLayer3D extends WebLayer3DBase {
     // domUtils.traverseChildElements(rootLayer.element, WebLayer3D._setHoverClass)
   }
 
-  private static async _scheduleRefresh(rootLayer: WebLayer3D) {
-    await microtask
-    rootLayer.refresh()
+  private _doRefresh = () => {
+    this.refresh()
+  }
+
+  private static scheduleRefresh(rootLayer: WebLayer3D) {
+    WebRenderer.scheduleIdle(rootLayer._doRefresh)
   }
 
   // private static refreshBoundsQueue = [] as WebLayer3DBase[]
@@ -637,10 +641,10 @@ export class WebLayer3D extends WebLayer3DBase {
   private _raycaster = new Raycaster()
   private _hitIntersections = [] as Intersection[]
 
-  constructor(public element: Element, public options: WebLayer3DOptions = {}) {
-    super(element, options)
+  constructor(elementOrHTML: Element|string, public options: WebLayer3DOptions = {}) {
+    super(elementOrHTML, options)
 
-    this._webLayer = WebRenderer.createLayerTree(element, (event, { target }) => {
+    this._webLayer = WebRenderer.createLayerTree(this.element, (event, { target }) => {
       if (event === 'layercreated') {
         if (target === this.element) return
         const layer = new WebLayer3DBase(target, this.options)
@@ -692,7 +696,7 @@ export class WebLayer3D extends WebLayer3DBase {
     lerp = 1,
     updateCallback: (layer: WebLayer3DBase, lerp: number) => void = WebLayer3D.UPDATE_DEFAULT
   ) {
-    if (this.options.autoRefresh !== false) WebLayer3D._scheduleRefresh(this)
+    if (this.options.autoRefresh !== false && Math.random() > 0.8) WebLayer3D.scheduleRefresh(this)
     this.updateWorldMatrix(true, true)
     this.traverseLayers(updateCallback, lerp)
     WebLayer3D._updateInteractions(this)

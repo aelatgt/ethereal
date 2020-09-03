@@ -1,5 +1,5 @@
 
-import { cached, tracked, TrackedArray } from './tracking'
+// import { cached, tracked, TrackedArray } from './tracking'
 import { 
     Vector2, 
     Vector3, 
@@ -51,31 +51,32 @@ export const easing = easingImport as EasingModule
 export type TransitionableType<T extends MathType> = T extends number ? number : T // widen number literal types
 
 export class Transition<T extends MathType = MathType>{
-    constructor(
-        public target: TransitionableType<T>,
-        public duration: number,
-        public easing: Easing,
-        public blend = true
-    ) {}
-    public elapsed = 0
+    constructor(options?:Partial<Transition>) {
+        options && Object.assign(this, options)
+    }
+    public target?: TransitionableType<T>
+    public duration?: number
+    public easing?: Easing
+    public blend?: boolean
+    public elapsed?: number
 }
 
-export class TransitionableConfig {
-    constructor(config?:TransitionableConfig) {
+export class TransitionConfig {
+    constructor(config?:TransitionConfig) {
         config && Object.assign(this, config)
     }
     /**
      * A multiplier to influence the speed of the transition
      */
-    @tracked multiplier?: number
+    multiplier?: number
     /**
      * The duration of the easing function
      */
-    @tracked duration?: number 
+    duration?: number 
     /**
      * The easing function 
      */
-    @tracked easing?: (alpha:number) => number
+    easing?: (alpha:number) => number
     /**
      * The relative difference required to "stage" a transition.
      * 
@@ -83,42 +84,43 @@ export class TransitionableConfig {
      * 
      * A threshold of 0.1 can be interpreted as a relative difference of 10%. 
      */
-    @tracked threshold?: number
+    threshold?: number
     /**s
      * The number of seconds the `target` must be maintained
      * beyond the `threshold` to automatically "stage" a transition
      */
-    @tracked delay?: number
+    delay?: number
     /**
      * The number of seconds that the `stagedTarget` must remain 
      * stable to automatically "commit" a transition
      */
-    @tracked debounce?: number
+    debounce?: number
     /**
      * The maximum number of seconds before the `stagedTarget`
      * is committed
      */
-    @tracked maxWait?: number
+    maxWait?: number
     /**
      * If true, blend transitions together
      */
-    @tracked blend?: boolean
+    blend?: boolean
 }
 
-export class Transitionable<T extends MathType = MathType> extends TransitionableConfig {
+export class SpatialTransitioner<T extends MathType = MathType> extends TransitionConfig {
 
     constructor(
         public system:EtherealSystem, 
-        startValue:T,
-        config?:TransitionableConfig, 
-        public parentConfig:TransitionableConfig = system.transitioner.defaults)
+        startValue:MathType,
+        config?:TransitionConfig, 
+        public parentConfig:TransitionConfig = system.config.transition)
     {
         super(config)
-        const v = startValue as TransitionableType<T>
-        this._start = this._copy(this._start, v)
-        this._current = this._copy(this._current, v)
-        this._target = this._copy(this._target, v)
+        this.reset(startValue as TransitionableType<T>)
+        this._previousTarget = this._copy(this._previousTarget, this.target)
     }
+
+    /** */
+    needsUpdate = false
 
     private _copy(to?:TransitionableType<T>, from?:TransitionableType<T>) {
         if (typeof from === 'undefined') return undefined
@@ -126,12 +128,22 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
         return to ? (to as any).copy(from) : (from as any).clone()
     }
 
-    private _isEqual(to?:TransitionableType<T>, from?:TransitionableType<T>) {
-        if (from === to) return true
-        const epsillon = (this.start as Quaternion).isQuaternion ? 
-            this.system.epsillonDegrees : this.system.epsillonMeters
-        return typeof from === 'number' && typeof to === 'number' ? 
-            computeRelativeDifference(from, to) < epsillon : false
+    private _isEqual(a?:TransitionableType<T>, b?:TransitionableType<T>) {
+        if (a === undefined || b === undefined) return false
+        if (a === b) return true
+        if (typeof a === 'number') return a === b
+        return (a as any)?.equals(b) || false
+    }
+
+    /**
+     * Reset all states to the specified value, 
+     * and remove all ongoing transitions
+     */
+    reset(v:TransitionableType<T>) {
+        this._start = this._copy(this._start, v)
+        this._current = this._copy(this._current, v)
+        this._target = this._copy(this._target, v)
+        this.queue.length = 0
     }
 
     /**
@@ -144,12 +156,10 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
     get start() {
         return this._start
     }
-    @tracked private _start! : TransitionableType<T>
+    private _start! : TransitionableType<T>
     
     /**
      * The current value. 
-     * Reading this value causes the transitionable to update for the
-     * current frame, if it has not been updated already. 
      */
     set current(value:TransitionableType<T>) {
         if (this._isEqual(this._current, value)) return
@@ -159,10 +169,10 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
         this.update()
         return this._current
     }
-    @tracked private _current!: TransitionableType<T>
+    private _current!: TransitionableType<T>
 
     /**
-     * The value at the last "changed" state
+     * The "changed" reference value
      */
     set reference(value:TransitionableType<T>|undefined) {
         if (this._isEqual(this._reference, value)) return
@@ -171,15 +181,12 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
     get reference() {
         return this._reference
     }
-    @tracked private _reference? : TransitionableType<T>
+    private _reference? : TransitionableType<T>
 
     /**
-     * The desired target value. This value can be set or retrieved
-     * multiple times without causing the transitionable to be updated,
-     * which is useful for computing metrics against various target values,
-     * before settling on one.
+     * The target value. 
      */
-    set target(value:TransitionableType<T>|undefined) {
+    set target(value:TransitionableType<T>) {
         this.active = true
         if (this._isEqual(this._target, value)) return
         this._target = this._copy(this._target, value)
@@ -187,44 +194,52 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
     get target() {
         return this._target
     }
-    @tracked private _target!: TransitionableType<T>
+    private _target!: TransitionableType<T>
 
     
     /**
      * The queue of committed transitions that are still influencing the `current` value
      * (whose durations have not yet been exceeded)
      */
-    readonly transitions: Transition<T>[] = new TrackedArray
+    readonly queue: Required<Transition<T>>[] = []
 
     /**
      * If false, this transitionable is inert
      */
-    @tracked active = false
+    get active() {
+        return this._active
+    }
+    set active(val:boolean) {
+        if (this._active === val) return
+        this._active = val
+    }
+    private _active = false
 
     /**
-     * If true, when another synced transitionable attached
-     * to the same adapter is in state `commiting`, this
-     * transitionable will be too
+     * Force the next update to commit the target value,
+     * or the specified transition
      */
-    @tracked synced = false
-
-    /**
-     * Force the next update to commit the target value
-     */
-    @tracked forceCommit = false
+    get forceCommit() {
+        return this._forceCommit
+    }
+    set forceCommit(val: boolean | Transition<T>) {
+        if (this._forceCommit === val) return
+        this._forceCommit = val
+    }
+    private _forceCommit = false as boolean | Transition<T>
 
     /**
      * The relative difference between the target and last committed value.
      */
-    @cached get relativeDifference() {
-        const lastTarget = this.transitions[this.transitions.length-1]?.target || this.start
+    get relativeDifference() {
+        const lastTarget = this.queue[this.queue.length-1]?.target || this.start
         return typeof this.target !== 'undefined' ? computeRelativeDifference(lastTarget, this.target) : 0
     }
 
     /**
      * The relative difference between the target and reference value
      */
-    @cached get referenceRelativeDifference() {
+    get referenceRelativeDifference() {
         return typeof this.reference !== 'undefined' && typeof this.target !== 'undefined' ? 
             computeRelativeDifference(this.reference, this.target) : Infinity
     }
@@ -232,10 +247,10 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
     /**
      * The transition config after accounting for adapter and system defaults
      */
-    @cached get resolvedConfig() {
+    get resolvedConfig() {
         const r = this._resolvedConfig
         const adapterConfig = this.parentConfig
-        const systemConfig = this.system.transitioner.defaults
+        const systemConfig = this.system.config.transition
         r.multiplier = this.multiplier ?? adapterConfig?.multiplier ?? systemConfig.multiplier
         r.duration = this.duration ?? adapterConfig?.duration ?? systemConfig.duration
         r.easing = this.easing ?? adapterConfig?.easing ?? systemConfig.easing
@@ -246,33 +261,40 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
         r.blend = this.blend ?? adapterConfig?.blend ?? systemConfig.blend
         return r
     }
-    private _resolvedConfig = new TransitionableConfig as Required<TransitionableConfig>
+    private _resolvedConfig = new TransitionConfig as Required<TransitionConfig>
 
 
-    @tracked delayTime = 0
-    @tracked debounceTime = 0
-    @tracked waitTime = 0
+    delayTime = 0
+    debounceTime = 0
+    waitTime = 0
 
     /**
-     * Describes the state of the target value
+     * Describes the status of the target value
      * 
      * "unchanged" - the target value is unchanged relative to the last committed value
      * "changed" - the target value has changed relative to the `reference` value or last committed value
      * "settling" - the target value has changed, pending stabalization/timeout, or reversion to "unchanged" state
      * "committing" - the target value will be accepted as a new transition targets
      */
-    @cached get state() : 'unchanged'|'changed'|'settling'|'committing' {
+    get status() {
+        if (this.needsUpdate) {
+            this._status = this._computeStatus()
+        }
+        return this._status
+    }
+    private _status = 'unchanged'
+    private _computeStatus() : 'unchanged'|'changed'|'settling'|'committing' {
+
+        if (this.forceCommit) return 'committing'
+
         const config = this.resolvedConfig
+        const threshold = Math.max(config.threshold, 0.00001)
         const delta = this.system.deltaTime * config.multiplier
         const delay = this.delayTime + delta
         const debounce = this.debounceTime + delta
         const wait = this.waitTime + delta
         const relDiff = this.relativeDifference
-        const changed = relDiff >= config.threshold
-
-        if (typeof this.target === 'undefined') return 'unchanged'
-        
-        if (this.forceCommit) return 'committing'
+        const changed = relDiff > threshold
 
         if (!changed) return 'unchanged'
 
@@ -281,115 +303,70 @@ export class Transitionable<T extends MathType = MathType> extends Transitionabl
         }
 
         const refRelDiff = this.referenceRelativeDifference
-        const stable = refRelDiff < config.threshold
+        const stable = refRelDiff < threshold
 
         if (!stable && delay >= config.delay) {
             return 'changed'
         }
 
-        if (stable) {
-            return 'settling'
-        }
-
-        return 'unchanged'
+        return 'settling'
     }
 
     /**
      * 
      */
-    update(force=false) {
-        if (!this.active) return
-        if (!this.needsUpdate && !force) return
-        this.needsUpdate = false
-        this.system.transitioner.update(this, this.system.deltaTime)
-    }
+    private _updateTransitionable() {
+        const deltaTime  = this.system.deltaTime
+        const config = this.resolvedConfig
+        const queue = this.queue
+        const status = this.status
+        const delta = deltaTime * config.multiplier
 
-    /** */
-    needsUpdate = false
-}
+        // Hysteresis-Aware Target Change Trigger
 
-
-/**
- * Enables smooth interpolation of various kinds of values, with hysteresis
- */
-export class SpatialTransitioner {
-
-    constructor(public system:EtherealSystem){}
-
-    defaults = new TransitionableConfig({
-        multiplier: 1,
-        duration: 1.5,
-        easing: easing.easeInOut,
-        threshold: 1e-2,
-        delay: 0,
-        debounce: 0,
-        maxWait: 4,
-        blend: true
-    }) as Required<TransitionableConfig>
-
-    /**
-     * Update transitionables associated with an adapter 
-     */
-    update(transitionable:Transitionable, deltaTime:number) {
-        if (transitionable.synced) {
-            for (const t of this.system.transitionables) {
-                if (t.parentConfig === transitionable.parentConfig && t.synced && t.state === 'committing') {
-                    transitionable.forceCommit = true
-                    break
-                }
-            }
-        }
-        this._updateTransitionable(transitionable, deltaTime)
-    }
-
-    /**
-     * 
-     */
-    private _updateTransitionable(t:Transitionable, delatTime:number) {
-        const config = t.resolvedConfig
-        const queue = t.transitions
-        const state = t.state
-        const delta = delatTime * config.multiplier
-
-        switch (state) {
+        switch (status) {
             case 'changed': 
-                t.reference = t.target
-                t.debounceTime = 0
+                this.reference = this.target
+                this.debounceTime = 0
                 // continue
             case 'settling':
-                if (!t.reference) {
-                    t.delayTime += delta
+                if (!this.reference) {
+                    this.delayTime += delta
                 } else {
-                    t.debounceTime += delta
-                    t.waitTime += delta
+                    this.debounceTime += delta
+                    this.waitTime += delta
                 }
                 break
             case 'committing': 
-                queue.push({
-                    target: (t.reference = t.target!),
-                    easing: config.easing,
-                    duration: config.duration,
-                    blend: config.blend,
-                    elapsed: 0
-                })
+                const transition = typeof this.forceCommit === 'object' ? 
+                    this.forceCommit : new Transition<T>()
+                transition.target = transition.target ?? this._copy(undefined, this.target)
+                transition.duration = transition.duration ?? config.duration
+                transition.easing = transition.easing ?? config.easing
+                transition.blend = transition.blend ?? config.blend
+                transition.elapsed = transition.elapsed ?? 0
+                queue.push(transition as Required<Transition<T>>)
                 // continue
             case 'unchanged': 
-                t.reference = undefined
-                t.delayTime = 0
-                t.debounceTime = 0
-                t.waitTime = 0
+                this.reference = undefined
+                this.delayTime = 0
+                this.debounceTime = 0
+                this.waitTime = 0
                 break
         }
 
+        // Finite Impulse Response Interruptable Transitions
+
         while (queue.length && queue[0].elapsed >= queue[0].duration) {
-            t.start = queue.shift()!.target
+            this.start = queue.shift()!.target
         }
         
-        t.current = t.start
-        let previousTarget = t.start
+        this.current = this.start
+        const current = this._current
+        let previousTarget = this.start
         for (const transition of queue) {
+            this._addTransitionToCurrent(current, previousTarget, transition)
             transition.elapsed += delta
-            this._addTransitionToCurrent(t, previousTarget, transition)
             previousTarget = transition.target
             if (!transition.blend) break
         }
@@ -402,122 +379,107 @@ export class SpatialTransitioner {
     private _scratchColor = new Color
     private _blackColor = new Color(0,0,0)
 
-    private _addTransitionToCurrent(t:Transitionable, start:MathType, transition:Transition) {
-        const alpha = transition.duration > 0 ? transition.easing( Math.min(transition.elapsed / transition.duration, 1) ) : 1
+    private _addTransitionToCurrent = (current:TransitionableType<T>, start:TransitionableType<T>, transition:Required<Transition<T>>) => {
+        if (transition.elapsed === 0) return 
+        
+        const alpha = transition.easing( Math.min(transition.elapsed / transition.duration, 1) )
+        const target = transition.target
 
-        if (typeof transition.target === 'number') {
-            t.current += MathUtils.lerp(transition.target - (start as number), 0, 1-alpha) as any
+        if (typeof target === 'number') {
+            this._current = current as number + MathUtils.lerp(target - (start as number), 0, 1-alpha) as any
             return
         } 
         
-        if ('isVector3' in transition.target) {
-            const c = t.current as THREE.Vector3
+        if ('isVector3' in target) {
+            const c = current as THREE.Vector3
             const s = start as THREE.Vector3
-            const e = transition.target as THREE.Vector3
+            const e = target as THREE.Vector3
             const amount = this._scratchV3.copy(e).sub(s).lerp(V_000, 1-alpha)
-            c.add(amount)
+            this._current = c.add(amount) as any
             return
         } 
         
-        if ('isVector2' in transition.target) {
-            const c = t.current as THREE.Vector2
+        if ('isVector2' in target) {
+            const c = current as THREE.Vector2
             const s = start as THREE.Vector2
-            const e = transition.target as THREE.Vector2
+            const e = target as THREE.Vector2
             const amount = this._scratchV2.copy(e).sub(s).lerp(V_00, 1-alpha)
-            c.add(amount)
+            this._current = c.add(amount) as any
             return
         } 
         
-        if ('isQuaternion' in transition.target) {
-            const c = t.current as THREE.Quaternion
+        if ('isQuaternion' in target) {
+            const c = current as THREE.Quaternion
             const s = start as THREE.Quaternion
-            const e = transition.target as THREE.Quaternion
+            const e = target as THREE.Quaternion
             const amount = this._scratchQ.copy(s).inverse().multiply(e).slerp(Q_IDENTITY, 1-alpha)
-            c.multiply(amount).normalize()
+            this._current = c.multiply(amount).normalize() as any
             return
         } 
         
-        if ('isColor' in transition.target) {
-            const c = t.current as THREE.Color
+        if ('isColor' in target) {
+            const c = current as THREE.Color
             const s = start as THREE.Color
-            const e = transition.target as THREE.Color
+            const e = target as THREE.Color
             const amount = this._scratchColor.copy(e).sub(s).lerp(this._blackColor, 1-alpha)
-            c.add(amount)
+            this._current = c.add(amount) as any
             return
         } 
         
-        if ('isBox3' in transition.target) {
-            const c = t.current as THREE.Box3
+        if ('isBox3' in target) {
+            const c = current as THREE.Box3
             const s = start as THREE.Box3
-            const e = transition.target as THREE.Box3
+            const e = target as THREE.Box3
             const minAmount = this._scratchBox.min.copy(e.min).sub(s.min).lerp(V_000, 1-alpha)
             const maxAmount = this._scratchBox.max.copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
-            if (isFinite(c.min.x)) c.min.x = 0
-            if (isFinite(c.min.y)) c.min.y = 0
-            if (isFinite(c.min.z)) c.min.z = 0
-            if (isFinite(c.max.x)) c.max.x = 0
-            if (isFinite(c.max.y)) c.max.y = 0
-            if (isFinite(c.max.z)) c.max.z = 0
             c.min.add(minAmount)
             c.max.add(maxAmount)
+            this._current = c as any
             return
         }
     }
 
-    // private _copy(to:TransitionableType|undefined, from:TransitionableType) {
-    //     if (typeof to === 'number') {
-    //         return from
-    //     }
-    //     return to ? (to as any).copy(from) : (from as any).clone()
-    // }
-
-    // private _setPropertyAtPath(t:Transitionable) {
-    //     if (t.path) {
-    //         if (typeof t.path === 'string') {
-    //             if (typeof t.current === 'number') {
-    //                 set(t.path, this.object, t.current)
-    //             } else {
-    //                 const property = resolve(t.path, this.object)
-    //                 if (property) property.copy(t.current)
-    //             }
-    //         } else {
-    //             for (const p of t.path) {
-    //                 if (typeof t.current === 'number') {
-    //                     set(p, this.object, t.current)
-    //                 } else {
-    //                     const property = resolve(p, this.object)
-    //                     if (property) property.copy(t.current)
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
     /**
-     * Ensure that this `object` is attached to the `targetParent` Object3D instance. 
-     * When the `transitioner` is active, this method ensures a smooth transition 
-     * to another coordinate system. If the `object` is already attached to the 
-     * `targetParent`, this method is effectively noop.
+     * 
      */
-    // private _setParent() {
-    //     const parent = this.parentTarget
-    //     const o = this.object
-    //     if (!parent) return
-    //     if (o.parent !== parent) {
-    //         o.updateWorldMatrix(true, true)
-    //         const originalMatrixWorld = scratchMat_1.copy(o.matrixWorld)
-    //         o.parent && o.parent.remove(o)
-    //         parent && parent.add(o)
-    //         parent.updateWorldMatrix(true, true)
-    //         const inverseParentMatrixWorld = parent ? scratchMat_2.getInverse(parent.matrixWorld) : scratchMat_2.identity()
-    //         o.matrix.copy(inverseParentMatrixWorld.multiply(originalMatrixWorld))
-    //         // const transitioner = o.layout.transitioner
-    //         // if (transitioner.active) {
-    //         //     transitioner.layout.weight = 0
-    //         //     o.matrix.decompose(transitioner.position, transitioner.quaternion, transitioner.scale)
-    //         // } else {
-    //         // }
-    //         o.matrix.decompose(o.position, o.quaternion, o.scale)
-    //     }
-    // }
+    update(force=false) {
+
+        if (!this.needsUpdate && !force) return
+
+        if (!this._isEqual(this._previousTarget, this.target)) {
+            this._target = this._target
+            this.active = true
+        }
+
+        this._previousTarget = this._copy(this._previousTarget, this.target)
+
+        if (!this.active) return
+
+        const syncGroup = this.syncGroup as Set<SpatialTransitioner>
+        if (!this.forceCommit && syncGroup) {
+            for (const t of syncGroup) {
+                if (t.active && t.status === 'committing') {
+                    for (const to of syncGroup) { 
+                        if (to.needsUpdate && to.forceCommit === false) to.forceCommit = true 
+                    }
+                    break
+                }
+            }
+        }
+
+        this._updateTransitionable()
+        this.needsUpdate = false
+        this.forceCommit = false
+    }
+    private _previousTarget! : TransitionableType<T>
+
+    set syncGroup(group:Set<any>|undefined) {
+        if (this._syncGroup) this._syncGroup.delete(this)
+        this._syncGroup = group
+        group?.add(this)
+    }
+    get syncGroup() {
+        return this._syncGroup
+    }
+    private _syncGroup?:Set<any>
 }

@@ -58,7 +58,7 @@ export class SphericalCoordinate {
 
     toCartesianDirection(out: Vector3) { 
         const visualElevationRadians = this.verticalRadians
-        const visualAzimuthRadians = this.horizontalRadians
+        const visualAzimuthRadians = - Math.PI - this.horizontalRadians
         const y = Math.sin(visualElevationRadians)
         const x = Math.cos(visualElevationRadians) * Math.sin(visualAzimuthRadians)
         const z = - Math.cos(visualElevationRadians) * Math.cos(visualAzimuthRadians)

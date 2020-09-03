@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QCARConfig>
+<Tracking>
+<ModelTarget name="wholesnubber"/>
+</Tracking>
+
+<Assembly name="wholesnubbers_assembly">
+<Part name="wholesnubber" translation="0 0 0" rotation="AD: 0 0 1 0"/>
+<EntryPoint name="viewpoint_0000" translation="0.00171586 -0.0472952 0.962088" rotation="AD: 0.9976624907981965 0.15349174057289464 -0.5225808307692882 208.912">
+
+</EntryPoint>
+
+</Assembly>
+</QCARConfig>

@@ -1,6 +1,0 @@
-{
-    "name": "@etherealjs/env",
-    "version": "1.0.0",
-    "typings": "mod.ts",
-    "source": "mod.ts"
-}

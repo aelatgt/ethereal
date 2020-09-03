@@ -1,9 +1,8 @@
-import { tracked, TrackedMap, isTracking } from './tracking'
-import { SpatialMetrics } from './SpatialMetrics'
+import { SpatialMetrics, NodeState } from './SpatialMetrics'
 import { SpatialAdapter } from './SpatialAdapter'
-import { Vector2, Vector3, Quaternion, Box3, MathType } from './math'
-import { SpatialOptimizer } from './SpatialOptimizer'
-import { SpatialTransitioner, Transitionable, TransitionableConfig } from './SpatialTransitioner'
+import { Box3, MathType } from './math'
+import { SpatialOptimizer, OptimizerConfig } from './SpatialOptimizer'
+import { SpatialTransitioner, TransitionConfig, easing } from './SpatialTransitioner'
 import { LayoutFrustum } from './LayoutFrustum'
 
 /**
@@ -11,24 +10,14 @@ import { LayoutFrustum } from './LayoutFrustum'
  */
 export type Node3D = { __isSceneGraphNode: true }
 
-export class NodeState {
-    @tracked parent : Node3D|null = null
-    @tracked children: Node3D[] = []
-    @tracked position  = new Vector3(0,0,0)
-    @tracked orientation = new Quaternion(0,0,0,1)
-    @tracked scale  = new Vector3(1,1,1)
-    @tracked opacity = 1
-}
-
 /**
  * Bindings for a scenegraph node instance (glue layer)
  */
-export abstract class NodeBindings {
-    system?:EtherealSystem
-    abstract getCurrentState(node:Node3D, state:NodeState) : NodeState
-    abstract setCurrentState(node:Node3D, state:NodeState) : void
-    // abstract getCurrentChildren(node:Node3D, children:Node3D[]) : void
-    abstract getIntrinsicBounds(node:Node3D, bounds:Box3) : void
+export interface NodeBindings {
+    getChildren(metrics:SpatialMetrics, children:Node3D[]) : void
+    getState(metrics:SpatialMetrics, state:NodeState) : void
+    getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) : void
+    apply(metrics:SpatialMetrics, state:Readonly<NodeState>) : void
 }
 
 /**
@@ -36,13 +25,34 @@ export abstract class NodeBindings {
  */
 export class EtherealSystem {
 
-    constructor(public bindings:NodeBindings) {
-        this.bindings.system = this
-    }
+    constructor(public bindings:NodeBindings) { }
 
-    epsillonMeters = 1e-8
-    epsillonDegrees = 1e-8
-    epsillonRatio = 1e-8
+    config = {
+        cachingEnabled: true,
+        epsillonMeters: 1e-10,
+        epsillonRadians: 1e-10,
+        epsillonRatio: 1e-10,
+        transition: new TransitionConfig({
+            multiplier: 1,
+            duration: 0,
+            easing: easing.easeInOut,
+            threshold: 0,
+            delay: 0,
+            debounce: 0,
+            maxWait: 10,
+            blend: true
+        }) as Required<TransitionConfig>,
+        optimize: new OptimizerConfig({
+            constraintThreshold: 0.005,
+            constraintRelativeTolerance: 0.005,
+            objectiveRelativeTolerance: 0.01,
+            iterationsPerFrame: 2, // iterations per frame per layout
+            swarmSize: 2, // solutions per layout
+            minPulseFrequency: 0, // minimal exploitation pulse
+            maxPulseFrequency: 1.5, // maximal exploitation pulse
+            pulseRate: 0.1, // The ratio of directed exploitation vs random exploration
+        }) as Required<OptimizerConfig>
+    }
 
     /**
      * 
@@ -50,31 +60,26 @@ export class EtherealSystem {
     optimizer = new SpatialOptimizer(this)
 
     /**
-     * 
-     */
-    transitioner = new SpatialTransitioner(this)
-
-    /**
      * The view node
      */
-    @tracked viewNode = {} as Node3D
+    viewNode!: Node3D
 
     /**
      * The view layout frustum
      */
-    @tracked viewFrustum = new LayoutFrustum
+    viewFrustum = new LayoutFrustum
 
     /**
      * The deltaTime for the current frame (seconds)
      * @readonly
      */
-    @tracked deltaTime = 1/60
+    deltaTime = 1/60
 
     /**
      * The time for the current frame (seconds)
      * @readonly
      */
-    @tracked time = -1
+    time = -1
     
     /**
      * The maximum delta time value
@@ -94,7 +99,7 @@ export class EtherealSystem {
     /**
      * 
      */
-    readonly transitionables = [] as Transitionable<MathType>[]
+    readonly transitionables = [] as SpatialTransitioner<MathType>[]
 
     /**
      * 
@@ -117,6 +122,13 @@ export class EtherealSystem {
     }
 
     /**
+     * 
+     */
+    getState = <N extends Node3D> (node:N) => {
+        return this.getMetrics(node).targetState
+    }
+
+    /**
      * Get or create a SpatialAdapter instance which wraps a third-party node instance (e.g., THREE.Object3D instance)
      * @param node 
      */
@@ -130,12 +142,12 @@ export class EtherealSystem {
     }
 
     /**
-     * Create a transitionable value
+     * Create a SpatialTransitioner instance
      */
-    createTransitionable = <T extends MathType> (value:T, config?:TransitionableConfig, parentConfig:TransitionableConfig=this.transitioner.defaults) => {
-        const t = new Transitionable<T>(this, value, config, parentConfig)
+    createTransitioner = <T extends MathType> (value:T, config?:TransitionConfig, parentConfig:TransitionConfig=this.config.transition) => {
+        const t = new SpatialTransitioner(this, value, config, parentConfig)
         this.transitionables.push(t)
-        return t
+        return t as any as SpatialTransitioner<T>
     }
 
     /**
@@ -146,23 +158,35 @@ export class EtherealSystem {
      * @param time 
      */
     update(deltaTime:number, time:number) {
+
         this.deltaTime = Math.max(deltaTime, this.maxDeltaTime)
         this.time = time
 
         for (const metrics of this.nodeMetrics.values()) {
             metrics.needsUpdate = true
+            const adapter = this.nodeAdapters.get(metrics.node)
+            if (adapter) {
+                adapter.opacity.needsUpdate = true
+                adapter.orientation.needsUpdate = true
+                // adapter.origin.needsUpdate = true
+                adapter.bounds.needsUpdate = true
+            }
         }
+
         for (const transitionable of this.transitionables) {
             transitionable.needsUpdate = true
         }
 
-        this.viewMetrics.update()
-        for (const adapter of this.nodeAdapters.values()) {
-            adapter.metrics.update()
-        }
         for (const transitionable of this.transitionables) {
             transitionable.update()
         }
+
+        this.viewMetrics.update()
+        
+        for (const adapter of this.nodeAdapters.values()) {
+            adapter.metrics.update()
+        }
+
     }
 
     // private _compareAdapterHeirarchy = (adapterA:SpatialAdapter, adapterB:SpatialAdapter) => {

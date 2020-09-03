@@ -10,10 +10,10 @@ type RequestIdleCallbackDeadline = {
   timeRemaining: () => number
 }
 
-interface Window {
-  requestIdleCallback: (
-    callback: (deadline: RequestIdleCallbackDeadline) => void,
-    opts?: RequestIdleCallbackOptions
-  ) => RequestIdleCallbackHandle
-  cancelIdleCallback: (handle: RequestIdleCallbackHandle) => void
-}
+declare function requestIdleCallback (
+  callback: (deadline: RequestIdleCallbackDeadline) => void,
+  opts?: RequestIdleCallbackOptions
+) : RequestIdleCallbackHandle
+
+
+declare function cancelIdleCallback(handle: RequestIdleCallbackHandle) : void

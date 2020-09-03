@@ -1,3 +1,4 @@
+import "fast-text-encoding"
 import ResizeObserver from 'resize-observer-polyfill'
 import { Matrix4 } from 'three'
 import {
@@ -67,7 +68,7 @@ export class WebLayer {
   needsRefresh = true
   needsRemoval = false
 
-  svg: HTMLImageElement = new Image()
+  svgImage: HTMLImageElement = new Image()
   bounds = new Bounds()
   private _previousBounds = new Bounds()
 
@@ -284,23 +285,31 @@ export class WebLayer {
 
   async rasterize() {
     return new Promise(resolve => {
-      this.svg.onload = () => {
+      this.svgImage.onload = () => {
         WebRenderer.addToRenderQueue(this)
         resolve()
       }
-      this.svg.src = this._svgSrc
-      if (this.svg.complete && this.svg.currentSrc === this.svg.src) {
+      this._blankRetryCount = 0
+      this.svgImage.src = this._svgSrc
+      if (this.svgImage.complete && this.svgImage.currentSrc === this.svgImage.src) {
         WebRenderer.addToRenderQueue(this)
-        this.svg.onload = null
+        this.svgImage.onload = null
         resolve()
       }
     })
   }
 
+  private _blankRetryCount = 0
+
   render() {
-    const src = this.svg.currentSrc
-    if (!this.svg.complete || !this.cachedBounds.has(src) || !this.cachedMargin.has(src)) {
+    const src = this.svgImage.currentSrc
+    if (!this.cachedBounds.has(src) || !this.cachedMargin.has(src)) {
       this.needsRefresh = true
+      return
+    }
+
+    if (!this.svgImage.complete) {
+      WebRenderer.addToRenderQueue(this)
       return
     }
 
@@ -312,7 +321,7 @@ export class WebLayer {
     let hh = (hashingCanvas.height = Math.max(height * 0.05, 40))
     const hctx = hashingCanvas.getContext('2d')!
     hctx.clearRect(0, 0, hw, hh)
-    hctx.drawImage(this.svg, left, top, width, height, 0, 0, hw, hh)
+    hctx.drawImage(this.svgImage, left, top, width, height, 0, 0, hw, hh)
     const hashData = hctx.getImageData(0, 0, hw, hh).data
     const newHash =
       WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData))) +
@@ -321,6 +330,10 @@ export class WebLayer {
       ';h=' +
       height
     WebLayer.canvasHashes.set(src, newHash)
+
+    if (WebRenderer.isBlankImage(hashData) && this._blankRetryCount < 3) {
+      setTimeout(() => WebRenderer.addToRenderQueue(this), 500)
+    }
 
     if (WebLayer.cachedCanvases.has(newHash)) {
       this.canvas = WebLayer.cachedCanvases.get(newHash)!
@@ -339,7 +352,7 @@ export class WebLayer {
     let h = (newCanvas.height = height * pixelRatio + 2)
     const ctx = newCanvas.getContext('2d')!
     ctx.clearRect(0, 0, w, h)
-    ctx.drawImage(this.svg, left, top, width, height, 1, 1, w - 1, h - 1)
+    ctx.drawImage(this.svgImage, left, top, width, height, 1, 1, w - 1, h - 1)
 
     WebLayer.cachedCanvases.set(newHash, newCanvas)
     this.canvas = newCanvas
@@ -494,36 +507,47 @@ export class WebRenderer {
   static TASK_RASTERIZE_MAX_SIMULTANEOUS = 2 // since rasterization is async, limit simultaneous rasterizations
   static TASK_RENDER_MAX_TIME = 300 // rendering to canvas is synchronous
   static rasterizeTaskCount = 0
-  static async scheduleTasks() {
-    await microtask
+  private static _runTasks() {
     const serializeQueue = WebRenderer.serializeQueue
     const rasterizeQueue = WebRenderer.rasterizeQueue
     const renderQueue = WebRenderer.renderQueue
     let startTime = performance.now()
-    // while (renderQueue.length && performance.now() - startTime < this.TASK_RENDER_MAX_TIME/2) {
+    // while (renderQueue.length && performance.now() - startTime < WebRenderer.TASK_RENDER_MAX_TIME/2) {
     //     renderQueue.shift()!.render()
     // }
     // startTime = performance.now()
-    while (serializeQueue.length && performance.now() - startTime < this.TASK_SERIALIZE_MAX_TIME) {
+    while (serializeQueue.length && performance.now() - startTime < WebRenderer.TASK_SERIALIZE_MAX_TIME) {
       serializeQueue.shift()!.serialize()
     }
     startTime = performance.now()
     while (
       rasterizeQueue.length &&
-      performance.now() - startTime < this.TASK_RASTERIZE_MAX_TIME &&
-      this.rasterizeTaskCount < this.TASK_RASTERIZE_MAX_SIMULTANEOUS
+      performance.now() - startTime < WebRenderer.TASK_RASTERIZE_MAX_TIME &&
+      WebRenderer.rasterizeTaskCount < WebRenderer.TASK_RASTERIZE_MAX_SIMULTANEOUS
     ) {
-      this.rasterizeTaskCount++
+      WebRenderer.rasterizeTaskCount++
       rasterizeQueue
         .shift()!
         .rasterize()
         .then(() => {
-          this.rasterizeTaskCount--
+          WebRenderer.rasterizeTaskCount--
         })
     }
     startTime = performance.now()
-    while (renderQueue.length && performance.now() - startTime < this.TASK_RENDER_MAX_TIME / 2) {
+    while (renderQueue.length && performance.now() - startTime < WebRenderer.TASK_RENDER_MAX_TIME / 2) {
       renderQueue.shift()!.render()
+    }
+  }
+  
+  static async scheduleTasks() {
+    WebRenderer.scheduleIdle(WebRenderer._runTasks)
+  }
+
+  static scheduleIdle(cb:(deadline?:RequestIdleCallbackDeadline)=>any) {
+    if ("requestIdleCallback" in self) {
+      requestIdleCallback(cb)
+    } else {
+      setTimeout(cb,1)
     }
   }
 
@@ -939,5 +963,10 @@ export class WebRenderer {
       `${this.getClosestLayer(this.activeElement) === layer ? 'data-layer-active="" ' : ' '}` +
       `${this.getClosestLayer(this.targetElement) === layer ? 'data-layer-target="" ' : ' '}`
     )
+  }
+
+  static isBlankImage(imageData:Uint8ClampedArray) {
+      const pixelBuffer = new Uint32Array(imageData.buffer)
+      return !pixelBuffer.some(color => color !== 0);
   }
 }

@@ -1,0 +1,3 @@
+{
+  "extends": ["@ethereal/parcel-config"],
+}

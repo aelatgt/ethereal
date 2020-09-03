@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QCARConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="qcar_config.xsd">
+  <Tracking>
+    <!-- large poster cropped  -->
+    <!-- <ImageTarget name="treadmill" size="1.04 2.0" /> -->
+    <!-- laptop size  -->
+    <ImageTarget name="treadmill" size="0.1 0.1616162" />
+  </Tracking>
+</QCARConfig>

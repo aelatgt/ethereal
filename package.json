@@ -1,52 +1,49 @@
 {
   "name": "root",
   "author": "Gheric Speiginer",
+  "ava": {
+    "require": [
+      "esm"
+    ]
+  },
+  "devDependencies": {
+    "@parcel/transformer-typescript-tsc": "2.0.0-beta.1",
+    "@parcel/validator-typescript": "2.0.0-alpha.3",
+    "ava": "3.8.1",
+    "esm": "3.2.25",
+    "lerna": "3.19.0",
+    "npm-run-all": "4.1.5",
+    "parcel": "2.0.0-nightly.385",
+    "rimraf": "3.0.0",
+    "syncpack": "5.6.7",
+    "three": "0.113.2",
+    "typescript": "3.9.3"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
-    "install": "lerna exec -- rm -rf ./node_modules && lerna exec -- npm i",
-    "build": "npm run clean && npm run bundle",
-    "clean-cache": "rm -rf .parcel-cache",
-    "clean-dist": "lerna exec -- rm -rf ./dist && rm -rf docs",
-    "clean": "npm run clean-cache && npm run clean-dist",
-    "prepare-docs": "PUBLIC_URL=/ethereal/ && npm run clean-dist && mkdir docs && ln -sf ../packages/docs/static ./docs/static",
-    "bundle": "npm run prepare-docs && parcel build packages/docs --dist-dir docs --public-url $PUBLIC_URL && parcel build packages/ethereal",
-    "start": "npm run prepare-docs && parcel serve packages/docs --dist-dir docs --host 0.0.0.0 ",
-    "start-web-layer": "parcel packages/web-layer/src/example/index.html --host 0.0.0.0",
-    "release": "lerna publish",
-    "test": "ava"
+    "install": "lerna exec -- npm i",
+    "clean": "lerna exec -- rimraf ./node_modules && rimraf ./.parcel-cache && rimraf ./dist",
+    "build": "tsc -p tsconfig.build.json",
+    "watch": "tsc -p tsconfig.build.json -w",
+    "prepare-docs": "PUBLIC_URL=/ethereal/ && rimraf docs && mkdir docs && ln -sf ../packages/examples/docs/static ./docs/static",
+    "start-docs": "npm run build && npm run prepare-docs && cd packages/examples/docs && npm run start",
+    "start-pride": "npm run build && cd packages/examples/pride && npm run start",
+    "start-web-layer": "parcel packages/examples/web-layer/src/index.html --host 0.0.0.0",
+    "bundle-docs": "npm run build && npm run prepare-docs && cd packages/examples/docs && npm run bundle",
+    "syncpack": "syncpack fix-mismatches && syncpack format && syncpack set-semver-ranges --prod --dev && syncpack set-semver-ranges --peer --semver-range '>='",
+    "dev-docs": "npm run syncpack && npm-run-all -p -r watch start-docs",
+    "dev-pride": "npm run syncpack && npm run start-pride",
+    "test": "ava",
+    "release": "lerna publish"
   },
-  "devDependencies": {
-    "@ava/babel": "^1.0.1",
-    "@babel/core": "^7.9.6",
-    "@babel/plugin-proposal-class-properties": "^7.8.3",
-    "@babel/plugin-proposal-decorators": "^7.8.3",
-    "@babel/plugin-proposal-export-default-from": "^7.8.3",
-    "@babel/plugin-proposal-nullish-coalescing-operator": "^7.8.3",
-    "@babel/plugin-proposal-optional-chaining": "^7.9.0",
-    "@babel/plugin-proposal-private-methods": "^7.8.3",
-    "@babel/plugin-transform-typescript": "^7.9.6",
-    "@babel/register": "^7.9.0",
-    "@parcel/transformer-typescript-tsc": "^2.0.0-alpha.3",
-    "@parcel/validator-typescript": "^2.0.0-alpha.3",
-    "ava": "^3.8.1",
-    "lerna": "^3.19.0",
-    "parcel": "^2.0.0-nightly.284",
-    "rimraf": "~3.0.0",
-    "three": "^0.113.2",
-    "typescript": "^3.9.3"
-  },
-  "ava": {
-    "extensions": [
-      "ts"
-    ],
-    "require": [
-      "./babel-register"
-    ],
-    "babel": true
-  },
-  "browserslist": [
-    "last 1 chrome versions",
-    "last 1 firefox versions"
-  ]
+  "syncpack": {
+    "sortAz": [
+      "contributors",
+      "dependencies",
+      "devDependencies",
+      "keywords",
+      "peerDependencies"
+    ]
+  }
 }

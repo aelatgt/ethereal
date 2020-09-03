@@ -3,6 +3,7 @@ import {Vector3} from 'three/src/math/Vector3'
 import {Vector4} from 'three/src/math/Vector4'
 import {Quaternion} from 'three/src/math/Quaternion'
 import {Color} from 'three/src/math/Color'
+import {Box2} from 'three/src/math/Box2'
 import {Box3} from 'three/src/math/Box3'
 import {Ray} from 'three/src/math/Ray'
 import {Line3} from 'three/src/math/Line3'
@@ -79,12 +80,22 @@ export const V_001 = Object.freeze(new Vector3(0,0,1))
 export const V_111 = Object.freeze(new Vector3(1,1,1))
 export const Q_IDENTITY = Object.freeze(new Quaternion)
 
+export const DIRECTION = {
+    RIGHT: Object.freeze(new Vector3(1, 0, 0)),
+    UP: Object.freeze(new Vector3(0, 1, 0)),
+    NEAR: Object.freeze(new Vector3(0, 0, 1)),
+    LEFT: Object.freeze(new Vector3(-1, 0, 0)),
+    DOWN: Object.freeze(new Vector3(0, -1, 0)),
+    FAR: Object.freeze(new Vector3(0, 0, -1))
+}
+
 export {
     Vector2,
     Vector3,
     Vector4,
     Quaternion,
     Color,
+    Box2,
     Box3,
     Ray,
     Line3,
@@ -186,3 +197,72 @@ function computedRelativeDifferenceColor(s:Color, e:Color) {
 const sqrt3 = Math.sqrt(3)
 
 
+
+/** 
+ * Return random number with gaussian distribution
+ * @param [standardDeviation=1]
+ */
+export const gaussian = (() => {
+    const _2PI = Math.PI
+    let z0:number, z1:number
+    let generate = false
+    return (standardDeviation=1) => {
+        generate = !generate
+        if (!generate) return z1 * standardDeviation
+        let u1:number, u2:number
+        do { u1 = Math.random() } while (u1 < Number.EPSILON)
+        u2 = Math.random()
+        z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(_2PI * u2)
+        z1 = Math.sqrt(-2.0 * Math.log(u1)) * Math.sin(_2PI * u2)
+        return z0 * standardDeviation
+    }
+})()
+
+/**
+ * Return random number with levy distribution
+ * @param [scale=1]
+ * 
+ * Based on:
+ * http://andreweckford.blogspot.com/2011/05/generating-levy-random-variables-from.html
+ */
+export const levy = (scale=1) =>  {
+    const stdDeviation = Math.sqrt( Math.sqrt(1 / (2 * scale)) )
+    return 1 / (gaussian(stdDeviation) ** 2)
+}
+
+/**
+ * Return a random quaternion
+ * @param out 
+ * @param twistScale 
+ * @param swingScale 
+ */
+export const randomQuaternion = (() => {
+    const _2PI = Math.PI * 2
+    const V_001 = new Vector3(0,0,1)
+    const twist = new Quaternion
+    const swing = new Quaternion
+    const swingAxis = new Vector3
+    const out = new Quaternion
+    return function randomQuaternion(twistScale=1, swingScale=1) {
+        var twistMagnitude = (Math.random() - 0.5) * _2PI * twistScale 
+        var swingDirection = Math.random() * _2PI
+        var swingMagnitude = Math.random() * Math.PI * swingScale
+        swingAxis.set(1,0,0).applyAxisAngle(V_001, swingDirection)
+        twist.setFromAxisAngle(V_001, twistMagnitude)
+        swing.setFromAxisAngle(swingAxis, swingMagnitude)
+        return out.multiplyQuaternions(swing, twist)
+    }
+})()
+
+
+export function randomSelect<T>(arr:T[], weights?:number[]) : T {
+    let total = 0
+    for (let i=0; i< arr.length; i++) { total += weights?.[i]||1 }
+    const threshold = Math.random() * total
+    total = 0
+    for (let i=0; i< arr.length; i++) {
+        total += weights?.[i]||1
+        if (total > threshold) return arr[i]
+    }
+    return arr[0] // make tsc happy
+}

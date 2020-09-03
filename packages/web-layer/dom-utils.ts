@@ -265,3 +265,12 @@ export function getDocumentBounds(document: Document, bounds: Bounds) {
   )
   return bounds
 }
+
+
+export function DOM(html:string) {
+  const wrapper = document.createElement('div')
+  wrapper.innerHTML = html
+  const el = wrapper.firstElementChild!
+  wrapper.removeChild(el)
+  return el
+}

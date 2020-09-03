@@ -5,13 +5,7 @@ import {
     Box3,
     SpatialOptimizer,
     SpatialAdapter,
-    // the following are used implicitly in this module, and need to be listed here
-    // explicitly until api-extractor understands import() in d.ts files
     SpatialMetrics,
-    SpatialLayout, 
-    Transitionable,
-    TransitionableConfig,
-    MathType
 } from "@etherealjs/core/mod"
 
 import type * as THREE from 'three'
@@ -21,84 +15,94 @@ declare module 'three/src/core/Object3D' {
 }
 
 export const ThreeBindings = {
-    getCurrentState(node:THREE.Object3D, state:NodeState) {
-        node.matrixAutoUpdate && node.updateMatrix()
-        const nodeObj = node as THREE.Mesh
-        state.parent = nodeObj.parent
-        state.opacity = (nodeObj.material as THREE.MeshBasicMaterial)?.opacity ?? 
-                        (nodeObj.material as THREE.MeshBasicMaterial[])?.[0]?.opacity ?? 1
-        node.matrix.decompose(state.position as any, state.orientation as any, state.scale as any)
-        return state
-    },
-    setCurrentState(node:THREE.Object3D&THREE.Mesh, state:NodeState) {
-        if (node.material) {
-            const materialList = node.material as THREE.MeshBasicMaterial[]
-            if (materialList.length) materialList[0].opacity = state.opacity
-            else (node.material as THREE.MeshBasicMaterial).opacity = state.opacity
-        }
-        node.quaternion.copy(state.orientation as any)
-        node.position.copy(state.position as any)
-        node.scale.copy(state.scale as any)
-        node.matrix.compose(node.position, node.quaternion, node.scale)
-        node.matrixAutoUpdate = false
-        node.matrixWorldNeedsUpdate = true
-    },
-    getCurrentChildren(node:THREE.Object3D, children:THREE.Object3D[]) {
+    getChildren(metrics:SpatialMetrics, children:Node3D[]) {
+        const nodeObj = metrics.node as THREE.Object3D
         children.length = 0
-        for (const child of node.children) {
-            children.push(child)
+        for (let i = 0; i < nodeObj.children.length; i++) {
+            children[i] = nodeObj.children[i]
         }
-        return children
     },
-    getIntrinsicBounds(node:THREE.Object3D, bounds:Box3) {
-        const nodeObj = node as THREE.Mesh
+    getState(metrics:SpatialMetrics, state:NodeState) {
+        const nodeObj = metrics.node as THREE.Mesh
+        nodeObj.matrixAutoUpdate && nodeObj.updateMatrix()
+        state.localMatrix = nodeObj.matrix
+        // state.opacity = (nodeObj.material as THREE.MeshBasicMaterial)?.opacity ?? 
+        //                 (nodeObj.material as THREE.MeshBasicMaterial[])?.[0]?.opacity ?? 1
+        // state.localOrientation = nodeObj.quaternion
+        // state.localPosition = nodeObj.position
+        // state.localScale = nodeObj.scale
+        state.parent = nodeObj.parent
+    },
+    getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) {
+        const nodeObj = metrics.node as THREE.Mesh
         if (nodeObj.geometry) {
             if (!nodeObj.geometry.boundingBox) nodeObj.geometry.computeBoundingBox()
             return bounds.copy(nodeObj.geometry.boundingBox as any)
         }
         return bounds
+    },
+    apply(metrics:SpatialMetrics, state:NodeState) {
+        const node = metrics.node as THREE.Mesh
+        // if (node.material) {
+        //     const materialList = node.material as THREE.MeshBasicMaterial[]
+        //     if (materialList.length) materialList[0].opacity = state.opacity
+        //     else (node.material as THREE.MeshBasicMaterial).opacity = state.opacity
+        // }
+        if (state.parent !== node.parent) {
+            const newParent = state.parent as THREE.Object3D
+            newParent.add(node)
+        }
+        node.quaternion.copy(state.localOrientation)
+        node.position.copy(state.localPosition)
+        node.scale.copy(state.localScale)
+        node.matrix.copy(state.localMatrix)
+        node.matrixWorld.copy(state.worldMatrix)
+        // node.matrixAutoUpdate = true
+        // node.matrixWorldNeedsUpdate = true
     }
 }
 
 export const DefaultBindings = {
-    getCurrentState(node:THREE.Object3D, state:NodeState) {
-        if (node.isObject3D) {
-            ThreeBindings.getCurrentState(node, state)
-        }
-        return state
-    },
-    setCurrentState(node:THREE.Object3D&THREE.Mesh, state:NodeState) {
-        if (node.isObject3D) {
-             ThreeBindings.setCurrentState(node, state)
+    getChildren(metrics:SpatialMetrics, children:Node3D[]) {
+        if ((metrics.node as THREE.Object3D).isObject3D) {
+            ThreeBindings.getChildren(metrics, children)
         }
     },
-    getCurrentChildren(node:THREE.Object3D, children:THREE.Object3D[]) {
-        if (node.isObject3D) {
-            ThreeBindings.getCurrentChildren(node, children)
+    getState(metrics:SpatialMetrics, state:NodeState) {
+        if ((metrics.node as THREE.Object3D).isObject3D) {
+            ThreeBindings.getState(metrics, state)
         }
-        return children
     },
-    getIntrinsicBounds(node:THREE.Object3D, bounds:Box3) {
-        if (node.isObject3D) {
-            ThreeBindings.getIntrinsicBounds(node, bounds)
+    getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) {
+        if ((metrics.node as THREE.Object3D).isObject3D) {
+            ThreeBindings.getIntrinsicBounds(metrics, bounds)
         }
         return bounds
+    },
+    apply(metrics:SpatialMetrics, state:NodeState) {
+        if ((metrics.node as THREE.Object3D).isObject3D) {
+             ThreeBindings.apply(metrics, state)
+        }
     }
 }
 
 export const system = new EtherealSystem(DefaultBindings)
 
-export const metrics = system.getMetrics
+export const transition = system.createTransitioner
+
+export function state<T extends Node3D>(node:T) {
+    return system.getMetrics(node).targetState
+}
 
 export function adapt<T extends Node3D>(node:T, cb:(adapter:SpatialAdapter<T>) => void) {
     const adapter = system.getAdapter(node)
-    adapter.orientation.start = adapter.orientation.target = adapter.metrics.layoutOrientation
-    adapter.bounds.start = adapter.bounds.target = adapter.metrics.layoutBounds
-    adapter.opacity.start = adapter.opacity.target = adapter.metrics.opacity
+    ;(node as any).adapter = adapter
+    // const state = adapter.metrics.currentState
+    // adapter.orientation.reset(state.localOrientation)
+    // adapter.bounds.reset(state.layoutBounds)
+    // adapter.opacity.reset(state.opacity)
     cb(adapter)
 }
-
-export const transitionable = system.createTransitionable
 
 export const objective = SpatialOptimizer.objective
 
