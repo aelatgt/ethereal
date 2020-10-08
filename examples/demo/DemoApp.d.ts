@@ -1,0 +1,32 @@
+import AppBase from './AppBase';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { DemoBase } from './demos/DemoBase';
+import * as ethereal from 'ethereal';
+export declare class DemoApp extends AppBase {
+    ethereal: typeof ethereal;
+    system: ethereal.EtherealSystem<ethereal.Node3D>;
+    publicUrl: string;
+    gltfLoader: GLTFLoader;
+    cubeTextureLoader: THREE.CubeTextureLoader;
+    room: THREE.Object3D;
+    sky: THREE.CubeTexture;
+    demos: DemoBase[];
+    plane: THREE.PlaneGeometry;
+    surfaceWallA: THREE.Mesh;
+    surfaceWallB: THREE.Mesh;
+    surfaceWallC: THREE.Mesh;
+    surfaceWallD: THREE.Mesh;
+    surfaceAboveBed: THREE.Mesh;
+    dollyPosition: THREE.Vector3;
+    dollyOrientation: THREE.Quaternion;
+    cameraVerticalDegrees: number;
+    cameraHorizonalDegrees: number;
+    cameraDistance: number;
+    cameraWorldUp: boolean;
+    resolution: THREE.Vector2;
+    constructor();
+    loadSky(): void;
+    loadRoom(): void;
+    setupLights(): void;
+}

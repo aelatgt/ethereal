@@ -3,10 +3,6 @@
   "description": "A Spatial Adaptivity Engine for the Immersive Web! ",
   "version": "1.1.2",
   "author": "Gheric Speiginer",
-  "browserslist": [
-    "last 1 chrome versions",
-    "last 1 firefox versions"
-  ],
   "bugs": "https://github.com/aelatgt/ethereal/issues",
   "dependencies": {
     "@etherealjs/core": "file:../core",
@@ -32,5 +28,6 @@
     "three": ">=0.113.2"
   },
   "repository": "aelatgt/ethereal.git",
-  "type": "module"
+  "type": "module",
+  "typings": "mod.d.ts"
 }

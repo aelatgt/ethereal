@@ -202,21 +202,25 @@ const sqrt3 = Math.sqrt(3)
  * Return random number with gaussian distribution
  * @param [standardDeviation=1]
  */
-export const gaussian = (() => {
-    const _2PI = Math.PI
-    let z0:number, z1:number
-    let generate = false
-    return (standardDeviation=1) => {
-        generate = !generate
-        if (!generate) return z1 * standardDeviation
-        let u1:number, u2:number
-        do { u1 = Math.random() } while (u1 < Number.EPSILON)
-        u2 = Math.random()
-        z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(_2PI * u2)
-        z1 = Math.sqrt(-2.0 * Math.log(u1)) * Math.sin(_2PI * u2)
-        return z0 * standardDeviation
-    }
-})()
+export const gaussian = (standardDeviation=1) => {
+  var u = Math.random()
+  return (u%1e-8>5e-9?1:-1)*Math.sqrt(-Math.log(Math.max(1e-9,u)))*standardDeviation;
+}
+// export const gaussian = (() => {
+//     const _2PI = Math.PI
+//     let z0:number, z1:number
+//     let generate = false
+//     return (standardDeviation=1) => {
+//         generate = !generate
+//         if (!generate) return z1 * standardDeviation
+//         let u1:number, u2:number
+//         do { u1 = Math.random() } while (u1 < Number.EPSILON)
+//         u2 = Math.random()
+//         z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(_2PI * u2)
+//         z1 = Math.sqrt(-2.0 * Math.log(u1)) * Math.sin(_2PI * u2)
+//         return z0 * standardDeviation
+//     }
+// })()
 
 /**
  * Return random number with levy distribution

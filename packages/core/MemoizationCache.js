@@ -20,12 +20,16 @@ export class MemoizationCache {
         return true;
     }
 }
+const UNSET = Symbol('unset');
 export function memoize(cb, ...caches) {
-    let value;
+    let value = UNSET;
     const wrapped = () => {
         if (wrapped.needsUpdate) {
             wrapped.needsUpdate = false;
             value = cb();
+        }
+        if (value === UNSET) {
+            throw new Error("Possible recursive memoization detected");
         }
         return value;
     };

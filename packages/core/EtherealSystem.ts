@@ -2,7 +2,7 @@ import { SpatialMetrics, NodeState } from './SpatialMetrics'
 import { SpatialAdapter } from './SpatialAdapter'
 import { Box3, MathType } from './math'
 import { SpatialOptimizer, OptimizerConfig } from './SpatialOptimizer'
-import { SpatialTransitioner, TransitionConfig, easing } from './SpatialTransitioner'
+import { Transitionable, TransitionConfig, easing } from './Transitionable'
 import { LayoutFrustum } from './LayoutFrustum'
 
 /**
@@ -13,19 +13,19 @@ export type Node3D = { __isSceneGraphNode: true }
 /**
  * Bindings for a scenegraph node instance (glue layer)
  */
-export interface NodeBindings {
-    getChildren(metrics:SpatialMetrics, children:Node3D[]) : void
-    getState(metrics:SpatialMetrics, state:NodeState) : void
-    getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) : void
-    apply(metrics:SpatialMetrics, state:Readonly<NodeState>) : void
+export interface NodeBindings<N extends Node3D> {
+    getChildren(metrics:SpatialMetrics<N>, children:Node3D[]) : void
+    getState(metrics:SpatialMetrics<N>, state:NodeState<N>) : void
+    getIntrinsicBounds(metrics:SpatialMetrics<N>, bounds:Box3) : void
+    apply(metrics:SpatialMetrics<N>, state:Readonly<NodeState<N>>) : void
 }
 
 /**
  * Manages spatial adaptivity within an entire scene graph
  */
-export class EtherealSystem {
+export class EtherealSystem<N extends Node3D = Node3D> {
 
-    constructor(public bindings:NodeBindings) { }
+    constructor(public viewNode:N, public bindings:NodeBindings<N>) { }
 
     config = {
         cachingEnabled: true,
@@ -44,25 +44,25 @@ export class EtherealSystem {
         }) as Required<TransitionConfig>,
         optimize: new OptimizerConfig({
             constraintThreshold: 0.005,
-            constraintRelativeTolerance: 0.005,
+            constraintRelativeTolerance: 0.0001,
             objectiveRelativeTolerance: 0.01,
-            iterationsPerFrame: 2, // iterations per frame per layout
+            iterationsPerFrame: 5, // iterations per frame per layout
             swarmSize: 2, // solutions per layout
-            minPulseFrequency: 0, // minimal exploitation pulse
-            maxPulseFrequency: 1.5, // maximal exploitation pulse
-            pulseRate: 0.1, // The ratio of directed exploitation vs random exploration
+            pulseFrequencyMin: 0, // minimal exploitation pulse
+            pulseFrequencyMax: 1.5, // maximal exploitation pulse
+            pulseRate: 0.1, // The ratio of directed exploitation vs random exploration,
+            stepSizeMin: 0.0001,
+            stepSizeMax: 10,
+            stepSizeStart: 0.5,
+            staleRestartRate: 0.9,
+            successRateSamples: 50
         }) as Required<OptimizerConfig>
     }
 
     /**
      * 
      */
-    optimizer = new SpatialOptimizer(this)
-
-    /**
-     * The view node
-     */
-    viewNode!: Node3D
+    optimizer = new SpatialOptimizer<N>(this)
 
     /**
      * The view layout frustum
@@ -89,34 +89,35 @@ export class EtherealSystem {
     /** 
      * SpatialMetrics for Node3D
      */
-    nodeMetrics = new Map<Node3D, SpatialMetrics>()
+    nodeMetrics = new Map<N, SpatialMetrics<N>>()
 
     /** 
      * SpatialAdapter for Node3D
      */
-    nodeAdapters = new Map<Node3D, SpatialAdapter>()
+    nodeAdapters = new Map<N, SpatialAdapter<N>>()
 
     /**
      * 
      */
-    readonly transitionables = [] as SpatialTransitioner<MathType>[]
+    readonly transitionables = [] as Transitionable[]
 
     /**
      * 
      */
     get viewMetrics() {
+        if (!this.viewNode) throw new Error('EtherealSystem.viewNode must be defined')
         return this.getMetrics(this.viewNode!)
     }
 
     /**
      * Get or create a SpatialMetrics instance which wraps a third-party node instance (e.g., THREE.Object3D instance)
      */
-    getMetrics = <N extends Node3D> (node:N) => {
+    getMetrics = (node:N) => {
+        if (!node) throw new Error('node must be defined')
         let metrics = this.nodeMetrics.get(node) as SpatialMetrics<N>
         if (!metrics) {
-            metrics = new SpatialMetrics(this, node)
+            metrics = new SpatialMetrics<N>(this, node)
             this.nodeMetrics.set(node, metrics)
-            // for (const c of metrics.children) this.getMetrics(c)
         }
         return metrics 
     }
@@ -124,7 +125,8 @@ export class EtherealSystem {
     /**
      * 
      */
-    getState = <N extends Node3D> (node:N) => {
+    getState = (node:N) => {
+        if (!node) throw new Error('node must be defined')
         return this.getMetrics(node).targetState
     }
 
@@ -132,22 +134,22 @@ export class EtherealSystem {
      * Get or create a SpatialAdapter instance which wraps a third-party node instance (e.g., THREE.Object3D instance)
      * @param node 
      */
-    getAdapter = <N extends Node3D> (node:N) => {
+    getAdapter = (node:N) => {
         let adapter = this.nodeAdapters.get(node) as SpatialAdapter<N>
         if (!adapter) {
             adapter = new SpatialAdapter(this, node)
             this.nodeAdapters.set(node, adapter)
         }
-        return adapter 
+        return adapter
     }
 
     /**
-     * Create a SpatialTransitioner instance
+     * Create a Transitionable instance
      */
-    createTransitioner = <T extends MathType> (value:T, config?:TransitionConfig, parentConfig:TransitionConfig=this.config.transition) => {
-        const t = new SpatialTransitioner(this, value, config, parentConfig)
+    createTransitionable = <T extends MathType> (value:T, config?:TransitionConfig) => {
+        const t = new Transitionable(this, value, config, this.config.transition)
         this.transitionables.push(t)
-        return t as any as SpatialTransitioner<T>
+        return t as any as Transitionable<T>
     }
 
     /**
@@ -168,7 +170,6 @@ export class EtherealSystem {
             if (adapter) {
                 adapter.opacity.needsUpdate = true
                 adapter.orientation.needsUpdate = true
-                // adapter.origin.needsUpdate = true
                 adapter.bounds.needsUpdate = true
             }
         }
@@ -188,14 +189,4 @@ export class EtherealSystem {
         }
 
     }
-
-    // private _compareAdapterHeirarchy = (adapterA:SpatialAdapter, adapterB:SpatialAdapter) => {
-    //     if (adapterA.metrics.containsNode(adapterB.node)) {
-    //         return -1
-    //     }
-    //     if (adapterB.metrics.containsNode(adapterA.node)) {
-    //         return 1
-    //     }
-    //     return 0
-    // }
 }

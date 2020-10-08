@@ -33,22 +33,25 @@ test('adapter w/ target bounds, parent w/ geometry, orientation, and custom inne
     t.deepEqual(parentState.outerBounds.getSize(new Vector3), V_000);
     const content = new Mesh(new BoxGeometry(2, 2, 2)); // make inner size 2,2,2
     parentBox.add(content);
-    const adapter = system.getAdapter(content);
-    adapter.orientation.target = new Quaternion().setFromAxisAngle(V_010, Math.PI / 2);
-    adapter.bounds.target = new Box3().setFromCenterAndSize(V_000, V_111);
-    const metrics = system.getMetrics(content);
-    const state = metrics.targetState;
-    t.deepEqual(metrics.innerSize, new Vector3(2, 2, 2));
-    t.deepEqual(metrics.innerCenter, new Vector3(0, 0, 0));
-    t.deepEqual(state.localPosition, new Vector3(0, 0, 0));
-    t.deepEqual(state.localOrientation, adapter.orientation.target);
-    t.deepEqual(state.localScale, new Vector3(0.25, 0.25, 0.5));
-    t.deepEqual(state.worldCenter, new Vector3(10, 0, 0));
-    t.deepEqual(state.worldPosition, new Vector3(10, 0, 0));
-    t.deepEqual(state.worldOrientation, adapter.orientation.target);
-    t.deepEqual(state.worldScale, new Vector3(0.5, 0.5, 0.5));
-    t.assert(state.outerBounds.getSize(new Vector3).distanceToSquared(new Vector3(8, 6, 2)) < 1e-10);
-    t.assert(state.layoutBounds.max.distanceTo(adapter.bounds.target.max) < 1e-10);
-    t.assert(state.layoutBounds.min.distanceTo(adapter.bounds.target.min) < 1e-10);
-    t.assert(state.layoutBounds.getSize(new Vector3).distanceTo(V_111) < 1e-10);
+    function setupContent() {
+        const adapter = system.getAdapter(content);
+        adapter.orientation.target = new Quaternion().setFromAxisAngle(V_010, Math.PI / 2);
+        adapter.bounds.target = new Box3().setFromCenterAndSize(V_000, V_111);
+        const metrics = system.getMetrics(content);
+        const state = metrics.targetState;
+        t.deepEqual(metrics.innerSize, new Vector3(2, 2, 2));
+        t.deepEqual(metrics.innerCenter, new Vector3(0, 0, 0));
+        t.deepEqual(state.localPosition, new Vector3(0, 0, 0));
+        t.deepEqual(state.localOrientation, adapter.orientation.target);
+        t.deepEqual(state.localScale, new Vector3(0.25, 0.25, 0.5));
+        t.deepEqual(state.worldCenter, new Vector3(10, 0, 0));
+        t.deepEqual(state.worldPosition, new Vector3(10, 0, 0));
+        t.deepEqual(state.worldOrientation, adapter.orientation.target);
+        t.deepEqual(state.worldScale, new Vector3(0.5, 0.5, 0.5));
+        t.assert(state.outerBounds.getSize(new Vector3).distanceToSquared(new Vector3(8, 6, 2)) < 1e-10);
+        t.assert(state.layoutBounds.max.distanceTo(adapter.bounds.target.max) < 1e-10);
+        t.assert(state.layoutBounds.min.distanceTo(adapter.bounds.target.min) < 1e-10);
+        t.assert(state.layoutBounds.getSize(new Vector3).distanceTo(V_111) < 1e-10);
+    }
+    setupContent();
 });

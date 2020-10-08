@@ -4,541 +4,526 @@ import { LayoutFrustum } from './LayoutFrustum';
 import { MemoizationCache } from './MemoizationCache';
 const InternalCurrentState = Symbol("current");
 const InternalTargetState = Symbol("target");
-let NodeState = /** @class */ (() => {
-    class NodeState {
-        constructor(mode, metrics) {
-            this.mode = mode;
-            this.metrics = metrics;
-            this._cache = new MemoizationCache;
-            this._parent = null;
-            this._cachedLocalMatrix = this._cache.memoize(() => {
-                this._localMatrix.decompose(this._localPosition, this._localOrientation, this._localScale);
-                this._localOrientationInverse.copy(this._localOrientation).inverse();
-                this._localRotation.makeRotationFromQuaternion(this._localOrientation);
-                this._localRotationInverse.makeRotationFromQuaternion(this._localOrientationInverse);
-                return this._localMatrix;
-            });
-            this._localMatrix = new Matrix4;
-            this._localMatrixInverse = new Matrix4;
-            this._localPosition = new Vector3;
-            this._localOrientation = new Quaternion;
-            this._localOrientationInverse = new Quaternion;
-            this._localScale = new Vector3(1, 1, 1);
-            this._localRotation = new Matrix4;
-            this._localRotationInverse = new Matrix4;
-            this._cachedWorldMatrix = this._cache.memoize(() => {
-                const matrix = this._worldMatrix.copy(this.localMatrix);
-                const parentState = this.parentState;
-                if (parentState) {
-                    matrix.premultiply(parentState.worldMatrix);
+export class NodeState {
+    constructor(mode, metrics) {
+        this.mode = mode;
+        this.metrics = metrics;
+        this._cache = new MemoizationCache;
+        this._parent = null;
+        this._cachedLocalMatrix = this._cache.memoize(() => {
+            this._localMatrix.decompose(this._localPosition, this._localOrientation, this._localScale);
+            this._localOrientationInverse.copy(this._localOrientation).inverse();
+            this._localRotation.makeRotationFromQuaternion(this._localOrientation);
+            this._localRotationInverse.makeRotationFromQuaternion(this._localOrientationInverse);
+            return this._localMatrix;
+        });
+        this._localMatrix = new Matrix4;
+        this._localMatrixInverse = new Matrix4;
+        this._localPosition = new Vector3;
+        this._localOrientation = new Quaternion;
+        this._localOrientationInverse = new Quaternion;
+        this._localScale = new Vector3(1, 1, 1);
+        this._localRotation = new Matrix4;
+        this._localRotationInverse = new Matrix4;
+        this._cachedWorldMatrix = this._cache.memoize(() => {
+            const matrix = this._worldMatrix.copy(this.localMatrix);
+            const parentState = this.parentState;
+            if (parentState) {
+                matrix.premultiply(parentState.worldMatrix);
+            }
+            matrix.decompose(this._worldPosition, this._worldOrientation, this._worldScale);
+            this._worldMatrixInverse.getInverse(this._worldMatrix);
+            this._worldOrientationInverse.copy(this._worldOrientation).inverse();
+            this._worldRotation.makeRotationFromQuaternion(this._worldOrientation);
+            this._worldRotationInverse.makeRotationFromQuaternion(this._worldOrientationInverse);
+            return matrix;
+        });
+        this._worldPosition = new Vector3;
+        this._worldOrientation = new Quaternion;
+        this._worldOrientationInverse = new Quaternion;
+        this._worldScale = new Vector3;
+        this._worldMatrix = new Matrix4;
+        this._worldMatrixInverse = new Matrix4;
+        this._worldRotation = new Matrix4;
+        this._worldRotationInverse = new Matrix4;
+        /**
+         * The inner bounds center in world coordinates
+         */
+        this._cachedWorldCenter = this._cache.memoize(() => {
+            return this._worldCenter.copy(this.metrics.innerCenter).applyMatrix4(this.worldMatrix);
+        });
+        this._worldCenter = new Vector3;
+        // private _worldOrigin = new Vector3
+        /**
+         * The layout space (convert to world space from layout space)
+         */
+        this._cachedLayoutMatrix = this._cache.memoize(() => {
+            const layoutMatrix = this._layoutMatrix.compose(this.worldOrigin, this.worldOrientation, V_111);
+            this._layoutMatrixInverse.getInverse(this._layoutMatrix);
+            this._localFromLayout.multiplyMatrices(this.worldMatrixInverse, layoutMatrix);
+            this._layoutFromLocal.getInverse(this._localFromLayout);
+            return layoutMatrix;
+        });
+        this._layoutMatrix = new Matrix4;
+        this._layoutMatrixInverse = new Matrix4;
+        this._localFromLayout = new Matrix4;
+        this._layoutFromLocal = new Matrix4;
+        // // /**
+        // //  * Convert to layout space from parent space
+        // //  */
+        // get layoutFromParent() {
+        //     return this._layoutFromParent.multiplyMatrices(this.layoutFromLocal, this.localMatrixInverse)
+        // }
+        // private _layoutFromParent = new Matrix4
+        // // /**
+        // //  * Convert to parent space from layout space
+        // //  */
+        // get parentFromLayout() {
+        //     return this._parentFromLayout.getInverse(this.layoutFromParent)
+        // }
+        // private _parentFromLayout = new Matrix4
+        /**
+         * The layout bounds
+         */
+        this._cachedLayoutBounds = this._cache.memoize(() => {
+            if (this.metrics.innerBounds.isEmpty()) {
+                this._layoutBounds.setFromCenterAndSize(V_000, V_111);
+            }
+            else {
+                this._layoutBounds.copy(this.metrics.innerBounds);
+            }
+            const bounds = this._layoutBounds.applyMatrix4(this.layoutFromLocal);
+            bounds.getCenter(this._layoutCenter);
+            bounds.getSize(this._layoutSize);
+            return bounds;
+        });
+        this._layoutBounds = new Box3;
+        this._layoutSize = new Vector3;
+        this._layoutCenter = new Vector3;
+        /**
+         * The first non-empty parent bounds, reoriented
+         */
+        this._cachedOuterBounds = this._cache.memoize(() => {
+            const bounds = this._outerBounds;
+            const outerState = this.outerState;
+            if (!outerState || outerState.metrics.innerBounds.isEmpty()) {
+                bounds.makeEmpty();
+            }
+            else {
+                bounds.copy(outerState.metrics.innerBounds);
+                const layoutFromOuter = this._layoutFromOuter.multiplyMatrices(this.layoutMatrixInverse, outerState.worldMatrix);
+                bounds.applyMatrix4(layoutFromOuter);
+            }
+            bounds.getCenter(this._outerCenter);
+            bounds.getSize(this._outerSize);
+            return bounds;
+        });
+        this._outerBounds = new Box3;
+        this._outerCenter = new Vector3;
+        this._outerSize = new Vector3;
+        this._layoutFromOuter = new Matrix4;
+        this._viewFromLocal = new Matrix4;
+        this._viewFromLayout = new Matrix4;
+        this._layoutFromView = new Matrix4;
+        this._cachedScreenBounds = this._cache.memoize(() => {
+            const viewFrustum = this.metrics.system.viewFrustum;
+            const projection = viewFrustum.perspectiveProjectionMatrix;
+            const viewFromLocal = this.viewFromLocal;
+            const viewProjectionFromLocal = this._viewProjectionFromLocal.multiplyMatrices(projection, viewFromLocal);
+            const bounds = this._screenBounds.copy(this.metrics.innerBounds).applyMatrix4(viewProjectionFromLocal);
+            // measure as slightly smaller than actual to hide gaps at edges
+            bounds.min.x *= 0.99;
+            bounds.max.x *= 0.99;
+            bounds.min.y *= 0.99;
+            bounds.max.y *= 0.99;
+            bounds.getCenter(this._screenCenter);
+            bounds.getSize(this._screenSize);
+            return bounds;
+        }, this._viewState._cache);
+        this._viewProjectionFromLocal = new Matrix4;
+        this._screenBounds = new Box3;
+        this._screenCenter = new Vector3;
+        this._screenSize = new Vector3;
+        this._cachedVisualFrustum = this._cache.memoize(() => {
+            const projection = this.metrics.system.viewFrustum.perspectiveProjectionMatrix;
+            return this._visualFrustum.setFromPerspectiveProjectionMatrix(projection, this.screenBounds);
+        }, this._viewState._cache);
+        this._visualFrustum = new LayoutFrustum;
+        this._viewPosition = new Vector3;
+        this._cachedViewAlignedOrientation = this._cache.memoize(() => {
+            const relativeViewMatrix = this._relativeViewMatrix.multiplyMatrices(this.worldMatrixInverse, this._viewState.worldMatrix);
+            const relativeViewRotation = this._relativeViewRotation.extractRotation(relativeViewMatrix);
+            const relativeViewOrientation = this._relativeViewOrientation.setFromRotationMatrix(relativeViewRotation);
+            const forwardDirection = this._relativeViewForward.set(0, 0, 1).applyQuaternion(relativeViewOrientation);
+            const upDirection = this._relativeViewUp.set(0, 1, 0).applyQuaternion(relativeViewOrientation);
+            let distForward = Infinity;
+            let distUp = Infinity;
+            let closestForwardDirection;
+            let closestUpDirection;
+            let d;
+            for (d in DIRECTION) {
+                const dir = DIRECTION[d];
+                var dist = upDirection.distanceToSquared(dir);
+                if (dist < distUp) {
+                    distUp = dist;
+                    closestUpDirection = dir;
                 }
-                matrix.decompose(this._worldPosition, this._worldOrientation, this._worldScale);
-                this._worldMatrixInverse.getInverse(this._worldMatrix);
-                this._worldOrientationInverse.copy(this._worldOrientation).inverse();
-                this._worldRotation.makeRotationFromQuaternion(this._worldOrientation);
-                this._worldRotationInverse.makeRotationFromQuaternion(this._worldOrientationInverse);
-                return matrix;
-            });
-            this._worldPosition = new Vector3;
-            this._worldOrientation = new Quaternion;
-            this._worldOrientationInverse = new Quaternion;
-            this._worldScale = new Vector3;
-            this._worldMatrix = new Matrix4;
-            this._worldMatrixInverse = new Matrix4;
-            this._worldRotation = new Matrix4;
-            this._worldRotationInverse = new Matrix4;
-            /**
-             * The inner bounds center in world coordinates
-             */
-            this._cachedWorldCenter = this._cache.memoize(() => {
-                return this._worldCenter.copy(this.metrics.innerCenter).applyMatrix4(this.worldMatrix);
-            });
-            this._worldCenter = new Vector3;
-            // private _worldOrigin = new Vector3
-            /**
-             * The layout space (convert to world space from layout space)
-             */
-            this._cachedLayoutMatrix = this._cache.memoize(() => {
-                const layoutMatrix = this._layoutMatrix.compose(this.worldOrigin, this.worldOrientation, V_111);
-                this._layoutMatrixInverse.getInverse(this._layoutMatrix);
-                this._localFromLayout.multiplyMatrices(this.worldMatrixInverse, layoutMatrix);
-                this._layoutFromLocal.getInverse(this._localFromLayout);
-                return layoutMatrix;
-            });
-            this._layoutMatrix = new Matrix4;
-            this._layoutMatrixInverse = new Matrix4;
-            this._localFromLayout = new Matrix4;
-            this._layoutFromLocal = new Matrix4;
-            // // /**
-            // //  * Convert to layout space from parent space
-            // //  */
-            // get layoutFromParent() {
-            //     return this._layoutFromParent.multiplyMatrices(this.layoutFromLocal, this.localMatrixInverse)
-            // }
-            // private _layoutFromParent = new Matrix4
-            // // /**
-            // //  * Convert to parent space from layout space
-            // //  */
-            // get parentFromLayout() {
-            //     return this._parentFromLayout.getInverse(this.layoutFromParent)
-            // }
-            // private _parentFromLayout = new Matrix4
-            /**
-             * The layout bounds
-             */
-            this._cachedLayoutBounds = this._cache.memoize(() => {
-                if (this.metrics.innerBounds.isEmpty()) {
-                    this._layoutBounds.setFromCenterAndSize(V_000, V_111);
+            }
+            for (d in DIRECTION) {
+                const dir = DIRECTION[d];
+                // avoid having forward & up defined on the same axis
+                if (dir.x && closestUpDirection.x)
+                    continue;
+                if (dir.y && closestUpDirection.y)
+                    continue;
+                if (dir.z && closestUpDirection.z)
+                    continue;
+                const dist = forwardDirection.distanceToSquared(dir);
+                if (dist < distForward) {
+                    distForward = dist;
+                    closestForwardDirection = dir;
                 }
-                else {
-                    this._layoutBounds.copy(this.metrics.innerBounds);
-                }
-                const bounds = this._layoutBounds.applyMatrix4(this.layoutFromLocal);
-                bounds.getCenter(this._layoutCenter);
-                bounds.getSize(this._layoutSize);
-                return bounds;
-            });
-            this._layoutBounds = new Box3;
-            this._layoutSize = new Vector3;
-            this._layoutCenter = new Vector3;
-            /**
-             * The first non-empty parent bounds, reoriented
-             */
-            this._cachedOuterBounds = this._cache.memoize(() => {
-                const bounds = this._outerBounds;
-                const outerState = this.outerState;
-                if (!outerState || outerState.metrics.innerBounds.isEmpty()) {
-                    bounds.makeEmpty();
-                }
-                else {
-                    bounds.copy(outerState.metrics.innerBounds);
-                    const layoutFromOuter = this._layoutFromOuter.multiplyMatrices(this.layoutMatrixInverse, outerState.worldMatrix);
-                    bounds.applyMatrix4(layoutFromOuter);
-                }
-                bounds.getCenter(this._outerCenter);
-                bounds.getSize(this._outerSize);
-                return bounds;
-            });
-            this._outerBounds = new Box3;
-            this._outerCenter = new Vector3;
-            this._outerSize = new Vector3;
-            this._layoutFromOuter = new Matrix4;
-            this._viewFromLocal = new Matrix4;
-            this._viewFromLayout = new Matrix4;
-            this._layoutFromView = new Matrix4;
-            this._cachedVisualFrustum = this._cache.memoize(() => {
-                const viewFrustum = this.metrics.system.viewFrustum;
-                const projection = viewFrustum.perspectiveProjectionMatrix;
-                const b = this.metrics.innerBounds;
-                const p = NodeState._visualPoints;
-                const viewFromLocal = this.viewFromLocal;
-                p[0].set(b.min.x, b.min.y, b.min.z).applyMatrix4(viewFromLocal).applyMatrix4(projection); // 000
-                p[1].set(b.min.x, b.min.y, b.max.z).applyMatrix4(viewFromLocal).applyMatrix4(projection); // 001
-                p[2].set(b.min.x, b.max.y, b.min.z).applyMatrix4(viewFromLocal).applyMatrix4(projection); // 010
-                p[3].set(b.min.x, b.max.y, b.max.z).applyMatrix4(viewFromLocal).applyMatrix4(projection); // 011
-                p[4].set(b.max.x, b.min.y, b.min.z).applyMatrix4(viewFromLocal).applyMatrix4(projection); // 100
-                p[5].set(b.max.x, b.min.y, b.max.z).applyMatrix4(viewFromLocal).applyMatrix4(projection); // 101
-                p[6].set(b.max.x, b.max.y, b.min.z).applyMatrix4(viewFromLocal).applyMatrix4(projection); // 110
-                p[7].set(b.max.x, b.max.y, b.max.z).applyMatrix4(viewFromLocal).applyMatrix4(projection); // 111
-                const vB = NodeState._visualBounds.setFromPoints(p);
-                const frustumSizeDegrees = viewFrustum.sizeDegrees;
-                const viewHalfSize = NodeState._viewHalfSize.set(frustumSizeDegrees.x * 0.5, frustumSizeDegrees.y * 0.5, 1);
-                const zNear = viewFrustum.nearMeters;
-                const zFar = viewFrustum.farMeters;
-                const zDepth = viewFrustum.depth;
-                vB.min.z = 2 * zNear * zFar / (zFar + zNear - (2 * vB.min.z - 1) * zDepth);
-                vB.max.z = 2 * zNear * zFar / (zFar + zNear - (2 * vB.max.z - 1) * zDepth);
-                vB.min.multiply(viewHalfSize);
-                vB.max.multiply(viewHalfSize);
-                const vF = this._visualFrustum;
-                vF.leftDegrees = vB.min.x;
-                vF.rightDegrees = vB.max.x;
-                vF.topDegrees = vB.max.y;
-                vF.bottomDegrees = vB.min.y;
-                vF.nearMeters = vB.min.z;
-                vF.farMeters = vB.max.z;
-                return vF;
-            }, this._viewState._cache);
-            this._visualFrustum = new LayoutFrustum;
-            this._viewPosition = new Vector3;
-            this._cachedViewAlignedOrientation = this._cache.memoize(() => {
-                const relativeViewMatrix = this._relativeViewMatrix.multiplyMatrices(this.worldMatrixInverse, this._viewState.worldMatrix);
-                const relativeViewRotation = this._relativeViewRotation.extractRotation(relativeViewMatrix);
-                const relativeViewOrientation = this._relativeViewOrientation.setFromRotationMatrix(relativeViewRotation);
-                const forwardDirection = this._relativeViewForward.set(0, 0, 1).applyQuaternion(relativeViewOrientation);
-                const upDirection = this._relativeViewUp.set(0, 1, 0).applyQuaternion(relativeViewOrientation);
-                let distForward = Infinity;
-                let distUp = Infinity;
-                let closestForwardDirection;
-                let closestUpDirection;
-                let d;
-                for (d in DIRECTION) {
-                    const dir = DIRECTION[d];
-                    var dist = upDirection.distanceToSquared(dir);
-                    if (dist < distUp) {
-                        distUp = dist;
-                        closestUpDirection = dir;
-                    }
-                }
-                for (d in DIRECTION) {
-                    const dir = DIRECTION[d];
-                    // avoid having forward & up defined on the same axis
-                    if (dir.x && closestUpDirection.x)
-                        continue;
-                    if (dir.y && closestUpDirection.y)
-                        continue;
-                    if (dir.z && closestUpDirection.z)
-                        continue;
-                    const dist = forwardDirection.distanceToSquared(dir);
-                    if (dist < distForward) {
-                        distForward = dist;
-                        closestForwardDirection = dir;
-                    }
-                }
-                const rot = this._orthogonalRotation.identity();
-                rot.lookAt(closestForwardDirection, V_000, closestUpDirection);
-                return this._orthogonalOrientation.setFromRotationMatrix(rot);
-            }, this._viewState._cache);
-            this._relativeViewMatrix = new Matrix4;
-            this._relativeViewRotation = new Matrix4;
-            this._relativeViewOrientation = new Quaternion;
-            this._relativeViewUp = new Vector3;
-            this._relativeViewForward = new Vector3;
-            this._orthogonalRotation = new Matrix4;
-            this._orthogonalOrientation = new Quaternion;
-            // screenBounds() {
-            //     const screenBounds = this._screenBounds
-            //     this.metrics.innerBounds.min.project
-            //     var pos = object.position.clone()
-            //     camera.updateMatrixWorld()
-            //     pos.project(camera)
-            //     return screenBounds.set(pos.x, pos.y)
-            // }
-            // private _screenBounds = new Box2
-            this._computeOcclusion = this._cache.memoize(() => {
-                this._occludingPercent = 0;
-                this._occludedPercent = 0;
-                const metrics = this.metrics;
-                if (metrics.innerBounds.isEmpty())
-                    return;
-                const system = metrics.system;
-                const adapters = system.nodeAdapters.values();
-                const myFrustum = this.visualFrustum;
-                const myNear = myFrustum.nearMeters;
-                for (const adapter of adapters) {
-                    const otherMetrics = adapter.metrics;
-                    if (otherMetrics === metrics)
-                        continue;
-                    if (!otherMetrics.isBoundingContext || otherMetrics.innerBounds.isEmpty())
-                        continue;
-                    if (otherMetrics.containedByNode(adapter.node))
-                        continue;
-                    const otherState = this.mode === 'current' ? otherMetrics.currentState : otherMetrics.targetState;
-                    const otherFrustum = otherState.visualFrustum;
-                    const overlapPercent = myFrustum.overlapPercent(otherFrustum);
-                    if (overlapPercent > 0) {
-                        if (myNear < otherFrustum.nearMeters)
-                            this._occludingPercent += overlapPercent;
-                        else
-                            this._occludedPercent += overlapPercent;
-                    }
-                }
-            }, this._viewState._cache);
+            }
+            const rot = this._orthogonalRotation.identity();
+            rot.lookAt(closestForwardDirection, V_000, closestUpDirection);
+            return this._orthogonalOrientation.setFromRotationMatrix(rot);
+        }, this._viewState._cache);
+        this._relativeViewMatrix = new Matrix4;
+        this._relativeViewRotation = new Matrix4;
+        this._relativeViewOrientation = new Quaternion;
+        this._relativeViewUp = new Vector3;
+        this._relativeViewForward = new Vector3;
+        this._orthogonalRotation = new Matrix4;
+        this._orthogonalOrientation = new Quaternion;
+        // screenBounds() {
+        //     const screenBounds = this._screenBounds
+        //     this.metrics.innerBounds.min.project
+        //     var pos = object.position.clone()
+        //     camera.updateMatrixWorld()
+        //     pos.project(camera)
+        //     return screenBounds.set(pos.x, pos.y)
+        // }
+        // private _screenBounds = new Box2
+        this._computeOcclusion = this._cache.memoize(() => {
             this._occludingPercent = 0;
             this._occludedPercent = 0;
-        }
-        invalidate() {
-            if (this._cache.isClean())
+            const metrics = this.metrics;
+            if (metrics.innerBounds.isEmpty())
                 return;
-            this._cache.invalidateAll();
-            for (const c of this.metrics.nodeChildren) {
-                const metrics = this.metrics.system.getMetrics(c);
-                metrics.invalidateWorldState();
+            const system = metrics.system;
+            const adapters = system.nodeAdapters.values();
+            const myFrustum = this.visualFrustum;
+            const myNear = myFrustum.nearMeters;
+            for (const adapter of adapters) {
+                const otherMetrics = adapter.metrics;
+                if (otherMetrics === metrics)
+                    continue;
+                if (!otherMetrics.isAdaptive || otherMetrics.innerBounds.isEmpty())
+                    continue;
+                if (otherMetrics.containedByNode(adapter.node))
+                    continue;
+                const otherState = this.mode === 'current' ? otherMetrics.currentState : otherMetrics.targetState;
+                const otherFrustum = otherState.visualFrustum;
+                const overlapPercent = myFrustum.overlapPercent(otherFrustum);
+                if (overlapPercent > 0) {
+                    if (myNear < otherFrustum.nearMeters)
+                        this._occludingPercent += overlapPercent;
+                    else
+                        this._occludedPercent += overlapPercent;
+                }
             }
-        }
-        get parent() {
-            return this._parent;
-        }
-        set parent(val) {
-            const current = this._parent;
-            if (current !== val) {
-                this._parent = val;
-                this.invalidate();
-            }
-        }
-        get parentState() {
-            const parentMetrics = this.parent && this.metrics.system.getMetrics(this.parent);
-            const parentState = this.mode === 'current' ? parentMetrics?.currentState : parentMetrics?.targetState;
-            return parentState;
-        }
-        get localMatrix() { return this._cachedLocalMatrix(); }
-        set localMatrix(val) {
-            if (!this._localMatrix.equals(val)) {
-                this.invalidate();
-                this._localMatrix.copy(val);
-                this._localMatrixInverse.getInverse(this.localMatrix);
-            }
-        }
-        get localMatrixInverse() {
-            return this._localMatrixInverse;
-        }
-        get localPosition() {
-            this.localMatrix;
-            return this._localPosition;
-        }
-        get localOrientation() {
-            this.localMatrix;
-            return this._localOrientation;
-        }
-        get localOrientationInverse() {
-            this.localMatrix;
-            return this._localOrientationInverse;
-        }
-        get localScale() {
-            this.localMatrix;
-            return this._localScale;
-        }
-        /**
-         * Local rotation matrix
-         */
-        get localRotation() {
-            this.localMatrix;
-            return this._localRotation;
-        }
-        /**
-         * Local Orientation matrix inverse
-         */
-        get localRotationInverse() {
-            this.localMatrix;
-            return this._localRotationInverse;
-        }
-        get worldMatrix() {
-            return this._cachedWorldMatrix();
-        }
-        get worldMatrixInverse() {
-            this.worldMatrix;
-            return this._worldMatrixInverse;
-        }
-        get worldPosition() {
-            this.worldMatrix;
-            return this._worldPosition;
-        }
-        get worldOrientation() {
-            this.worldMatrix;
-            return this._worldOrientation;
-        }
-        get worldScale() {
-            this.worldMatrix;
-            return this._worldScale;
-        }
-        /**
-         * Inverse world orientation
-         */
-        get worldOrientationInverse() {
-            return this._worldOrientationInverse;
-        }
-        /**
-         * World rotation matrix
-         */
-        get worldRotation() {
-            return this._worldRotation;
-        }
-        /**
-         * World rotation matrix inverse
-         */
-        get worldRotationInverse() {
-            return this._worldRotationInverse;
-        }
-        get worldCenter() {
-            return this._cachedWorldCenter();
-        }
-        /**
-         * The outer origin in world coordinates
-         */
-        // private _cachedWorldOrigin = this._cache.memoize(() => {
-        //     const outerState = this.outerState
-        //     const origin = this.metrics.system.nodeAdapters.get(this.metrics.node)?.origin?.[this.mode]
-        //     if (!origin || !outerState) return outerState?.worldCenter ?? V_000
-        //     return this._worldOrigin.copy(outerState.metrics.innerSize ?? V_000)
-        //         .multiply(origin).add(outerState.metrics.innerBounds.min ?? V_000).applyMatrix4( outerState.worldMatrix )
-        // })
-        get worldOrigin() {
-            return this.outerState?.worldCenter ?? V_000;
-            // return this._cachedWorldOrigin()
-        }
-        get layoutMatrix() {
-            return this._cachedLayoutMatrix();
-        }
-        /**
-         * Convert to layout space from world space
-         */
-        get layoutMatrixInverse() {
-            this.layoutMatrix;
-            return this._layoutMatrixInverse;
-        }
-        /**
-         * Convert to local space from layout space
-         */
-        get localFromLayout() {
-            this.layoutMatrix;
-            return this._localFromLayout;
-        }
-        /**
-         * Convert to layout space from local space
-         */
-        get layoutFromLocal() {
-            this.layoutMatrix;
-            return this._layoutFromLocal;
-        }
-        get layoutBounds() { return this._cachedLayoutBounds(); }
-        /**
-         * The layout size
-         */
-        get layoutSize() {
-            this.layoutBounds;
-            return this._layoutSize;
-        }
-        /**
-         * The layout center
-         */
-        get layoutCenter() {
-            this.layoutBounds;
-            return this._layoutCenter;
-        }
-        get outerState() {
-            let parentState = this.parentState;
-            while (parentState?.metrics.innerBounds.isEmpty()) {
-                parentState = parentState.parentState;
-            }
-            return parentState;
-        }
-        get outerBounds() { return this._cachedOuterBounds(); }
-        /**
-         *
-         */
-        get outerCenter() {
-            this.outerBounds;
-            return this._outerCenter;
-        }
-        // /**
-        //  * 
-        //  */
-        get outerSize() {
-            this.outerBounds;
-            return this._outerSize;
-        }
-        // /**
-        //  * The layout bounds in proportional units ( identity with parent layout is center=[0,0,0] size=[1,1,1] )
-        //  */
-        // @cached get proportionalBounds() {
-        //     const proportional = this._proportionalBounds.copy(this.layoutBounds)
-        //     const outerSize = this.outerSize
-        //     proportional.min.divide(outerSize)
-        //     proportional.max.divide(outerSize)
-        //     proportional.getCenter(this._proportionalCenter)
-        //     proportional.getSize(this._proportionalSize)
-        //     return proportional
-        // }
-        // private _proportionalBounds = new Box3
-        // private _proportionalCenter = new Vector3
-        // private _proportionalSize = new Vector3
-        // /**
-        //  * Proportional size ( identity with parent layout is size=[1,1,1] )
-        //  */
-        // get proportionalSize() {
-        //     this.proportionalBounds
-        //     return this._proportionalSize
-        // }
-        // /**
-        //  * 
-        //  */
-        // get proportionalCenter() {
-        //     this.proportionalBounds
-        //     return this._proportionalCenter
-        // }
-        get _viewState() {
-            if (this.metrics.system.viewNode === this.metrics.node)
-                return this;
-            const viewMetrics = this.metrics.system.viewMetrics;
-            return (this.mode === 'current' ?
-                viewMetrics[InternalCurrentState] :
-                viewMetrics[InternalTargetState]);
-        }
-        /**
-         * The view space from local space
-         */
-        get viewFromLocal() {
-            return this._viewFromLocal.multiplyMatrices(this._viewState.worldMatrixInverse, this.worldMatrix);
-        }
-        /**
-         * The view space from layout space
-         */
-        get viewFromLayout() {
-            return this._viewFromLayout.multiplyMatrices(this._viewState.worldMatrixInverse, this.layoutMatrix);
-        }
-        /**
-         * Convert to parent space from layout space
-         */
-        get layoutFromView() {
-            return this._layoutFromView.getInverse(this.viewFromLayout);
-        }
-        /**
-         * The view projection space from layout space
-         */
-        // @cached get viewProjectionFromLocal() {
-        //     return this._viewProjectionFromLayout.multiplyMatrices(this.viewFromLocal, perspective)
-        // }
-        // private _viewProjectionFromLayout = new Matrix4
-        /**
-         * The visual bounds of the this node.
-         * X and Y coordinates are in degrees, with the origin being centered in the visual space
-         * Z coordinate are in meters
-         */
-        get visualFrustum() {
-            return this._cachedVisualFrustum();
-        }
-        /**
-         * The view position relative to this node state
-         */
-        get relativeViewPosition() {
-            return this._viewPosition.copy(this._viewState.worldPosition).applyMatrix4(this.worldMatrixInverse);
-        }
-        /**
-         * The local orthogonal (right-angled) orientation with the closest view orientation alignment
-         */
-        get viewAlignedOrientation() {
-            return this._cachedViewAlignedOrientation();
-        }
-        /**
-         * The percent of this node occluding another node
-         */
-        get occludingPercent() {
-            this._computeOcclusion();
-            return this._occludingPercent;
-        }
-        /**
-         * The percent of this node occluded by another node
-         */
-        get occludedPercent() {
-            this._computeOcclusion();
-            return this._occludedPercent;
+        }, this._viewState._cache);
+        this._occludingPercent = 0;
+        this._occludedPercent = 0;
+    }
+    invalidate() {
+        if (this._cache.isClean())
+            return;
+        this._cache.invalidateAll();
+        for (const c of this.metrics.nodeChildren) {
+            const metrics = this.metrics.system.getMetrics(c);
+            metrics.invalidateWorldState();
         }
     }
-    NodeState._viewHalfSize = new Vector3;
-    NodeState._visualBounds = new Box3;
-    NodeState._visualPoints = [
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3()
-    ];
-    return NodeState;
-})();
-export { NodeState };
+    get parent() {
+        return this._parent;
+    }
+    set parent(val) {
+        const current = this._parent;
+        if (current !== val) {
+            this._parent = val;
+            this.invalidate();
+        }
+    }
+    get parentState() {
+        const parentMetrics = this.parent && this.metrics.system.getMetrics(this.parent);
+        const parentState = this.mode === 'current' ? parentMetrics?.currentState : parentMetrics?.targetState;
+        return parentState;
+    }
+    get localMatrix() { return this._cachedLocalMatrix(); }
+    set localMatrix(val) {
+        if (!this._localMatrix.equals(val)) {
+            this.invalidate();
+            this._localMatrix.copy(val);
+            this._localMatrixInverse.getInverse(this.localMatrix);
+        }
+    }
+    get localMatrixInverse() {
+        return this._localMatrixInverse;
+    }
+    get localPosition() {
+        this.localMatrix;
+        return this._localPosition;
+    }
+    get localOrientation() {
+        this.localMatrix;
+        return this._localOrientation;
+    }
+    get localOrientationInverse() {
+        this.localMatrix;
+        return this._localOrientationInverse;
+    }
+    get localScale() {
+        this.localMatrix;
+        return this._localScale;
+    }
+    /**
+     * Local rotation matrix
+     */
+    get localRotation() {
+        this.localMatrix;
+        return this._localRotation;
+    }
+    /**
+     * Local Orientation matrix inverse
+     */
+    get localRotationInverse() {
+        this.localMatrix;
+        return this._localRotationInverse;
+    }
+    get worldMatrix() {
+        return this._cachedWorldMatrix();
+    }
+    get worldMatrixInverse() {
+        this.worldMatrix;
+        return this._worldMatrixInverse;
+    }
+    get worldPosition() {
+        this.worldMatrix;
+        return this._worldPosition;
+    }
+    get worldOrientation() {
+        this.worldMatrix;
+        return this._worldOrientation;
+    }
+    get worldScale() {
+        this.worldMatrix;
+        return this._worldScale;
+    }
+    /**
+     * Inverse world orientation
+     */
+    get worldOrientationInverse() {
+        return this._worldOrientationInverse;
+    }
+    /**
+     * World rotation matrix
+     */
+    get worldRotation() {
+        return this._worldRotation;
+    }
+    /**
+     * World rotation matrix inverse
+     */
+    get worldRotationInverse() {
+        return this._worldRotationInverse;
+    }
+    get worldCenter() {
+        return this._cachedWorldCenter();
+    }
+    /**
+     * The outer origin in world coordinates
+     */
+    // private _cachedWorldOrigin = this._cache.memoize(() => {
+    //     const outerState = this.outerState
+    //     const origin = this.metrics.system.nodeAdapters.get(this.metrics.node)?.origin?.[this.mode]
+    //     if (!origin || !outerState) return outerState?.worldCenter ?? V_000
+    //     return this._worldOrigin.copy(outerState.metrics.innerSize ?? V_000)
+    //         .multiply(origin).add(outerState.metrics.innerBounds.min ?? V_000).applyMatrix4( outerState.worldMatrix )
+    // })
+    get worldOrigin() {
+        return this.outerState?.worldCenter ?? V_000;
+        // return this._cachedWorldOrigin()
+    }
+    get layoutMatrix() {
+        return this._cachedLayoutMatrix();
+    }
+    /**
+     * Convert to layout space from world space
+     */
+    get layoutMatrixInverse() {
+        this.layoutMatrix;
+        return this._layoutMatrixInverse;
+    }
+    /**
+     * Convert to local space from layout space
+     */
+    get localFromLayout() {
+        this.layoutMatrix;
+        return this._localFromLayout;
+    }
+    /**
+     * Convert to layout space from local space
+     */
+    get layoutFromLocal() {
+        this.layoutMatrix;
+        return this._layoutFromLocal;
+    }
+    get layoutBounds() { return this._cachedLayoutBounds(); }
+    /**
+     * The layout size
+     */
+    get layoutSize() {
+        this.layoutBounds;
+        return this._layoutSize;
+    }
+    /**
+     * The layout center
+     */
+    get layoutCenter() {
+        this.layoutBounds;
+        return this._layoutCenter;
+    }
+    get outerState() {
+        let parentState = this.parentState;
+        while (parentState?.metrics.innerBounds.isEmpty() || parentState?.metrics.isAdaptive) {
+            parentState = parentState.parentState;
+        }
+        return parentState;
+    }
+    get outerBounds() { return this._cachedOuterBounds(); }
+    /**
+     *
+     */
+    get outerCenter() {
+        this.outerBounds;
+        return this._outerCenter;
+    }
+    // /**
+    //  * 
+    //  */
+    get outerSize() {
+        this.outerBounds;
+        return this._outerSize;
+    }
+    // /**
+    //  * The layout bounds in proportional units ( identity with parent layout is center=[0,0,0] size=[1,1,1] )
+    //  */
+    // @cached get proportionalBounds() {
+    //     const proportional = this._proportionalBounds.copy(this.layoutBounds)
+    //     const outerSize = this.outerSize
+    //     proportional.min.divide(outerSize)
+    //     proportional.max.divide(outerSize)
+    //     proportional.getCenter(this._proportionalCenter)
+    //     proportional.getSize(this._proportionalSize)
+    //     return proportional
+    // }
+    // private _proportionalBounds = new Box3
+    // private _proportionalCenter = new Vector3
+    // private _proportionalSize = new Vector3
+    // /**
+    //  * Proportional size ( identity with parent layout is size=[1,1,1] )
+    //  */
+    // get proportionalSize() {
+    //     this.proportionalBounds
+    //     return this._proportionalSize
+    // }
+    // /**
+    //  * 
+    //  */
+    // get proportionalCenter() {
+    //     this.proportionalBounds
+    //     return this._proportionalCenter
+    // }
+    get _viewState() {
+        if (this.metrics.system.viewNode === this.metrics.node)
+            return this;
+        const viewMetrics = this.metrics.system.viewMetrics;
+        return (this.mode === 'current' ?
+            viewMetrics[InternalCurrentState] :
+            viewMetrics[InternalTargetState]);
+    }
+    /**
+     * The view space from local space
+     */
+    get viewFromLocal() {
+        return this._viewFromLocal.multiplyMatrices(this._viewState.worldMatrixInverse, this.worldMatrix);
+    }
+    /**
+     * The view space from layout space
+     */
+    get viewFromLayout() {
+        return this._viewFromLayout.multiplyMatrices(this._viewState.worldMatrixInverse, this.layoutMatrix);
+    }
+    /**
+     * Convert to parent space from layout space
+     */
+    get layoutFromView() {
+        return this._layoutFromView.getInverse(this.viewFromLayout);
+    }
+    /**
+     * The view projection space from layout space
+     */
+    // @cached get viewProjectionFromLocal() {
+    //     return this._viewProjectionFromLayout.multiplyMatrices(this.viewFromLocal, perspective)
+    // }
+    // private _viewProjectionFromLayout = new Matrix4
+    get screenBounds() {
+        return this._cachedScreenBounds();
+    }
+    get screenCenter() {
+        this._cachedScreenBounds();
+        return this._screenCenter;
+    }
+    get screenSize() {
+        this._cachedScreenBounds();
+        return this._screenSize;
+    }
+    /**
+     * The visual bounds of the this node.
+     * X and Y coordinates are in degrees, with the origin being centered in the visual space
+     * Z coordinate are in meters
+     */
+    get visualFrustum() {
+        return this._cachedVisualFrustum();
+    }
+    /**
+     * The view position relative to this node state
+     */
+    get relativeViewPosition() {
+        return this._viewPosition.copy(this._viewState.worldPosition).applyMatrix4(this.worldMatrixInverse);
+    }
+    /**
+     * The local orthogonal (right-angled) orientation with the closest view orientation alignment
+     */
+    get viewAlignedOrientation() {
+        return this._cachedViewAlignedOrientation();
+    }
+    /**
+     * The percent of this node occluding another node
+     */
+    get occludingPercent() {
+        this._computeOcclusion();
+        return this._occludingPercent;
+    }
+    /**
+     * The percent of this node occluded by another node
+     */
+    get occludedPercent() {
+        this._computeOcclusion();
+        return this._occludedPercent;
+    }
+}
 /**
  * Maintains current & target scenegraph state,
  * and efficiently/reactively compute spatial metrics
@@ -653,24 +638,15 @@ export class SpatialMetrics {
             return this._computeState(this[InternalTargetState]);
         });
         this[_b] = new NodeState('target', this);
-        this._cachedChildren = this._cache.memoize(() => {
-            const adapter = this.system.nodeAdapters.get(this.node);
+        this._cachedBoundsChildren = this._cache.memoize(() => {
             const nodeChildren = this.nodeChildren;
             const children = this._children;
             children.length = 0;
             for (const child of nodeChildren) {
                 const metrics = this.system.getMetrics(child);
-                if (metrics.isBoundingContext)
+                if (metrics.isAdaptive)
                     continue;
-                if (metrics.parentNode === this.node)
-                    children.push(child);
-            }
-            if (adapter?.addedChildren?.size) {
-                for (const child of adapter.addedChildren) {
-                    const metrics = this.system.getMetrics(child);
-                    if (metrics.parentNode === this.node && !children.includes(child))
-                        children.push(child);
-                }
+                children.push(child);
             }
             return children;
         });
@@ -684,16 +660,18 @@ export class SpatialMetrics {
             this.needsUpdate = false;
             const adapter = this.system.nodeAdapters.get(this.node);
             if (adapter) {
-                // adapter._update()
-                const nodeState = this.nodeState;
-                const previousNodeParent = nodeState.parent;
-                const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation);
-                const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds);
-                adapter.onUpdate(this.system);
+                this.invalidateNodeState();
                 if (adapter.layouts.length) {
+                    adapter.onUpdate?.();
                     this.system.optimizer.update(adapter);
                 }
-                else {
+                else if (adapter.onUpdate) {
+                    this.invalidateNodeState();
+                    const nodeState = this.nodeState;
+                    const previousNodeParent = nodeState.parent;
+                    const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation);
+                    const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds);
+                    adapter.onUpdate();
                     this.invalidateNodeState();
                     this.nodeState; // recompute
                     const config = this.system.config;
@@ -708,17 +686,14 @@ export class SpatialMetrics {
                 }
                 adapter.opacity.update();
                 adapter.orientation.update();
-                // adapter.origin.update()
                 adapter.bounds.update();
+                this.invalidateNodeState();
                 this.invalidateLocalState();
-                const currentState = this.currentState;
-                this.system.bindings.apply(this, currentState);
-                // const parentNode = currentState.parent
-                // const parentAdapter = parentNode && this.system.nodeAdapters.get(parentNode)
-                // parentAdapter && parentAdapter._addedChildren.delete(this.node)
-                nodeState.parent = currentState.parent;
-                nodeState.localMatrix = currentState.localMatrix;
-                adapter.onLayout(this.system);
+                if (this.isAdaptive) {
+                    this.system.bindings.apply(this, this.currentState);
+                    this.invalidateNodeState();
+                }
+                adapter.onLayout?.();
             }
             else {
                 this._cache.invalidateAll();
@@ -730,6 +705,8 @@ export class SpatialMetrics {
         }
     }
     _computeInnerBounds() {
+        if (this.node === this.system.viewNode)
+            return;
         const inner = this._innerBounds;
         inner.copy(this.intrinsicBounds);
         const childBounds = this._childBounds;
@@ -785,8 +762,8 @@ export class SpatialMetrics {
     }
     /**
      * Returns false if this node does not contain the passed node.
-     * If the passed node is contained by this node, returns
-     * the top-most containing branch node.
+     * If the given node is a descendent of this node, returns
+     * the closest child node.
      */
     containsNode(node) {
         this.update();
@@ -873,14 +850,13 @@ export class SpatialMetrics {
      */
     get boundsChildren() {
         this.update();
-        return this._cachedChildren();
+        return this._cachedBoundsChildren();
     }
     /**
      *
      */
-    get isBoundingContext() {
-        const adapter = this.system.nodeAdapters.get(this.node);
-        return adapter?.orientation.active || adapter?.bounds.active;
+    get isAdaptive() {
+        return this.system.nodeAdapters.has(this.node);
     }
 }
 _a = InternalCurrentState, _b = InternalTargetState;

@@ -2,7 +2,7 @@ import { EtherealSystem } from './EtherealSystem';
 import { PerspectiveCamera } from 'three';
 export class EtherealSystemMock extends EtherealSystem {
     constructor() {
-        super({
+        super(new PerspectiveCamera, {
             getChildren(metrics, children) {
                 const nodeObj = metrics.node;
                 children.length = 0;
@@ -33,8 +33,7 @@ export class EtherealSystemMock extends EtherealSystem {
                 return bounds;
             },
             apply(metrics, state) {
-            },
+            }
         });
-        this.viewNode = new PerspectiveCamera;
     }
 }

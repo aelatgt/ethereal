@@ -55,6 +55,7 @@ export class WebLayer3DBase extends Object3D {
     super()
     const element = this.element = typeof elementOrHTML === 'string' ? DOM(elementOrHTML) : elementOrHTML
     this.name = element.id
+    this._webLayer = WebRenderer.getClosestLayer(element)!
 
     // this.layout.forceBoundsExclusion = true
     // this.layout.innerAutoUpdate = false
@@ -84,7 +85,7 @@ export class WebLayer3DBase extends Object3D {
     WebLayer3D.layersByMesh.set(this.contentMesh, this)
   }
 
-  protected _webLayer : WebLayer = WebRenderer.getClosestLayer(this.element)!
+  protected _webLayer : WebLayer
 
   textures = new Map<HTMLCanvasElement | HTMLVideoElement, Texture>()
 
@@ -364,10 +365,10 @@ export class WebLayer3DBase extends Object3D {
     }
 
     const bounds = this.bounds
-    if (bounds.width === 0 || bounds.height === 0 || !this.currentTexture.image) {
-      // this.contentOpacity.target = 0
-      return
-    }
+    // if (bounds.width === 0 || bounds.height === 0 || !this.currentTexture.image) {
+    //   // this.contentOpacity.target = 0
+    //   return
+    // }
 
     // this.contentOpacity.target = 1
 
@@ -416,7 +417,7 @@ export class WebLayer3DBase extends Object3D {
     // this.content.layout.inner.copy(this.layout.inner)
   }
 
-  private _refreshMesh() {
+  _refreshMesh() {
     const mesh = this.contentMesh
     const texture = this.currentTexture
 
@@ -551,9 +552,14 @@ export class WebLayer3D extends WebLayer3DBase {
         }
       }
     }
+    rootLayer.traverseLayers(this._doRefreshMesh)
     // rootLayer.traverseLayers(WebLayer3D._setHover)
     // WebLayer3D._setHoverClass(rootLayer.element)
     // domUtils.traverseChildElements(rootLayer.element, WebLayer3D._setHoverClass)
+  }
+
+  private static _doRefreshMesh = (layer:WebLayer3DBase) => {
+    layer._refreshMesh()
   }
 
   private _doRefresh = () => {

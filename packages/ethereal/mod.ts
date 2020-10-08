@@ -1,11 +1,9 @@
 import {
     EtherealSystem, 
+    SpatialMetrics,
     Node3D, 
     NodeState, 
-    Box3,
-    SpatialOptimizer,
-    SpatialAdapter,
-    SpatialMetrics,
+    Box3
 } from "@etherealjs/core/mod"
 
 import type * as THREE from 'three'
@@ -23,6 +21,12 @@ export const ThreeBindings = {
         }
     },
     getState(metrics:SpatialMetrics, state:NodeState) {
+        if (metrics.system.viewNode === metrics.node) {
+            const cameraNode = metrics.node as THREE.Camera
+            cameraNode.updateMatrixWorld()
+            metrics.system.viewFrustum.setFromPerspectiveProjectionMatrix(cameraNode.projectionMatrix)
+        }
+
         const nodeObj = metrics.node as THREE.Mesh
         nodeObj.matrixAutoUpdate && nodeObj.updateMatrix()
         state.localMatrix = nodeObj.matrix
@@ -86,26 +90,10 @@ export const DefaultBindings = {
     }
 }
 
-export const system = new EtherealSystem(DefaultBindings)
-
-export const transition = system.createTransitioner
-
-export function state<T extends Node3D>(node:T) {
-    return system.getMetrics(node).targetState
+export function createSystem<T extends Node3D>(viewNode:T, bindings=DefaultBindings) {
+    return new EtherealSystem(viewNode, bindings)
 }
-
-export function adapt<T extends Node3D>(node:T, cb:(adapter:SpatialAdapter<T>) => void) {
-    const adapter = system.getAdapter(node)
-    ;(node as any).adapter = adapter
-    // const state = adapter.metrics.currentState
-    // adapter.orientation.reset(state.localOrientation)
-    // adapter.bounds.reset(state.layoutBounds)
-    // adapter.opacity.reset(state.opacity)
-    cb(adapter)
-}
-
-export const objective = SpatialOptimizer.objective
 
 export * from '@etherealjs/core/mod'
 
-export * from '@etherealjs/web-layer/mod'
+export {WebLayer3D, WebLayer3DBase, WebRenderer} from '@etherealjs/web-layer/mod'

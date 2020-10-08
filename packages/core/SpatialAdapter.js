@@ -1,5 +1,5 @@
 import { SpatialLayout } from './SpatialLayout';
-import { SpatialTransitioner, TransitionConfig, Transition } from './SpatialTransitioner';
+import { Transitionable, TransitionConfig, Transition } from './Transitionable';
 import { OptimizerConfig } from './SpatialOptimizer';
 import { Quaternion, Box3, V_000, V_111 } from './math';
 /**
@@ -41,7 +41,6 @@ let SpatialAdapter = /** @class */ (() => {
              * Transition overrides for this node
              */
             this.transition = new TransitionConfig;
-            this._addedChildren = new Set();
             // /** 
             //  * Behaviors get called every frame
             //  */
@@ -53,31 +52,10 @@ let SpatialAdapter = /** @class */ (() => {
             this.layouts = new Array();
             this._prevLayout = null;
             this._activeLayout = null;
-            // /**
-            //  * Reset the target state to match the current node state
-            //  */
-            // retarget(node:Node3D=this.node) {
-            //     this.enabled = false
-            //     this.metrics.invalidateCurrentState()
-            //     this.parentNode = this.metrics.parentNode
-            //     this.orientation.target = this.metrics.layoutOrientation
-            //     this.bounds.target = this.metrics.layoutBounds
-            //     this.opacity.target = this.metrics.opacity
-            //     this.enabled = true
-            // }
-            // _update() {
-            //     const metrics = this.metrics
-            //     const nodeState = metrics.nodeState as NodeState
-            // }
-            // private _currentMatrix = new Matrix4
-            this.onUpdate = (system) => { };
-            this.onLayout = (system) => { };
             this.metrics = this.system.getMetrics(this.node);
-            this._orientation = new SpatialTransitioner(this.system, new Quaternion, undefined, this.transition);
-            // this._origin = new SpatialTransitioner(this.system, new Vector3(0.5,0.5,0.5), undefined, this.transition)
-            this._bounds = new SpatialTransitioner(this.system, new Box3().setFromCenterAndSize(V_000, V_111), undefined, this.transition);
-            this._opacity = new SpatialTransitioner(this.system, 0, undefined, this.transition);
-            // this._orientation.syncGroup = this._origin.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set
+            this._orientation = new Transitionable(this.system, new Quaternion, undefined, this.transition);
+            this._bounds = new Transitionable(this.system, new Box3().setFromCenterAndSize(V_000, V_111), undefined, this.transition);
+            this._opacity = new Transitionable(this.system, 0, undefined, this.transition);
             this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set;
         }
         /**
@@ -93,9 +71,8 @@ let SpatialAdapter = /** @class */ (() => {
                 return;
             this._parentNode = p;
             if (currentParent) {
-                const parentAdapter = this.system.getAdapter(currentParent);
-                parentAdapter._addedChildren.delete(this.node);
-                const parentState = parentAdapter.metrics.targetState;
+                const parentMetrics = this.system.getMetrics(currentParent);
+                const parentState = parentMetrics.targetState;
                 const parentWorldOrientation = parentState.worldOrientation;
                 const parentWorldCenter = parentState.worldCenter;
                 this.orientation.start.premultiply(parentWorldOrientation);
@@ -116,9 +93,13 @@ let SpatialAdapter = /** @class */ (() => {
                 }
             }
             if (newParent) {
-                const parentAdapter = this.system.getAdapter(newParent);
-                parentAdapter._addedChildren.add(this.node);
-                const parentState = parentAdapter.metrics.targetState;
+                const parentMetrics = this.system.getMetrics(newParent);
+                // if this node gets added to one of it's own descendents, 
+                // throw an error
+                if (this.metrics.containsNode(parentMetrics.node)) {
+                    throw new Error(`Node cannot become it's own descendent`);
+                }
+                const parentState = parentMetrics.targetState;
                 const parentWorldOrientationInverse = parentState.worldOrientationInverse;
                 const parentWorldCenter = parentState.worldCenter;
                 this.orientation.start.premultiply(parentWorldOrientationInverse);
@@ -137,22 +118,9 @@ let SpatialAdapter = /** @class */ (() => {
                     t.target.min.sub(parentWorldCenter);
                     t.target.max.sub(parentWorldCenter);
                 }
-                // if this node gets added to one of it's children, 
-                // detache the branch that contains that child
-                // in order to avoid a circular scenegraph 
-                // (presuambly, the detached branch will be reattached to a different
-                // node in the same frame)
-                const containingBranchNode = this.metrics.containsNode(parentAdapter.node);
-                if (containingBranchNode) {
-                    this.system.getAdapter(containingBranchNode).parentNode = null;
-                }
             }
         }
         get parentNode() { return this._parentNode; }
-        /**
-         * Children that are to be added to this node
-         */
-        get addedChildren() { return this._addedChildren; }
         /**
          * Transitionable layout orientation
          */
@@ -165,7 +133,7 @@ let SpatialAdapter = /** @class */ (() => {
         // get origin() {
         //     return this._origin
         // }
-        // private _origin : SpatialTransitioner<Vector3>
+        // private _origin : Transitionable<Vector3>
         /**
          * Transitionable layout bounds
          */
@@ -191,7 +159,7 @@ let SpatialAdapter = /** @class */ (() => {
         /**
          *
          */
-        get hasStablePose() {
+        get isTargetStable() {
             return this.metrics.parentNode && this.orientation.status === "unchanged" && this.bounds.status === "unchanged";
         }
         /**
@@ -211,8 +179,8 @@ let SpatialAdapter = /** @class */ (() => {
     SpatialAdapter.behavior = {
         fadeOnEnterExit(adapter) {
             if (adapter.opacity.target === 0 &&
-                adapter.hasStablePose &&
-                adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalLength) {
+                adapter.isTargetStable &&
+                adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalDegrees) {
                 adapter.opacity.forceCommit = new Transition({ target: 1, blend: false });
                 return;
             }

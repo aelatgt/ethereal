@@ -1,4 +1,4 @@
-import { EtherealSystem } from './EtherealSystem'
+import { EtherealSystem, Node3D } from './EtherealSystem'
 import { Vector3, computeRelativeDifference, Ray, V_000 } from './math'
 import { 
     LayoutSolution, 
@@ -17,6 +17,13 @@ export class OptimizerConfig {
     constraintThreshold?: number
     constraintRelativeTolerance? : number
     objectiveRelativeTolerance? : number
+    stepSizeMin?: number
+    stepSizeMax?: number
+    stepSizeStart?: number
+    staleRestartRate?: number
+
+    /** The number of samples to use for computing success rate */
+    successRateSamples?: number
 
     iterationsPerFrame? : number
 
@@ -33,12 +40,82 @@ export class OptimizerConfig {
     /**
      * The minimal distance that a pulse will cause movement towards a better solution
      */
-    minPulseFrequency? : number // = 0
+    pulseFrequencyMin? : number // = 0
     
     /**
      * The maximal distance that a pulse will cause movement towards a better solution
      */
-    maxPulseFrequency? : number // = 2
+    pulseFrequencyMax? : number // = 2
+}
+
+
+
+/**
+ * A standard set of objective functions that can be used 
+ * in order to evaluate fitness and thereby rank layout solutions.
+ * 
+ * The returned numerical value should increase in correlation with improved fitness.
+ */
+export const Objective = {
+    maximizeVisualSize: (s:NodeState<any>) => {
+        return s.visualFrustum.diagonalDegrees
+    },
+    minimizePullEnergy: (() => {
+        const ray = new Ray
+        return (s:NodeState<any>, layout:SpatialLayout) => {
+            const center = s.layoutCenter
+            const pullCenter = layout.pull?.center
+            const pullDirection = layout.pull?.direction
+            let centerDist = 0
+            let directionDist = 0
+            if (pullCenter) {
+                const xDiff = Math.abs(center.x - (pullCenter.x || 0))
+                const yDiff = Math.abs(center.y - (pullCenter.y || 0))
+                const zDiff = Math.abs(center.z - (pullCenter.z || 0))
+                centerDist = Math.sqrt(xDiff**2 + yDiff**2 + zDiff**2)
+            }
+            if (pullDirection) {
+                ray.origin.copy(s.outerCenter)
+                ray.direction.set(pullDirection.x || 0, pullDirection.y || 0, pullDirection.z || 0).normalize()
+                directionDist = ray.distanceToPoint(center)
+            }
+            return -(centerDist + directionDist)
+        }
+    })(),
+    minimizeVisualPullEnergy: (() => {
+        const center = new Vector3
+        const ray = new Ray
+        return (s:NodeState<any>, layout:SpatialLayout) => {
+            center.copy(V_000).applyMatrix4(s.viewFromLayout)
+            const pullCenter = layout.visualPull?.center
+            const pullDirection = layout.visualPull?.direction
+            let centerDist = 0
+            let directionDist = 0
+            if (pullCenter) {
+                const xDiff = Math.abs(center.x - (pullCenter.x || 0))
+                const yDiff = Math.abs(center.y - (pullCenter.y || 0))
+                const zDiff = Math.abs(center.z - (pullCenter.z || 0))
+                centerDist = Math.sqrt(xDiff**2 + yDiff**2 + zDiff**2)
+            }
+            if (pullDirection) {
+                ray.origin.set(0,0,0)
+                ray.direction.set(pullDirection.x || 0, pullDirection.y || 0, pullDirection.z || 0).normalize()
+                directionDist = ray.distanceToPoint(center)
+            }
+            return -(centerDist + directionDist)
+        }
+    })(),
+    towardsLayoutDirection: (s:NodeState<any>, direction:Vector3) => {
+        return s.layoutCenter.distanceTo(direction)
+    },
+    towardsViewDirection: (s:NodeState<any>, direction:Vector3) => {
+        const f = s.visualFrustum
+        // f.centerMeters
+        return 0
+    },
+    towardsPosition: (metrics:SpatialMetrics<any>) => 0,
+    towardsViewPosition: (metrics:SpatialMetrics<any>) => 0
+    
 }
 
 /**
@@ -60,77 +137,9 @@ export class OptimizerConfig {
  *  - the pulse rate (the ratio of exploration vs exploitation) adapts to the solution mutation success rate 
  *  - the standard deviation used for random walks also adapts to the solution mutation success rate
  */
-export class SpatialOptimizer {
+export class SpatialOptimizer<N extends Node3D> {
 
-    /**
-     * A standard set of objective functions that can be used 
-     * in order to evaluate fitness and thereby rank layout solutions.
-     * 
-     * The returned numerical value should increase in correlation with improved fitness.
-     */
-    static objective = {
-        maximizeVisualSize: (s:NodeState) => {
-            return s.visualFrustum.diagonalLength
-        },
-        minimizePullEnergy: (() => {
-            const ray = new Ray
-            return (s:NodeState, layout:SpatialLayout) => {
-                const center = s.layoutCenter
-                const pullCenter = layout.pull?.center
-                const pullDirection = layout.pull?.direction
-                let centerDist = 0
-                let directionDist = 0
-                if (pullCenter) {
-                    const xDiff = Math.abs(center.x - (pullCenter.x || 0))
-                    const yDiff = Math.abs(center.y - (pullCenter.y || 0))
-                    const zDiff = Math.abs(center.z - (pullCenter.z || 0))
-                    centerDist = Math.sqrt(xDiff**2 + yDiff**2 + zDiff**2)
-                }
-                if (pullDirection) {
-                    ray.origin.copy(s.outerCenter)
-                    ray.direction.set(pullDirection.x || 0, pullDirection.y || 0, pullDirection.z || 0).normalize()
-                    directionDist = ray.distanceToPoint(center)
-                }
-                return -(centerDist + directionDist)
-            }
-        })(),
-        minimizeVisualPullEnergy: (() => {
-            const center = new Vector3
-            const ray = new Ray
-            return (s:NodeState, layout:SpatialLayout) => {
-                center.copy(V_000).applyMatrix4(s.viewFromLayout)
-                const pullCenter = layout.visualPull?.center
-                const pullDirection = layout.visualPull?.direction
-                let centerDist = 0
-                let directionDist = 0
-                if (pullCenter) {
-                    const xDiff = Math.abs(center.x - (pullCenter.x || 0))
-                    const yDiff = Math.abs(center.y - (pullCenter.y || 0))
-                    const zDiff = Math.abs(center.z - (pullCenter.z || 0))
-                    centerDist = Math.sqrt(xDiff**2 + yDiff**2 + zDiff**2)
-                }
-                if (pullDirection) {
-                    ray.origin.set(0,0,0)
-                    ray.direction.set(pullDirection.x || 0, pullDirection.y || 0, pullDirection.z || 0).normalize()
-                    directionDist = ray.distanceToPoint(center)
-                }
-                return -(centerDist + directionDist)
-            }
-        })(),
-        towardsLayoutDirection: (s:NodeState, direction:Vector3) => {
-            return s.layoutCenter.distanceTo(direction)
-        },
-        towardsViewDirection: (s:NodeState, direction:Vector3) => {
-            const f = s.visualFrustum
-            // f.centerMeters
-            return 0
-        },
-        towardsPosition: (metrics:SpatialMetrics) => 0,
-        towardsViewPosition: (metrics:SpatialMetrics) => 0
-        
-    }
-
-    constructor(public system:EtherealSystem) {}
+    constructor(public system:EtherealSystem<N>) {}
 
     /**
      * Each objective function should return a scalar value 
@@ -194,19 +203,24 @@ export class SpatialOptimizer {
     /**
      * Optimize the layouts defined on this adapter
      */
-    update(adapter:SpatialAdapter) {
+    update(adapter:SpatialAdapter<any>) {
         if (adapter.layouts.length === 0) return
 
         const defaultConfig = this.system.config.optimize
         const pulseRate = defaultConfig.pulseRate
         const iterationsPerFrame = adapter.optimize.iterationsPerFrame ?? defaultConfig.iterationsPerFrame
         const swarmSize = adapter.optimize.swarmSize ?? defaultConfig.swarmSize
-        const minFreq = adapter.optimize.minPulseFrequency ?? defaultConfig.minPulseFrequency
-        const maxFreq = adapter.optimize.maxPulseFrequency ?? defaultConfig.maxPulseFrequency
+        const minFreq = adapter.optimize.pulseFrequencyMin ?? defaultConfig.pulseFrequencyMin
+        const maxFreq = adapter.optimize.pulseFrequencyMax ?? defaultConfig.pulseFrequencyMax
+        const stepSizeMax = adapter.optimize.stepSizeMax ?? defaultConfig.stepSizeMax
+        const stepSizeMin = adapter.optimize.stepSizeMin ?? defaultConfig.stepSizeMin
+        const stepSizeStart = adapter.optimize.stepSizeStart ?? defaultConfig.stepSizeStart
+        const staleRestartRate = adapter.optimize.staleRestartRate ?? defaultConfig.staleRestartRate
         const newSolution = this.#scratchSolution
         const diversificationFactor = 1.5 
-        const intensificationFactor = Math.pow(1.5, -1/4)
-        const successAlpha = 2 / (50 + 1) //  20-sample simple moving average
+        const intensificationFactor = 1.5 ** (-1/4)
+        const successRateSamples = adapter.optimize.successRateSamples ?? defaultConfig.successRateSamples
+        const successAlpha = 2 / (successRateSamples + 1) // N-sample exponential moving average
 
         for (const layout of adapter.layouts) {
 
@@ -224,7 +238,7 @@ export class SpatialOptimizer {
             // optimize solutions
             for (let i=0; i< iterationsPerFrame; i++) {
                 layout.iteration++
-                let solutionBest = solutions[0]
+                const solutionBest = solutions[0]
 
                 // update solutions
                 for (const solution of solutions) {
@@ -257,29 +271,26 @@ export class SpatialOptimizer {
                     
                     // better than previous ?
                     const success = this.compareSolutions(newSolution, solution) < 0
-                    if (success) {
-                        solution.copy(newSolution)
-                        // better than best? 
-                        if (solution === solutionBest || this.compareSolutions(newSolution, solutionBest) < 0)
-                            solutionBest.copy(newSolution)
-                    } else if (solution !== solutionBest) {
-                        // if (Math.random() < 0.05){
-                        //     solution.copy(newSolution)
-                        // }
-                    }
+                    if (success) solution.copy(newSolution)
 
                     if (mutationStrategy) {
                         mutationStrategy.successRate = successAlpha * (success ? 1 : 0) + (1-successAlpha) * mutationStrategy.successRate
-                        mutationStrategy.successRate = Math.max(mutationStrategy.successRate, 1e-4)
                         mutationStrategy.stepSize *= success ? diversificationFactor : intensificationFactor
-                        if (mutationStrategy.stepSize < 0.0001) {
-                            mutationStrategy.stepSize = 0.1 // stuck ? reset step size
-                        } else if (mutationStrategy.stepSize > 100) {
-                            mutationStrategy.stepSize = 100
+                        if (!success && solution !== solutionBest && mutationStrategy.stepSize < stepSizeMin && Math.random() < staleRestartRate) {
+                            for (const m of solution.mutationStrategies) {
+                                m.stepSize = stepSizeStart
+                                m.successRate = 0.2
+                            }
+                            solution.randomize(1)
+                            this.applyLayoutSolution(adapter, layout, solution, true)
+                        } else if (mutationStrategy.stepSize > stepSizeMax) {
+                            mutationStrategy.stepSize = stepSizeMax
                         }
                     }
 
                 }
+
+                // best solution may have changed
                 solutions.sort(this.compareSolutions)
             }
         }
@@ -301,7 +312,7 @@ export class SpatialOptimizer {
     }
     #scratchSolution = new LayoutSolution()
 
-    private _manageSolutionPopulation(adapter:SpatialAdapter, layout:SpatialLayout, swarmSize:number) {
+    private _manageSolutionPopulation(adapter:SpatialAdapter<N>, layout:SpatialLayout, swarmSize:number) {
         if (swarmSize <= 1) throw new Error('Swarm size must be larger than 1')
         if (layout.solutions.length < swarmSize) {
             while (layout.solutions.length < swarmSize) {
@@ -324,7 +335,7 @@ export class SpatialOptimizer {
      * @param layout 
      * @param solution 
      */
-    applyLayoutSolution(adapter:SpatialAdapter, layout:SpatialLayout, solution:LayoutSolution, evaluate=false) {        
+    applyLayoutSolution(adapter:SpatialAdapter<any>, layout:SpatialLayout, solution:LayoutSolution, evaluate=false) {        
         adapter.parentNode = layout.parentNode
         adapter.orientation.target = solution.orientation
         // adapter.origin.target = layout.origin

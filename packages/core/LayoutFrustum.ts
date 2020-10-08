@@ -105,7 +105,7 @@ export class LayoutFrustum {
     /**
      * The diagonal size
      */
-    get diagonalLength() {
+    get diagonalDegrees() {
         const size = this.sizeDegrees
         // pythagoras on sphere
         return Math.acos( 
@@ -192,7 +192,7 @@ export class LayoutFrustum {
      * Linear depth (meters)
      */
     get depth() {
-        return this.farMeters + this.nearMeters 
+        return this.farMeters - this.nearMeters 
     }
 
     /**
@@ -217,17 +217,18 @@ export class LayoutFrustum {
     private _v1 = new Vector3
     private _inverseProjection = new Matrix4
     private _forwardDirection = new Vector3(0,0,-1)
+    private _fullNDC = new Box3(new Vector3(-1,-1,-1), new Vector3(1,1,1))
     
-    setFromPerspectiveProjectionMatrix(projectionMatrix: Matrix4) {
+    setFromPerspectiveProjectionMatrix(projectionMatrix: Matrix4, ndcBounds:Box3=this._fullNDC) {
         const inverseProjection = this._inverseProjection.getInverse(projectionMatrix)
         const v = this._v1
         const forward = this._forwardDirection
-        const leftDegrees = - v.set(-1,0,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG
-        const rightDegrees = v.set(1,0,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG
-        const topDegrees = v.set(0,1,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG
-        const bottomDegrees = - v.set(0,-1,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG
-        const nearMeters = -v.set(0,0,-1).applyMatrix4(inverseProjection).z
-        const farMeters = -v.set(0,0,1).applyMatrix4(inverseProjection).z
+        const leftDegrees   = Math.sign(ndcBounds.min.x) * v.set(ndcBounds.min.x,0,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG
+        const rightDegrees  = Math.sign(ndcBounds.max.x) * v.set(ndcBounds.max.x,0,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG
+        const topDegrees    = Math.sign(ndcBounds.max.y) * v.set(0,ndcBounds.max.y,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG
+        const bottomDegrees = Math.sign(ndcBounds.min.y) * v.set(0,ndcBounds.min.y,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG
+        const nearMeters = -v.set(0,0,ndcBounds.min.z).applyMatrix4(inverseProjection).z
+        const farMeters = -v.set(0,0,ndcBounds.max.z).applyMatrix4(inverseProjection).z
         this.leftDegrees = leftDegrees
         this.rightDegrees = rightDegrees
         this.topDegrees = topDegrees

@@ -17,7 +17,6 @@ export class WebLayer3DBase extends Object3D {
     constructor(elementOrHTML, options = {}) {
         super();
         this.options = options;
-        this._webLayer = WebRenderer.getClosestLayer(this.element);
         this.textures = new Map();
         this.content = new Object3D();
         this.contentMesh = new Mesh(WebLayer3D.GEOMETRY, new MeshBasicMaterial({
@@ -63,6 +62,7 @@ export class WebLayer3DBase extends Object3D {
         this._lastContentTargetScale = new Vector3(0.01, 0.01, 0.01);
         const element = this.element = typeof elementOrHTML === 'string' ? DOM(elementOrHTML) : elementOrHTML;
         this.name = element.id;
+        this._webLayer = WebRenderer.getClosestLayer(element);
         // this.layout.forceBoundsExclusion = true
         // this.layout.innerAutoUpdate = false
         // this.content.layout.forceBoundsExclusion = true
@@ -283,10 +283,10 @@ export class WebLayer3DBase extends Object3D {
             return;
         }
         const bounds = this.bounds;
-        if (bounds.width === 0 || bounds.height === 0 || !this.currentTexture.image) {
-            // this.contentOpacity.target = 0
-            return;
-        }
+        // if (bounds.width === 0 || bounds.height === 0 || !this.currentTexture.image) {
+        //   // this.contentOpacity.target = 0
+        //   return
+        // }
         // this.contentOpacity.target = 1
         const width = bounds.width;
         const height = bounds.height;
@@ -459,6 +459,7 @@ let WebLayer3D = /** @class */ (() => {
                     }
                 }
             }
+            rootLayer.traverseLayers(this._doRefreshMesh);
             // rootLayer.traverseLayers(WebLayer3D._setHover)
             // WebLayer3D._setHoverClass(rootLayer.element)
             // domUtils.traverseChildElements(rootLayer.element, WebLayer3D._setHoverClass)
@@ -588,6 +589,9 @@ let WebLayer3D = /** @class */ (() => {
         // layer.content.transitioner.active = true
         // layer.transitioner.update(deltaTime, false)
         // layer.content.transitioner.update(deltaTime, false)
+    };
+    WebLayer3D._doRefreshMesh = (layer) => {
+        layer._refreshMesh();
     };
     // private static refreshBoundsQueue = [] as WebLayer3DBase[]
     // private static async _scheduleRefreshBounds(rootLayer: WebLayer3D) {

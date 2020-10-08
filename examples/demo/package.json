@@ -1,0 +1,35 @@
+{
+  "name": "ethereal-example-demo",
+  "version": "1.1.2",
+  "author": "Gheric Speiginer",
+  "babel": {
+    "presets": [
+      [
+        "@babel/preset-env"
+      ]
+    ],
+    "plugins": [
+      "@babel/proposal-class-properties"
+    ]
+  },
+  "browserslist": [
+    "Edge 18"
+  ],
+  "dependencies": {
+    "@etherealjs/parcel-resolver-esm": "file:../../packages/parcel-resolver-esm",
+    "emotion": "latest",
+    "ethereal": "file:../../packages/ethereal",
+    "postprocessing": "latest",
+    "stats.js": "0.17.0"
+  },
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "prebundle": "rimraf dist && mkdir dist && ln -sf ../static ./dist/static",
+    "bundle": "parcel build index.html --target app --dist-dir ./dist --log-level verbose",
+    "start": "npm run prebundle && parcel serve index.html --target app --dist-dir ./dist --host 0.0.0.0 --log-level verbose"
+  },
+  "targets": {
+    "app": {}
+  }
+}

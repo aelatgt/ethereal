@@ -4,9 +4,10 @@
   "dependencies": {
     "@popmotion/easing": "latest"
   },
-  "module": "mod.js",
+  "main": "mod.js",
   "peerDependencies": {
     "three": ">=0.113.2"
   },
-  "type": "module"
+  "type": "module",
+  "typings": "mod.d.ts"
 }

@@ -1,4 +1,4 @@
 {
     "extends": ["@parcel/config-default"],
-    "resolvers": ["@ethereal/parcel-resolver-esm"]
+    "resolvers": ["@etherealjs/parcel-resolver-esm"]
   }

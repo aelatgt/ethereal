@@ -26,12 +26,17 @@ export class MemoizationCache {
 }
 
 
+const UNSET = Symbol('unset')
+
 export function memoize<R>(cb:()=>R, ...caches:MemoizationCache[]) : MemoizedFunction<R> {
-    let value:R
+    let value:R = UNSET as any
     const wrapped:MemoizedFunction<R> = () => {
         if (wrapped.needsUpdate) {
             wrapped.needsUpdate = false
             value = cb()
+        }
+        if (value as any === UNSET) {
+            throw new Error("Possible recursive memoization detected")
         }
         return value
     }

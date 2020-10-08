@@ -1,13 +1,14 @@
 import { SpatialMetrics } from './SpatialMetrics';
 import { SpatialAdapter } from './SpatialAdapter';
 import { SpatialOptimizer, OptimizerConfig } from './SpatialOptimizer';
-import { SpatialTransitioner, TransitionConfig, easing } from './SpatialTransitioner';
+import { Transitionable, TransitionConfig, easing } from './Transitionable';
 import { LayoutFrustum } from './LayoutFrustum';
 /**
  * Manages spatial adaptivity within an entire scene graph
  */
 export class EtherealSystem {
-    constructor(bindings) {
+    constructor(viewNode, bindings) {
+        this.viewNode = viewNode;
         this.bindings = bindings;
         this.config = {
             cachingEnabled: true,
@@ -26,13 +27,18 @@ export class EtherealSystem {
             }),
             optimize: new OptimizerConfig({
                 constraintThreshold: 0.005,
-                constraintRelativeTolerance: 0.005,
+                constraintRelativeTolerance: 0.0001,
                 objectiveRelativeTolerance: 0.01,
-                iterationsPerFrame: 2,
+                iterationsPerFrame: 5,
                 swarmSize: 2,
-                minPulseFrequency: 0,
-                maxPulseFrequency: 1.5,
+                pulseFrequencyMin: 0,
+                pulseFrequencyMax: 1.5,
                 pulseRate: 0.1,
+                stepSizeMin: 0.0001,
+                stepSizeMax: 10,
+                stepSizeStart: 0.5,
+                staleRestartRate: 0.9,
+                successRateSamples: 50
             })
         };
         /**
@@ -73,11 +79,12 @@ export class EtherealSystem {
          * Get or create a SpatialMetrics instance which wraps a third-party node instance (e.g., THREE.Object3D instance)
          */
         this.getMetrics = (node) => {
+            if (!node)
+                throw new Error('node must be defined');
             let metrics = this.nodeMetrics.get(node);
             if (!metrics) {
                 metrics = new SpatialMetrics(this, node);
                 this.nodeMetrics.set(node, metrics);
-                // for (const c of metrics.children) this.getMetrics(c)
             }
             return metrics;
         };
@@ -85,6 +92,8 @@ export class EtherealSystem {
          *
          */
         this.getState = (node) => {
+            if (!node)
+                throw new Error('node must be defined');
             return this.getMetrics(node).targetState;
         };
         /**
@@ -100,10 +109,10 @@ export class EtherealSystem {
             return adapter;
         };
         /**
-         * Create a SpatialTransitioner instance
+         * Create a Transitionable instance
          */
-        this.createTransitioner = (value, config, parentConfig = this.config.transition) => {
-            const t = new SpatialTransitioner(this, value, config, parentConfig);
+        this.createTransitionable = (value, config) => {
+            const t = new Transitionable(this, value, config, this.config.transition);
             this.transitionables.push(t);
             return t;
         };
@@ -112,6 +121,8 @@ export class EtherealSystem {
      *
      */
     get viewMetrics() {
+        if (!this.viewNode)
+            throw new Error('EtherealSystem.viewNode must be defined');
         return this.getMetrics(this.viewNode);
     }
     /**
@@ -130,7 +141,6 @@ export class EtherealSystem {
             if (adapter) {
                 adapter.opacity.needsUpdate = true;
                 adapter.orientation.needsUpdate = true;
-                // adapter.origin.needsUpdate = true
                 adapter.bounds.needsUpdate = true;
             }
         }

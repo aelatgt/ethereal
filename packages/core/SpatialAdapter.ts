@@ -1,6 +1,6 @@
 import { EtherealSystem, Node3D } from './EtherealSystem'
 import { SpatialLayout } from './SpatialLayout'
-import { SpatialTransitioner, TransitionConfig, Transition } from './SpatialTransitioner'
+import { Transitionable, TransitionConfig, Transition } from './Transitionable'
 import { OptimizerConfig } from './SpatialOptimizer'
 import { Quaternion, Box3, V_000, V_111, Vector3 } from './math'
 import { SpatialMetrics, NodeState } from './SpatialMetrics'
@@ -24,13 +24,13 @@ import { SpatialMetrics, NodeState } from './SpatialMetrics'
  *      enabling layout transitions that can be smoothly combined with various easings, 
  *      and gauranteed to settle within their individual transition windows 
  */
-export class SpatialAdapter<T extends Node3D = Node3D> {
+export class SpatialAdapter<N extends Node3D = Node3D> {
 
     static behavior = {
         fadeOnEnterExit(adapter:SpatialAdapter) {
             if (adapter.opacity.target === 0 && 
-                adapter.hasStablePose && 
-                adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalLength) {
+                adapter.isTargetStable && 
+                adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalDegrees) {
                 adapter.opacity.forceCommit = new Transition({target: 1, blend:false})
                 return
             }
@@ -53,18 +53,16 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
         /**
          * The EtherealSystem instance
          */
-        public system:EtherealSystem,
+        public system:EtherealSystem<N>,
         /**
          * The wrapped third-party scenegraph nodes
          */
-        public node:T
+        public node:N
     ) {
         this.metrics = this.system.getMetrics(this.node)
-        this._orientation = new SpatialTransitioner(this.system, new Quaternion, undefined, this.transition)
-        // this._origin = new SpatialTransitioner(this.system, new Vector3(0.5,0.5,0.5), undefined, this.transition)
-        this._bounds = new SpatialTransitioner(this.system, new Box3().setFromCenterAndSize(V_000,V_111), undefined, this.transition)
-        this._opacity = new SpatialTransitioner(this.system, 0, undefined, this.transition)
-        // this._orientation.syncGroup = this._origin.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set
+        this._orientation = new Transitionable(this.system, new Quaternion, undefined, this.transition)
+        this._bounds = new Transitionable(this.system, new Box3().setFromCenterAndSize(V_000,V_111), undefined, this.transition)
+        this._opacity = new Transitionable(this.system, 0, undefined, this.transition)
         this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set
     }
 
@@ -76,7 +74,7 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
     /**
      * 
      */
-    readonly metrics : SpatialMetrics
+    readonly metrics : SpatialMetrics<N>
 
     /**
      * Optimizer settings for this node
@@ -94,16 +92,14 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
      * If `undefined`, target parent is the current parent
      * if `null`, this node is considered as flagged to be removed
      */
-    set parentNode(p: Node3D|null|undefined) {
+    set parentNode(p: N|null|undefined) {
         const currentParent = typeof this._parentNode !== 'undefined' ? this._parentNode : this.metrics.nodeState.parent
         const newParent = typeof p !== 'undefined' ? p : this.metrics.nodeState.parent
         if (newParent === currentParent) return
         this._parentNode = p
         if (currentParent) {
-            const parentAdapter = this.system.getAdapter(currentParent)
-            parentAdapter._addedChildren.delete(this.node)
-            
-            const parentState = parentAdapter.metrics.targetState
+            const parentMetrics = this.system.getMetrics(currentParent)
+            const parentState = parentMetrics.targetState
             const parentWorldOrientation = parentState.worldOrientation
             const parentWorldCenter = parentState.worldCenter
             this.orientation.start.premultiply(parentWorldOrientation)
@@ -122,10 +118,13 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
             }
         }
         if (newParent) {
-            const parentAdapter = this.system.getAdapter(newParent)
-            parentAdapter._addedChildren.add(this.node)
-
-            const parentState = parentAdapter.metrics.targetState
+            const parentMetrics = this.system.getMetrics(newParent)
+            // if this node gets added to one of it's own descendents, 
+            // throw an error
+            if (this.metrics.containsNode(parentMetrics.node)) {
+                throw new Error(`Node cannot become it's own descendent`)
+            }
+            const parentState = parentMetrics.targetState
             const parentWorldOrientationInverse = parentState.worldOrientationInverse
             const parentWorldCenter = parentState.worldCenter
             this.orientation.start.premultiply(parentWorldOrientationInverse)
@@ -142,27 +141,10 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
                 t.target.min.sub(parentWorldCenter)
                 t.target.max.sub(parentWorldCenter)
             }
-
-            // if this node gets added to one of it's children, 
-            // detache the branch that contains that child
-            // in order to avoid a circular scenegraph 
-            // (presuambly, the detached branch will be reattached to a different
-            // node in the same frame)
-            const containingBranchNode = this.metrics.containsNode(parentAdapter.node)
-            if (containingBranchNode) { 
-                this.system.getAdapter(containingBranchNode).parentNode = null
-            }
         }
     }
     get parentNode() { return this._parentNode }
-    private _parentNode? : Node3D | null
-
-    /**
-     * Children that are to be added to this node
-     */
-    get addedChildren() { return this._addedChildren as ReadonlySet<Node3D> }
-    private _addedChildren = new Set<Node3D>()
-
+    private _parentNode? : N | null
 
     /**
      * Transitionable layout orientation                                                                          
@@ -170,7 +152,7 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
     get orientation() {
         return this._orientation
     } 
-    private _orientation : SpatialTransitioner<Quaternion>
+    private _orientation : Transitionable<Quaternion>
 
     /** 
      * The relative point of attachment in the outer bounds
@@ -178,7 +160,7 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
     // get origin() {
     //     return this._origin
     // }
-    // private _origin : SpatialTransitioner<Vector3>
+    // private _origin : Transitionable<Vector3>
     
     /**
      * Transitionable layout bounds
@@ -186,7 +168,7 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
     get bounds() {
         return this._bounds
     } 
-    private _bounds : SpatialTransitioner<Box3>
+    private _bounds : Transitionable<Box3>
 
     /**
      * Transitionable opacity
@@ -194,7 +176,7 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
     get opacity() {
         return this._opacity
     } 
-    private _opacity : SpatialTransitioner<number>
+    private _opacity : Transitionable<number>
 
     // /** 
     //  * Behaviors get called every frame
@@ -224,7 +206,7 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
     /**
      * 
      */
-    get hasStablePose() {
+    get isTargetStable() {
         return this.metrics.parentNode && this.orientation.status === "unchanged" && this.bounds.status === "unchanged"
     }
 
@@ -264,8 +246,8 @@ export class SpatialAdapter<T extends Node3D = Node3D> {
     // private _currentMatrix = new Matrix4
 
 
-    onUpdate = (system:EtherealSystem) => {}
+    onUpdate? : () => void
 
-    onLayout = (system:EtherealSystem) => {}
+    onLayout? : () => void
 
 }

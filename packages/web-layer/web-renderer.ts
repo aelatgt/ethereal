@@ -1,5 +1,5 @@
 import "fast-text-encoding"
-import ResizeObserver from 'resize-observer-polyfill'
+// import ResizeObserver from 'resize-observer-polyfill'
 import { Matrix4 } from 'three'
 import {
   addCSSRule,
@@ -13,6 +13,8 @@ import {
 } from './dom-utils'
 import { LRUMap } from 'lru_map'
 import * as sha256 from 'fast-sha256'
+import { ResizeObserver as Polyfill } from '@juggle/resize-observer'
+const ResizeObserver:typeof Polyfill = (self as any).ResizeObserver || Polyfill
 
 
 function ensureElementIsInDocument(element: Element): Element {
@@ -51,6 +53,7 @@ export type EventCallback = (
 
 export class WebLayer {
   static DEFAULT_CACHE_SIZE = 4
+  private static blankRetryCounts: Map<string, number> = new Map
   private static canvasHashes: LRUMap<string, string> = new LRUMap(1000)
   private static cachedCanvases: LRUMap<string, HTMLCanvasElement> = new LRUMap(WebLayer.DEFAULT_CACHE_SIZE)
   private static _nextID = 0
@@ -226,8 +229,8 @@ export class WebLayer {
       getPadding(this.element, this.padding)
       getMargin(this.element, this.margin)
       getBorder(this.element, this.border)
-      // add margins
-      width += Math.max(this.margin.left, 0) + Math.max(this.margin.right, 0) + 0.5
+      // add margins and border
+      width += Math.max(this.margin.left, 0) + Math.max(this.margin.right, 0)// + 0.5
       height += Math.max(this.margin.top, 0) + Math.max(this.margin.bottom, 0)
       // width += Math.max(this.border.left,0) + Math.max(this.border.right,0)
       // height += Math.max(this.border.top,0) + Math.max(this.border.bottom,0)
@@ -289,7 +292,6 @@ export class WebLayer {
         WebRenderer.addToRenderQueue(this)
         resolve()
       }
-      this._blankRetryCount = 0
       this.svgImage.src = this._svgSrc
       if (this.svgImage.complete && this.svgImage.currentSrc === this.svgImage.src) {
         WebRenderer.addToRenderQueue(this)
@@ -298,8 +300,6 @@ export class WebLayer {
       }
     })
   }
-
-  private _blankRetryCount = 0
 
   render() {
     const src = this.svgImage.currentSrc
@@ -331,7 +331,9 @@ export class WebLayer {
       height
     WebLayer.canvasHashes.set(src, newHash)
 
-    if (WebRenderer.isBlankImage(hashData) && this._blankRetryCount < 3) {
+    const blankRetryCount = WebLayer.blankRetryCounts.get(src)||0
+    if (WebRenderer.isBlankImage(hashData) && blankRetryCount < 3) {
+      WebLayer.blankRetryCounts.set(src,blankRetryCount+1)
       setTimeout(() => WebRenderer.addToRenderQueue(this), 500)
     }
 
@@ -378,10 +380,9 @@ export class WebLayer {
         '<' +
         tag +
         (tag === 'html'
-          ? ` xmlns="http://www.w3.org/1999/xhtml" style="--x-width:${this.bounds.width +
-              0.5}px;--x-height:${this.bounds.height}px;--x-inline-top:${this.border.top +
-              this.margin.top +
-              this.padding.top}px" `
+          ? ` xmlns="http://www.w3.org/1999/xhtml" style="--x-width:${
+              this.bounds.width}px;--x-height:${this.bounds.height}px;--x-inline-top:${
+              this.border.top + this.margin.top + this.padding.top}px" `
           : '') +
         attributes +
         'data-layer-rendering-parent="" ' +
@@ -407,7 +408,7 @@ export class WebRenderer {
   static rootLayers: Map<Element, WebLayer> = new Map()
   static layers: Map<Element, WebLayer> = new Map()
   private static mutationObservers: Map<Element, MutationObserver> = new Map()
-  private static resizeObservers: Map<Element, ResizeObserver> = new Map()
+  private static resizeObservers: Map<Element, Polyfill> = new Map()
   static serializeQueue = [] as WebLayer[]
   static rasterizeQueue = [] as WebLayer[]
   static renderQueue = [] as WebLayer[]

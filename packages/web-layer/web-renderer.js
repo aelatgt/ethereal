@@ -1,9 +1,11 @@
 import "fast-text-encoding";
-import ResizeObserver from 'resize-observer-polyfill';
+// import ResizeObserver from 'resize-observer-polyfill'
 import { Matrix4 } from 'three';
 import { addCSSRule, traverseChildElements, getBounds, getPadding, getMargin, getBorder, Bounds, Edges } from './dom-utils';
 import { LRUMap } from 'lru_map';
 import * as sha256 from 'fast-sha256';
+import { ResizeObserver as Polyfill } from '@juggle/resize-observer';
+const ResizeObserver = self.ResizeObserver || Polyfill;
 function ensureElementIsInDocument(element) {
     const document = element.ownerDocument;
     if (document.contains(element)) {
@@ -47,7 +49,6 @@ let WebLayer = /** @class */ (() => {
             this._svgDocument = '';
             this._svgSrc = '';
             this._hashingCanvas = document.createElement('canvas');
-            this._blankRetryCount = 0;
             WebRenderer.layers.set(element, this);
             element.setAttribute(WebRenderer.LAYER_ATTRIBUTE, '' + this.id);
             this.parentLayer = WebRenderer.getClosestLayer(this.element.parentElement);
@@ -167,8 +168,8 @@ let WebLayer = /** @class */ (() => {
                 getPadding(this.element, this.padding);
                 getMargin(this.element, this.margin);
                 getBorder(this.element, this.border);
-                // add margins
-                width += Math.max(this.margin.left, 0) + Math.max(this.margin.right, 0) + 0.5;
+                // add margins and border
+                width += Math.max(this.margin.left, 0) + Math.max(this.margin.right, 0); // + 0.5
                 height += Math.max(this.margin.top, 0) + Math.max(this.margin.bottom, 0);
                 // width += Math.max(this.border.left,0) + Math.max(this.border.right,0)
                 // height += Math.max(this.border.top,0) + Math.max(this.border.bottom,0)
@@ -219,7 +220,6 @@ let WebLayer = /** @class */ (() => {
                     WebRenderer.addToRenderQueue(this);
                     resolve();
                 };
-                this._blankRetryCount = 0;
                 this.svgImage.src = this._svgSrc;
                 if (this.svgImage.complete && this.svgImage.currentSrc === this.svgImage.src) {
                     WebRenderer.addToRenderQueue(this);
@@ -253,7 +253,9 @@ let WebLayer = /** @class */ (() => {
                 ';h=' +
                 height;
             WebLayer.canvasHashes.set(src, newHash);
-            if (WebRenderer.isBlankImage(hashData) && this._blankRetryCount < 3) {
+            const blankRetryCount = WebLayer.blankRetryCounts.get(src) || 0;
+            if (WebRenderer.isBlankImage(hashData) && blankRetryCount < 3) {
+                WebLayer.blankRetryCounts.set(src, blankRetryCount + 1);
                 setTimeout(() => WebRenderer.addToRenderQueue(this), 500);
             }
             if (WebLayer.cachedCanvases.has(newHash)) {
@@ -294,10 +296,7 @@ let WebLayer = /** @class */ (() => {
                 const open = '<' +
                     tag +
                     (tag === 'html'
-                        ? ` xmlns="http://www.w3.org/1999/xhtml" style="--x-width:${this.bounds.width +
-                            0.5}px;--x-height:${this.bounds.height}px;--x-inline-top:${this.border.top +
-                            this.margin.top +
-                            this.padding.top}px" `
+                        ? ` xmlns="http://www.w3.org/1999/xhtml" style="--x-width:${this.bounds.width}px;--x-height:${this.bounds.height}px;--x-inline-top:${this.border.top + this.margin.top + this.padding.top}px" `
                         : '') +
                     attributes +
                     'data-layer-rendering-parent="" ' +
@@ -313,6 +312,7 @@ let WebLayer = /** @class */ (() => {
         }
     }
     WebLayer.DEFAULT_CACHE_SIZE = 4;
+    WebLayer.blankRetryCounts = new Map;
     WebLayer.canvasHashes = new LRUMap(1000);
     WebLayer.cachedCanvases = new LRUMap(WebLayer.DEFAULT_CACHE_SIZE);
     WebLayer._nextID = 0;

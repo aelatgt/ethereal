@@ -10,7 +10,7 @@ declare module 'three/src/core/Object3D' {
 
 export class EtherealSystemMock extends EtherealSystem {
     constructor() {
-        super({
+        super(new PerspectiveCamera,{
             getChildren(metrics:SpatialMetrics, children:Node3D[]) {
                 const nodeObj = metrics.node as Object3D
                 children.length = 0
@@ -40,8 +40,7 @@ export class EtherealSystemMock extends EtherealSystem {
             },
             apply(metrics:SpatialMetrics, state:NodeState) {
 
-            },
+            }
         })
-        this.viewNode = new PerspectiveCamera
     }
 }

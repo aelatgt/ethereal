@@ -1,4 +1,4 @@
-import { EtherealSystem, SpatialOptimizer, } from "@etherealjs/core/mod";
+import { EtherealSystem } from "@etherealjs/core/mod";
 export const ThreeBindings = {
     getChildren(metrics, children) {
         const nodeObj = metrics.node;
@@ -8,6 +8,11 @@ export const ThreeBindings = {
         }
     },
     getState(metrics, state) {
+        if (metrics.system.viewNode === metrics.node) {
+            const cameraNode = metrics.node;
+            cameraNode.updateMatrixWorld();
+            metrics.system.viewFrustum.setFromPerspectiveProjectionMatrix(cameraNode.projectionMatrix);
+        }
         const nodeObj = metrics.node;
         nodeObj.matrixAutoUpdate && nodeObj.updateMatrix();
         state.localMatrix = nodeObj.matrix;
@@ -70,20 +75,8 @@ export const DefaultBindings = {
         }
     }
 };
-export const system = new EtherealSystem(DefaultBindings);
-export const transition = system.createTransitioner;
-export function state(node) {
-    return system.getMetrics(node).targetState;
+export function createSystem(viewNode, bindings = DefaultBindings) {
+    return new EtherealSystem(viewNode, bindings);
 }
-export function adapt(node, cb) {
-    const adapter = system.getAdapter(node);
-    node.adapter = adapter;
-    // const state = adapter.metrics.currentState
-    // adapter.orientation.reset(state.localOrientation)
-    // adapter.bounds.reset(state.layoutBounds)
-    // adapter.opacity.reset(state.opacity)
-    cb(adapter);
-}
-export const objective = SpatialOptimizer.objective;
 export * from '@etherealjs/core/mod';
-export * from '@etherealjs/web-layer/mod';
+export { WebLayer3D, WebLayer3DBase, WebRenderer } from '@etherealjs/web-layer/mod';

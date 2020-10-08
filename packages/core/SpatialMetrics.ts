@@ -3,13 +3,14 @@ import { Box3, Vector3, Quaternion, Matrix4, V_000, DIRECTION, V_111 } from './m
 import { EtherealSystem, Node3D } from './EtherealSystem'
 import { LayoutFrustum } from './LayoutFrustum'
 import { MemoizationCache } from './MemoizationCache'
+import { MathUtils } from 'three'
 
 const InternalCurrentState = Symbol("current")
 const InternalTargetState = Symbol("target")
 
-export class NodeState {
+export class NodeState<N extends Node3D=Node3D> {
 
-    constructor(public mode:'current'|'target', public metrics:SpatialMetrics) {}
+    constructor(public mode:'current'|'target', public metrics:SpatialMetrics<N>) {}
     
     private _cache = new MemoizationCache
 
@@ -25,14 +26,14 @@ export class NodeState {
     get parent() {
         return this._parent
     }
-    set parent(val:Node3D|null) {
+    set parent(val:N|null) {
         const current = this._parent
         if (current !== val) {
             this._parent = val
             this.invalidate()
         }
     }
-    private _parent : Node3D|null = null
+    private _parent : N|null = null
 
     get parentState() {
         const parentMetrics = this.parent && this.metrics.system.getMetrics(this.parent)
@@ -297,7 +298,7 @@ export class NodeState {
 
     get outerState() {
         let parentState = this.parentState
-        while (parentState?.metrics.innerBounds.isEmpty()) {
+        while (parentState?.metrics.innerBounds.isEmpty() || parentState?.metrics.isAdaptive) {
             parentState = parentState.parentState
         }
         return parentState
@@ -377,12 +378,12 @@ export class NodeState {
     //     return this._proportionalCenter
     // }
 
-    private get _viewState() : NodeState {
+    private get _viewState() : NodeState<N> {
         if (this.metrics.system.viewNode === this.metrics.node) return this
         const viewMetrics = this.metrics.system.viewMetrics
         return (this.mode === 'current' ? 
             viewMetrics[InternalCurrentState] : 
-            viewMetrics[InternalTargetState]) as NodeState
+            viewMetrics[InternalTargetState]) as NodeState<N>
     }
 
 
@@ -419,6 +420,38 @@ export class NodeState {
     // private _viewProjectionFromLayout = new Matrix4
 
 
+    get screenBounds() {
+        return this._cachedScreenBounds()
+    }
+    private _cachedScreenBounds = this._cache.memoize(() => {
+        const viewFrustum = this.metrics.system.viewFrustum
+        const projection = viewFrustum.perspectiveProjectionMatrix
+        const viewFromLocal = this.viewFromLocal
+        const viewProjectionFromLocal = this._viewProjectionFromLocal.multiplyMatrices(projection, viewFromLocal)
+        const bounds = this._screenBounds.copy(this.metrics.innerBounds).applyMatrix4(viewProjectionFromLocal)
+        // measure as slightly smaller than actual to hide gaps at edges
+        bounds.min.x *= 0.99
+        bounds.max.x *= 0.99
+        bounds.min.y *= 0.99
+        bounds.max.y *= 0.99
+        bounds.getCenter(this._screenCenter)
+        bounds.getSize(this._screenSize) 
+        return bounds
+    }, this._viewState._cache)
+    private _viewProjectionFromLocal = new Matrix4
+    private _screenBounds = new Box3
+    private _screenCenter = new Vector3
+    private _screenSize = new Vector3
+
+    get screenCenter() {
+        this._cachedScreenBounds()
+        return this._screenCenter
+    }
+    get screenSize() {
+        this._cachedScreenBounds()
+        return this._screenSize
+    }
+
     /**
      * The visual bounds of the this node.
      * X and Y coordinates are in degrees, with the origin being centered in the visual space
@@ -428,59 +461,9 @@ export class NodeState {
         return this._cachedVisualFrustum()
     }
     private _cachedVisualFrustum = this._cache.memoize(() => {
-        const viewFrustum = this.metrics.system.viewFrustum
-        const projection = viewFrustum.perspectiveProjectionMatrix
-
-        const b = this.metrics.innerBounds
-        const p = NodeState._visualPoints
-        const viewFromLocal = this.viewFromLocal
-		p[ 0 ].set( b.min.x, b.min.y, b.min.z ).applyMatrix4( viewFromLocal ).applyMatrix4( projection ) // 000
-		p[ 1 ].set( b.min.x, b.min.y, b.max.z ).applyMatrix4( viewFromLocal ).applyMatrix4( projection ) // 001
-		p[ 2 ].set( b.min.x, b.max.y, b.min.z ).applyMatrix4( viewFromLocal ).applyMatrix4( projection ) // 010
-		p[ 3 ].set( b.min.x, b.max.y, b.max.z ).applyMatrix4( viewFromLocal ).applyMatrix4( projection ) // 011
-		p[ 4 ].set( b.max.x, b.min.y, b.min.z ).applyMatrix4( viewFromLocal ).applyMatrix4( projection ) // 100
-		p[ 5 ].set( b.max.x, b.min.y, b.max.z ).applyMatrix4( viewFromLocal ).applyMatrix4( projection ) // 101
-		p[ 6 ].set( b.max.x, b.max.y, b.min.z ).applyMatrix4( viewFromLocal ).applyMatrix4( projection ) // 110
-        p[ 7 ].set( b.max.x, b.max.y, b.max.z ).applyMatrix4( viewFromLocal ).applyMatrix4( projection ) // 111
-        
-        const vB = NodeState._visualBounds.setFromPoints(p)
-        const frustumSizeDegrees = viewFrustum.sizeDegrees
-        const viewHalfSize = NodeState._viewHalfSize.set( 
-            frustumSizeDegrees.x * 0.5, 
-            frustumSizeDegrees.y * 0.5, 
-            1
-        )
-
-        const zNear = viewFrustum.nearMeters
-        const zFar = viewFrustum.farMeters
-        const zDepth = viewFrustum.depth
-        vB.min.z = 2 * zNear * zFar / ( zFar + zNear - ( 2 * vB.min.z - 1 ) * zDepth)
-        vB.max.z = 2 * zNear * zFar / ( zFar + zNear - ( 2 * vB.max.z - 1 ) * zDepth)
-        vB.min.multiply(viewHalfSize)
-        vB.max.multiply(viewHalfSize)
-
-        const vF = this._visualFrustum
-        vF.leftDegrees = vB.min.x
-        vF.rightDegrees = vB.max.x
-        vF.topDegrees = vB.max.y
-        vF.bottomDegrees = vB.min.y
-        vF.nearMeters = vB.min.z
-        vF.farMeters = vB.max.z
-        return vF
+        const projection = this.metrics.system.viewFrustum.perspectiveProjectionMatrix
+        return this._visualFrustum.setFromPerspectiveProjectionMatrix(projection, this.screenBounds)
     }, this._viewState._cache)
-
-    private static _viewHalfSize = new Vector3
-    private static _visualBounds = new Box3
-    private static _visualPoints = [
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3(),
-        new Vector3()
-    ];
     private _visualFrustum  = new LayoutFrustum
 
     /**
@@ -572,7 +555,7 @@ export class NodeState {
         for (const adapter of adapters) {
             const otherMetrics = adapter.metrics
             if (otherMetrics === metrics) continue
-            if (!otherMetrics.isBoundingContext || otherMetrics.innerBounds.isEmpty()) continue
+            if (!otherMetrics.isAdaptive || otherMetrics.innerBounds.isEmpty()) continue
             if (otherMetrics.containedByNode(adapter.node)) continue
             
             const otherState = this.mode === 'current' ? otherMetrics.currentState : otherMetrics.targetState
@@ -614,9 +597,9 @@ export class NodeState {
  * 
  * All metric values should be treated as read-only.
  */
-export class SpatialMetrics<N extends Node3D = Node3D> {
+export class SpatialMetrics<N extends Node3D=Node3D> {
     
-    constructor(public system:EtherealSystem, public node:N) {}
+    constructor(public system:EtherealSystem<N>, public node:N) {}
 
     private _cache = new MemoizationCache()
     needsUpdate = true
@@ -628,22 +611,22 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
         if (this.needsUpdate) {
 
             this.needsUpdate = false
-
             const adapter = this.system.nodeAdapters.get(this.node)
 
             if (adapter) {
 
-                // adapter._update()
-                const nodeState = this.nodeState as NodeState
-                const previousNodeParent = nodeState.parent
-                const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation)
-                const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds)
-        
-                adapter.onUpdate(this.system)
-                
+                this.invalidateNodeState()
+
                 if (adapter.layouts.length) {
+                    adapter.onUpdate?.()
                     this.system.optimizer.update(adapter)
-                } else {
+                } else if (adapter.onUpdate) {
+                    this.invalidateNodeState()        
+                    const nodeState = this.nodeState as NodeState<N>
+                    const previousNodeParent = nodeState.parent
+                    const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation)
+                    const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds)
+                    adapter.onUpdate()
                     this.invalidateNodeState()
                     this.nodeState // recompute
                     const config = this.system.config
@@ -659,19 +642,15 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
         
                 adapter.opacity.update()
                 adapter.orientation.update()
-                // adapter.origin.update()
                 adapter.bounds.update()
 
+                this.invalidateNodeState()
                 this.invalidateLocalState()
-                const currentState = this.currentState
-                this.system.bindings.apply(this, currentState)
-                // const parentNode = currentState.parent
-                // const parentAdapter = parentNode && this.system.nodeAdapters.get(parentNode)
-                // parentAdapter && parentAdapter._addedChildren.delete(this.node)
-        
-                nodeState.parent = currentState.parent
-                nodeState.localMatrix = currentState.localMatrix
-                adapter.onLayout(this.system)
+                if (this.isAdaptive) {
+                    this.system.bindings.apply(this, this.currentState)
+                    this.invalidateNodeState()
+                }
+                adapter.onLayout?.()
 
             } else {
 
@@ -689,6 +668,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     private _nodeBounds = new Box3
     
     private _computeInnerBounds() {
+        if (this.node === this.system.viewNode) return
         const inner = this._innerBounds
         inner.copy(this.intrinsicBounds)
         const childBounds = this._childBounds
@@ -761,12 +741,12 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
 
     /**
      * Returns false if this node does not contain the passed node.
-     * If the passed node is contained by this node, returns
-     * the top-most containing branch node.
+     * If the given node is a descendent of this node, returns
+     * the closest child node.
      */
-    containsNode(node:Node3D) {
+    containsNode(node:N) {
         this.update()
-        let parentMetrics = this.system.getMetrics(node) as SpatialMetrics|null
+        let parentMetrics = this.system.getMetrics(node) as SpatialMetrics<N>|null
         while (parentMetrics) {
             if (parentMetrics.parentMetrics === this) return parentMetrics.node
             parentMetrics = parentMetrics.parentMetrics
@@ -774,7 +754,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
         return false
     }
 
-    containedByNode(node:Node3D) {
+    containedByNode(node:N) {
         this.update()
         let parentMetrics = this.parentMetrics
         while (parentMetrics) {
@@ -794,12 +774,12 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
         this.system.bindings.getChildren(this, this._nodeChildren)
         return this._nodeChildren
     })
-    private _nodeChildren = new Array<Node3D>()
+    private _nodeChildren = new Array<N>()
 
     /**
      * Get the local node state (only local state is defined)
      */
-    get nodeState() : Readonly<NodeState> {
+    get nodeState() : Readonly<NodeState<N>> {
         if (!this._nodeState) this._nodeState = new NodeState('current', this)
         return this._cachedNodeState()
     }
@@ -807,7 +787,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
         this.system.bindings.getState(this, this._nodeState)
         return this._nodeState
     })
-    private _nodeState:NodeState = new NodeState('current', this)
+    private _nodeState:NodeState<N> = new NodeState('current', this)
 
     /**
      * Invalidate node state in order to allow
@@ -837,7 +817,7 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
         const layoutOffset = new Vector3
         const innerOffset = new Vector3
 
-        return function computeState(this:SpatialMetrics, state:NodeState) {
+        return function computeState(this:SpatialMetrics<N>, state:NodeState<N>) {
 
             const useCurrent = state.mode === 'current'
             const adapter = this.system.nodeAdapters.get(this.node)
@@ -920,31 +900,31 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The current state
      */
-    get currentState() : Readonly<NodeState> {
+    get currentState() : Readonly<NodeState<N>> {
         return this._cachedCurrentState()
     }
     private _cachedCurrentState = this._cache.memoize(() => {
         this.update()
         return this._computeState(this[InternalCurrentState])
     });
-    [InternalCurrentState]:NodeState = new NodeState('current', this)
+    [InternalCurrentState]:NodeState<N> = new NodeState('current', this)
 
     /**
      * The target state
      */
-    get targetState() : Readonly<NodeState> {
+    get targetState() : Readonly<NodeState<N>> {
         return this._cachedTargetState()
     }
     private _cachedTargetState = this._cache.memoize(() => {
         this.update()
         return this._computeState(this[InternalTargetState])
     });
-    [InternalTargetState]:NodeState= new NodeState('target', this)
+    [InternalTargetState]:NodeState<N>= new NodeState('target', this)
 
     /** 
      * The parent node
      */
-    get parentNode() : Node3D|null {
+    get parentNode() : N|null {
         this.update()
         const adapter = this.system.nodeAdapters.get(this.node)
         return adapter?.parentNode === undefined ? 
@@ -963,37 +943,28 @@ export class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The child nodes that are included in this bounding context
      */
-    get boundsChildren() : ReadonlyArray<Node3D> {
+    get boundsChildren() : ReadonlyArray<N> {
         this.update()
-        return this._cachedChildren()
+        return this._cachedBoundsChildren()
     }
-    private _cachedChildren = this._cache.memoize(() => {
-        const adapter = this.system.nodeAdapters.get(this.node)
+    private _cachedBoundsChildren = this._cache.memoize(() => {
         const nodeChildren = this.nodeChildren
         const children = this._children
         children.length = 0
         for (const child of nodeChildren) {
             const metrics = this.system.getMetrics(child)
-            if (metrics.isBoundingContext) continue
-            if (metrics.parentNode === this.node) children.push(child)
-        }
-        if (adapter?.addedChildren?.size) {
-            for (const child of adapter.addedChildren) {
-                const metrics = this.system.getMetrics(child)
-                if (metrics.parentNode === this.node && !children.includes(child)) 
-                    children.push(child)
-            }
+            if (metrics.isAdaptive) continue
+            children.push(child)
         }
         return children
     })
-    private _children = [] as Node3D[]
+    private _children = [] as N[]
 
     /**
      * 
      */
-    get isBoundingContext() {
-        const adapter = this.system.nodeAdapters.get(this.node)
-        return adapter?.orientation.active || adapter?.bounds.active
+    get isAdaptive() {
+        return this.system.nodeAdapters.has(this.node)
     }
     
 }

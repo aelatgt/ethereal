@@ -1,7 +1,8 @@
 {
-  "include": ["packages"],
+  "include": ["packages", "examples"],
   "exclude": ["**/node_modules"],
   "compilerOptions": {
+    "declaration": true,
     "pretty": true,
     "target": "ESNext",
     "module": "ESNext",
