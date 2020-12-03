@@ -1,5 +1,5 @@
 {
-  "name": "root",
+  "name": "@etherealjs/root",
   "author": "Gheric Speiginer",
   "ava": {
     "require": [
@@ -7,47 +7,37 @@
     ]
   },
   "dependencies": {
-    "@etherealjs/core": "file:packages/core",
-    "@etherealjs/parcel-config": "file:packages/parcel-config",
-    "@etherealjs/parcel-resolver-esm": "file:packages/parcel-resolver-esm",
-    "@etherealjs/web-layer": "file:packages/web-layer",
-    "ethereal": "file:packages/ethereal",
-    "ethereal-example-demo": "file:examples/demo",
-    "ethereal-example-traclabs-pride-xr": "file:examples/pride",
-    "ethereal-example-web-layer": "file:examples/web-layer"
+    "@babel/plugin-proposal-class-properties": "^7.10.4",
+    "@parcel/transformer-typescript-tsc": "^2.0.0-beta.1",
+    "@parcel/validator-typescript": "^2.0.0-beta.1",
+    "ava": "^3.8.1",
+    "lerna": "^3.19.0",
+    "parcel": "^2.0.0-nightly.444",
+    "rimraf": "^3.0.0",
+    "syncpack": "^5.6.7",
+    "three": "^0.122.0",
+    "three-mesh-bvh": "^0.2.0",
+    "typescript": "^3.9.3"
   },
-  "devDependencies": {
-    "@babel/plugin-proposal-class-properties": "7.10.4",
-    "@parcel/transformer-typescript-tsc": "2.0.0-beta.1",
-    "@parcel/validator-typescript": "2.0.0-alpha.3",
-    "ava": "3.8.1",
-    "lerna": "3.19.0",
-    "npm-run-all": "4.1.5",
-    "parcel": "2.0.0-nightly.398",
-    "rimraf": "3.0.0",
-    "syncpack": "5.6.7",
-    "three": "0.113.2",
-    "typescript": "3.9.3"
+  "engines": {
+    "npm": ">=7"
   },
   "license": "MIT",
   "private": true,
   "scripts": {
     "install": "npm run build",
-    "clean": "lerna exec --parallel -- rimraf ./.parcel-cache ./dist",
+    "clean": "rimraf ./.parcel-cache examples/**/.parcel-cache examples/**/dist examples/**/package-lock.json examples/**/node_modules",
     "build": "tsc -p tsconfig.build.json",
-    "watch": "tsc -p tsconfig.build.json -w",
+    "watch": "npm run syncpack && tsc -p tsconfig.build.json -w",
     "bundle-demo": "cd examples/demo && npm run bundle",
     "bundle-pride": "cd examples/pride && npm run bundle",
     "bundle-web-layer": "cd examples/web-layer && npm run bundle",
     "start-demo": "cd examples/demo && npm run start",
     "start-pride": "cd examples/pride && npm run start",
     "start-web-layer": "cd examples/web-layer && npm run start",
-    "syncpack": "syncpack fix-mismatches && syncpack format && syncpack set-semver-ranges --prod --dev && syncpack set-semver-ranges --peer --semver-range '>='",
-    "dev-demo": "npm run syncpack && npm-run-all -p -r watch start-demo",
-    "dev-pride": "npm run syncpack && npm-run-all -p -r watch start-pride",
-    "dev-web-layer": "npm run syncpack && npm-run-all -p -r watch start-web-layer",
+    "syncpack": "syncpack fix-mismatches && syncpack format && syncpack set-semver-ranges --prod --dev --semver-range '^' && syncpack set-semver-ranges --peer --semver-range '>='",
     "link": "ln -sf ../examples/demo/dist ./docs/demo && ln -sf ../examples/web-layer/dist ./docs/web-layer && ln -sf ../examples/pride/dist ./docs/pride",
-    "bundle": "npm run build && npm-run-all -p -r bundle-pride link",
+    "bundle": "npm run build && npm run bundle-pride && npm run link",
     "test": "ava",
     "release": "lerna publish"
   },
@@ -59,5 +49,9 @@
       "keywords",
       "peerDependencies"
     ]
-  }
+  },
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ]
 }

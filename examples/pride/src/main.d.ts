@@ -1,6 +1,7 @@
 import AppBase from './app';
 import Treadmill from './components/Treadmill';
 import UI from './components/UI';
+import * as ethereal from 'ethereal';
 import './lib/SpatialLayout';
 declare module 'three/src/core/BufferGeometry' {
     interface BufferGeometry {
@@ -32,7 +33,8 @@ export declare class App extends AppBase {
         skip: () => Promise<any>;
         comment: (value: string) => Promise<any>;
     };
-    system: import("ethereal").EtherealSystem<import("ethereal").Node3D>;
+    system: ethereal.EtherealSystem<ethereal.Node3D>;
     treadmill: Treadmill;
     ui: UI;
+    ethereal: typeof ethereal;
 }

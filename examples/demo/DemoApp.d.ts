@@ -13,11 +13,11 @@ export declare class DemoApp extends AppBase {
     sky: THREE.CubeTexture;
     demos: DemoBase[];
     plane: THREE.PlaneGeometry;
-    surfaceWallA: THREE.Mesh;
-    surfaceWallB: THREE.Mesh;
-    surfaceWallC: THREE.Mesh;
-    surfaceWallD: THREE.Mesh;
-    surfaceAboveBed: THREE.Mesh;
+    surfaceWallA: THREE.Mesh<THREE.PlaneGeometry, THREE.Material | THREE.Material[]>;
+    surfaceWallB: THREE.Mesh<THREE.PlaneGeometry, THREE.Material | THREE.Material[]>;
+    surfaceWallC: THREE.Mesh<THREE.PlaneGeometry, THREE.Material | THREE.Material[]>;
+    surfaceWallD: THREE.Mesh<THREE.PlaneGeometry, THREE.Material | THREE.Material[]>;
+    surfaceAboveBed: THREE.Mesh<THREE.PlaneGeometry, THREE.Material | THREE.Material[]>;
     dollyPosition: THREE.Vector3;
     dollyOrientation: THREE.Quaternion;
     cameraVerticalDegrees: number;

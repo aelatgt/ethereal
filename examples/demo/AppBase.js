@@ -251,7 +251,7 @@ export default class AppBase {
         //         throw new Error('WebXR is not supported by this browser')
         //     }
         // }
-        const frameOfRefType = 'eye-level';
+        const frameOfRefType = 'local';
         this.renderer.xr.setReferenceSpaceType(frameOfRefType);
         // ;(this.renderer.vr as any).setFrameOfReferenceType(frameOfRefType)
         const onXRSession = async (session) => {

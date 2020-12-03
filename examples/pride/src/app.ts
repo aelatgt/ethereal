@@ -1,7 +1,6 @@
 
 import * as THREE from 'three'
-import {WebLayer3D,V_100} from 'ethereal'
-// import {VRController} from './lib/VRController'
+import {WebLayer3D} from 'ethereal'
 
 export interface EnterXREvent {
     type: 'enterxr'
@@ -23,10 +22,10 @@ export interface AppConfig {
     onExitXR: (event: ExitXREvent) => void
 }
 
-let lastConnectedVRDisplay: VRDisplay
-window.addEventListener('vrdisplayconnect', (evt) => {
-    lastConnectedVRDisplay = (evt as VRDisplayEvent).display;
-}, false)
+// let lastConnectedVRDisplay: VRDisplay
+// window.addEventListener('vrdisplayconnect', (evt) => {
+//     lastConnectedVRDisplay = (evt as VRDisplayEvent).display;
+// }, false)
 
 export default class AppBase {
 
@@ -112,80 +111,117 @@ export default class AppBase {
             }
         }
 
-        // this.renderer.setAnimationLoop(this.onAnimate)
-
-        // const box = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.1), new THREE.MeshNormalMaterial)
-        // this.scene.add(box)
-        
-        // setup VRController
-        window.addEventListener( 'vr controller connected', ( event:any ) => {
-            const controller = event.detail
-            this.scene.add( controller )
-            // controller.standingMatrix = renderer.xr.getStandingMatrix()
-            controller.head = this.camera
-            var
-            meshColorOff = 0xDB3236,//  Red.
-            meshColorOn  = 0xF4C20D,//  Yellow.
-            controllerMaterial = new THREE.MeshBasicMaterial({
+        const addController = (id:number) => {
+            const meshColorOff = 0xDB3236 //  Red.
+            const meshColorOn  = 0xF4C20D //  Yellow.
+            const controllerMaterial = new THREE.MeshBasicMaterial({
                 color: meshColorOff
-            }),
-            controllerMesh = new THREE.Mesh(
-                new THREE.CylinderGeometry( 0.005, 0.05, 0.1, 6 ),
-                controllerMaterial
-            ),
-            handleMesh = new THREE.Mesh(
-                new THREE.BoxGeometry( 0.03, 0.1, 0.03 ),
-                controllerMaterial
-            )
-            controllerMaterial.flatShading = true
-            controllerMesh.rotation.x = -Math.PI / 2
-            handleMesh.position.y = -0.05
-            controllerMesh.add( handleMesh )
-            controller.add( controllerMesh )
-
-            const rayGeometry = new THREE.CylinderGeometry()
-            const rayMesh = new THREE.Mesh(rayGeometry)
-            rayMesh.position.set(0,0,-50)
-            rayMesh.scale.set(0.002, 100, 0.002)
-            rayMesh.quaternion.setFromAxisAngle(V_100, - Math.PI / 2)
-            controller.add(rayMesh)
-
-            const ray = new THREE.Object3D()
-            controller.add(ray)
-            ray.quaternion.setFromAxisAngle(V_100, Math.PI)
-            // ray.add(new THREE.AxesHelper(1))
-
-            this.immersiveRays.add(ray)
-            controller.addEventListener( 'disconnected', ( event:any ) => {
-                controller.parent.remove( controller )
-                this.immersiveRays.delete(ray)
             })
-
+            const controller = renderer.xr.getController(id)
+            this.scene.add(controller)
+            controller.addEventListener('selectstart',  ( event:any ) => {
+                controllerMaterial.color.setHex( meshColorOn )
+                onSelect()
+            })
+            controller.addEventListener('selectend',  ( event:any ) => {
+                controllerMaterial.color.setHex( meshColorOff )
+            })
+            controller.add(new THREE.AxesHelper(1))
+            this.immersiveRays.add(controller)
             const rayPosition = new THREE.Vector3
             const rayDirection = new THREE.Vector3
-
             const onSelect = () => {
-                ray.getWorldPosition(rayPosition)
-                ray.getWorldDirection(rayDirection)
+                controller.getWorldPosition(rayPosition)
+                controller.getWorldDirection(rayDirection)
                 this.raycaster.ray.set(rayPosition, rayDirection)
                 for (const layer of this.webLayers) {
                     const hit = layer.hitTest(this.raycaster.ray)
                     if (hit) {
                         hit.target.click()
                         hit.target.focus()
-                        console.log('hit', hit.target, hit.layer)
                     }
                 }
             }
+        }
+
+        addController(0)
+        addController(1)
+        
+
+        // this.renderer.setAnimationLoop(this.onAnimate)
+
+        // const box = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.1), new THREE.MeshNormalMaterial)
+        // this.scene.add(box)
+        
+        // setup VRController
+        // window.addEventListener( 'vr controller connected', ( event:any ) => {
+        //     const controller = event.detail
+        //     this.scene.add( controller )
+        //     controller.standingMatrix = renderer.xr.getController
+        //     controller.head = this.camera
+        //     var
+        //     meshColorOff = 0xDB3236,//  Red.
+        //     meshColorOn  = 0xF4C20D,//  Yellow.
+        //     controllerMaterial = new THREE.MeshBasicMaterial({
+        //         color: meshColorOff
+        //     }),
+        //     controllerMesh = new THREE.Mesh(
+        //         new THREE.CylinderGeometry( 0.005, 0.05, 0.1, 6 ),
+        //         controllerMaterial
+        //     ),
+        //     handleMesh = new THREE.Mesh(
+        //         new THREE.BoxGeometry( 0.03, 0.1, 0.03 ),
+        //         controllerMaterial
+        //     )
+        //     controllerMaterial.flatShading = true
+        //     controllerMesh.rotation.x = -Math.PI / 2
+        //     handleMesh.position.y = -0.05
+        //     controllerMesh.add( handleMesh )
+        //     controller.add( controllerMesh )
+
+        //     const rayGeometry = new THREE.CylinderGeometry()
+        //     const rayMesh = new THREE.Mesh(rayGeometry)
+        //     rayMesh.position.set(0,0,-50)
+        //     rayMesh.scale.set(0.002, 100, 0.002)
+        //     rayMesh.quaternion.setFromAxisAngle(V_100, - Math.PI / 2)
+        //     controller.add(rayMesh)
+
+        //     const ray = new THREE.Object3D()
+        //     controller.add(ray)
+        //     ray.quaternion.setFromAxisAngle(V_100, Math.PI)
+        //     // ray.add(new THREE.AxesHelper(1))
+
+        //     this.immersiveRays.add(ray)
+        //     controller.addEventListener( 'disconnected', ( event:any ) => {
+        //         controller.parent.remove( controller )
+        //         this.immersiveRays.delete(ray)
+        //     })
+
+        //     const rayPosition = new THREE.Vector3
+        //     const rayDirection = new THREE.Vector3
+
+        //     const onSelect = () => {
+        //         ray.getWorldPosition(rayPosition)
+        //         ray.getWorldDirection(rayDirection)
+        //         this.raycaster.ray.set(rayPosition, rayDirection)
+        //         for (const layer of this.webLayers) {
+        //             const hit = layer.hitTest(this.raycaster.ray)
+        //             if (hit) {
+        //                 hit.target.click()
+        //                 hit.target.focus()
+        //                 console.log('hit', hit.target, hit.layer)
+        //             }
+        //         }
+        //     }
             
-            controller.addEventListener( 'primary press began', ( event:any ) => {
-                controllerMaterial.color.setHex( meshColorOn )
-                onSelect()
-            })
-            controller.addEventListener( 'primary press ended', ( event:any ) => {
-                controllerMaterial.color.setHex( meshColorOff )
-            })
-        })
+        //     controller.addEventListener( 'primary press began', ( event:any ) => {
+        //         controllerMaterial.color.setHex( meshColorOn )
+        //         onSelect()
+        //     })
+        //     controller.addEventListener( 'primary press ended', ( event:any ) => {
+        //         controllerMaterial.color.setHex( meshColorOff )
+        //     })
+        // })
     }
 
     webLayers = new Set<WebLayer3D>()
@@ -207,6 +243,7 @@ export default class AppBase {
 
     async start() {
         return this.enterXR().catch(() => {
+            console.log('Enter XR failed')
             // document.documentElement.append(this.renderer.domElement)
             // this.renderer.domElement.style.position = 'fixed'
             // this.renderer.domElement.style.width = '100%'
@@ -336,9 +373,9 @@ export default class AppBase {
         const frameOfRefType = 'local'
         this.renderer.xr.setReferenceSpaceType(frameOfRefType)
         
-
         const onXRSession = async (session:any) => {
 
+            console.log("GOT XR SESSION")
             if (this.session) this.session.end()
             this.session = session
 
@@ -378,12 +415,18 @@ export default class AppBase {
 
         if (navigator.xr.requestSession) {
             var sessionInit = { optionalFeatures: [ 'local-floor', 'bounded-floor' ] };
+            const arSupported = await navigator.xr.isSessionSupported('immersive-ar', sessionInit)
+            if (arSupported) {
+                console.log("AR supported, trying AR")
+                return navigator.xr.requestSession('immersive-ar', sessionInit).then(onXRSession)
+            }
+            console.log("AR not supported, trying VR")
             return navigator.xr.requestSession('immersive-vr', sessionInit).then(onXRSession)
         }
 
-        return navigator.xr.requestDevice().then((device: any) => {
-            return (device.requestSession({immersive: true, type: 'augmentation'})).then(onXRSession)
-        })
+        // return navigator.xr.requestDevice().then((device: any) => {
+        //     return (device.requestSession({immersive: true, type: 'augmentation'})).then(onXRSession)
+        // })
     }
 
     private _enterXR() {

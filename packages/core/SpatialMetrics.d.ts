@@ -13,6 +13,7 @@ export declare class NodeState<N extends Node3D = Node3D> {
     set parent(val: N | null);
     private _parent;
     get parentState(): Readonly<NodeState<N>> | undefined;
+    get outerState(): Readonly<NodeState<N>> | undefined;
     private _cachedLocalMatrix;
     get localMatrix(): Matrix4;
     set localMatrix(val: Matrix4);
@@ -110,7 +111,6 @@ export declare class NodeState<N extends Node3D = Node3D> {
      * The layout center
      */
     get layoutCenter(): Vector3;
-    get outerState(): Readonly<NodeState<N>> | undefined;
     /**
      * The first non-empty parent bounds, reoriented
      */
@@ -208,11 +208,17 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     update(): void;
     private _nodeOrientation;
     private _nodeBounds;
-    private _computeInnerBounds;
+    private _cachedInnerBounds;
     private _childBounds;
     private _innerBounds;
     private _innerCenter;
     private _innerSize;
+    /**
+     * The bounds of this node and non-adaptive child nodes in the local coordinate system
+     */
+    get innerBounds(): Box3;
+    get innerCenter(): Vector3;
+    get innerSize(): Vector3;
     /**
      * The intrinsic bounds of the geometry attached directly to this node (excluding child nodes)
      */
@@ -227,12 +233,7 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * Invalidate intrinsic bounds in order to allow it to be recomputed
      */
     invalidateIntrinsicBounds(): void;
-    /**
-     * The bounds of this node and non-adaptive child nodes in the local coordinate system
-     */
-    get innerBounds(): Box3;
-    get innerCenter(): Vector3;
-    get innerSize(): Vector3;
+    private _invalidateInnerBounds;
     /**
      * Returns false if this node does not contain the passed node.
      * If the given node is a descendent of this node, returns
@@ -253,16 +254,10 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     private _cachedNodeState;
     private _nodeState;
     /**
-     * Invalidate node state in order to allow
-     * it to be recomputed again in the same frame
-     */
-    invalidateNodeState(): void;
-    /**
      * Compute spatial state from layout orientation & bounds
      */
     private _computeState;
-    invalidateLocalState(): void;
-    invalidateWorldState(): void;
+    invalidateNodeStates(): void;
     /**
      * The current state
      */
@@ -283,6 +278,10 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * The parent metrics
      */
     get parentMetrics(): SpatialMetrics<N> | null;
+    /**
+     * The closest non-empty or adapter containing metrics
+     */
+    get outerMetrics(): SpatialMetrics<N> | null;
     /**
      * The child nodes that are included in this bounding context
      */

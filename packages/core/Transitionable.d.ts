@@ -123,9 +123,7 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
     /**
      * If false, this transitionable is inert
      */
-    get active(): boolean;
-    set active(val: boolean);
-    private _active;
+    active: boolean;
     /**
      * Force the next update to commit the target value,
      * or the specified transition

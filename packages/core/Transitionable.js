@@ -24,7 +24,10 @@ export class Transitionable extends TransitionConfig {
          * (whose durations have not yet been exceeded)
          */
         this.queue = [];
-        this._active = false;
+        /**
+         * If false, this transitionable is inert
+         */
+        this.active = false;
         this._forceCommit = false;
         this._resolvedConfig = new TransitionConfig;
         this.delayTime = 0;
@@ -123,8 +126,6 @@ export class Transitionable extends TransitionConfig {
      * The starting value for currently ongoing transitions
      */
     set start(value) {
-        if (this._isEqual(this._start, value))
-            return;
         this._start = this._copy(this._start, value);
     }
     get start() {
@@ -134,20 +135,15 @@ export class Transitionable extends TransitionConfig {
      * The current value.
      */
     set current(value) {
-        if (this._isEqual(this._current, value))
-            return;
         this._current = this._copy(this._current, value);
     }
     get current() {
-        this.update();
         return this._current;
     }
     /**
      * The "changed" reference value
      */
     set reference(value) {
-        if (this._isEqual(this._reference, value))
-            return;
         this._reference = this._copy(this._reference, value);
     }
     get reference() {
@@ -158,23 +154,10 @@ export class Transitionable extends TransitionConfig {
      */
     set target(value) {
         this.active = true;
-        if (this._isEqual(this._target, value))
-            return;
         this._target = this._copy(this._target, value);
     }
     get target() {
         return this._target;
-    }
-    /**
-     * If false, this transitionable is inert
-     */
-    get active() {
-        return this._active;
-    }
-    set active(val) {
-        if (this._active === val)
-            return;
-        this._active = val;
     }
     /**
      * Force the next update to commit the target value,

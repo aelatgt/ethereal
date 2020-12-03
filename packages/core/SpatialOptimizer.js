@@ -1,4 +1,4 @@
-import { Vector3, computeRelativeDifference, Ray, V_000 } from './math';
+import { Quaternion, Box3 } from './math';
 import { LayoutSolution } from './SpatialLayout';
 export class OptimizerConfig {
     constructor(config) {
@@ -15,51 +15,6 @@ export const Objective = {
     maximizeVisualSize: (s) => {
         return s.visualFrustum.diagonalDegrees;
     },
-    minimizePullEnergy: (() => {
-        const ray = new Ray;
-        return (s, layout) => {
-            const center = s.layoutCenter;
-            const pullCenter = layout.pull?.center;
-            const pullDirection = layout.pull?.direction;
-            let centerDist = 0;
-            let directionDist = 0;
-            if (pullCenter) {
-                const xDiff = Math.abs(center.x - (pullCenter.x || 0));
-                const yDiff = Math.abs(center.y - (pullCenter.y || 0));
-                const zDiff = Math.abs(center.z - (pullCenter.z || 0));
-                centerDist = Math.sqrt(xDiff ** 2 + yDiff ** 2 + zDiff ** 2);
-            }
-            if (pullDirection) {
-                ray.origin.copy(s.outerCenter);
-                ray.direction.set(pullDirection.x || 0, pullDirection.y || 0, pullDirection.z || 0).normalize();
-                directionDist = ray.distanceToPoint(center);
-            }
-            return -(centerDist + directionDist);
-        };
-    })(),
-    minimizeVisualPullEnergy: (() => {
-        const center = new Vector3;
-        const ray = new Ray;
-        return (s, layout) => {
-            center.copy(V_000).applyMatrix4(s.viewFromLayout);
-            const pullCenter = layout.visualPull?.center;
-            const pullDirection = layout.visualPull?.direction;
-            let centerDist = 0;
-            let directionDist = 0;
-            if (pullCenter) {
-                const xDiff = Math.abs(center.x - (pullCenter.x || 0));
-                const yDiff = Math.abs(center.y - (pullCenter.y || 0));
-                const zDiff = Math.abs(center.z - (pullCenter.z || 0));
-                centerDist = Math.sqrt(xDiff ** 2 + yDiff ** 2 + zDiff ** 2);
-            }
-            if (pullDirection) {
-                ray.origin.set(0, 0, 0);
-                ray.direction.set(pullDirection.x || 0, pullDirection.y || 0, pullDirection.z || 0).normalize();
-                directionDist = ray.distanceToPoint(center);
-            }
-            return -(centerDist + directionDist);
-        };
-    })(),
     towardsLayoutDirection: (s, direction) => {
         return s.layoutCenter.distanceTo(direction);
     },
@@ -77,169 +32,65 @@ export const Objective = {
  *      - https://doi.org/10.5120/16402-6079
  *      - 1/5th successful mutation rule used to adaptively increase or decrease exploration/exploitation via :
  *          - standard deviation of gaussian distrubtion for random walks
- *          - pulse rate
  *  - New directional bat algorithm for continuous optimization problems
  *      - https://doi.org/10.1016/j.eswa.2016.10.050
  *      - Directional echolocation (move towards best and/or random better solution)
  *      - Accept new local solution if better than current local solution (instead of requiring better than best solution)
  *      - Update best soltuion regardless of local solution acceptance
  *
- * TLDR; In order to allow for continual optimization that maximizes exploration vs exploitation strategies as needed:
+ * In order to allow for continual optimization that maximizes exploration vs exploitation strategies as needed:
  *  - exploitation consists of directional pulses towards the global best solution and (possibly) a random better solution
  *  - exploration consists of gaussian random perturbation of an arbitrary solution
- *  - the pulse rate (the ratio of exploration vs exploitation) adapts to the solution mutation success rate
- *  - the standard deviation used for random walks also adapts to the solution mutation success rate
  */
 export class SpatialOptimizer {
     constructor(system) {
         this.system = system;
-        /**
-         * Each objective function should return a scalar value
-         * that increases in correlation with improved fitness.
-         * The fitness value does not need to be normalized, as objectives
-         * are not weighted directly aginst one another. Rather,
-         * solutions are ranked by preferring the solution that
-         * has the highest score within the `relativeTolerance`
-         * of each objective, in order of objective priority.
-         * If at any point the relative difference between
-         * scores is larger than the relative tolerance for
-         * a given objective, the two solutions will be ranked
-         * by that objective.
-         *
-         * If any two solutions are within relative tolerance
-         * of one another for all objectives, those two will be
-         * compared to ane another by the lowest priority objective
-         *
-         * If either solution breaks constraints, then
-         * the one with the lowest penalty is ranked higher
-         */
-        this.compareSolutions = (a, b) => {
-            const systemConfig = this.system.config.optimize;
-            const cThreshold = a.adapter?.optimize.constraintThreshold || systemConfig.constraintThreshold;
-            const cRelativeTolerance = a.adapter?.optimize.constraintRelativeTolerance || systemConfig.constraintRelativeTolerance;
-            const oRelativeTolerance = a.adapter?.optimize.objectiveRelativeTolerance || systemConfig.objectiveRelativeTolerance;
-            for (let i = 0; i < a.layout.constraints.length; i++) {
-                const constraint = a.layout.constraints[i];
-                const scoreA = a.constraintScores[i];
-                const scoreB = b.constraintScores[i];
-                if (scoreA > cThreshold && scoreB > cThreshold) {
-                    const relativeDiff = computeRelativeDifference(scoreA, scoreB);
-                    const relativeTolerance = constraint.relativeTolerance || cRelativeTolerance;
-                    if (relativeDiff > relativeTolerance) {
-                        return scoreA - scoreB; // rank by lowest penalty
-                    }
-                }
-                else if (scoreA > cThreshold || scoreB > cThreshold) {
-                    return scoreA - scoreB;
-                }
-            }
-            for (let i = 0; i < a.layout.objectives.length; i++) {
-                const objective = a.layout.objectives[i];
-                const scoreA = a.objectiveScores[i];
-                const scoreB = b.objectiveScores[i];
-                const relativeDiff = computeRelativeDifference(scoreA, scoreB);
-                const relativeTolerance = objective.relativeTolerance || oRelativeTolerance;
-                if (relativeDiff > relativeTolerance) {
-                    return scoreB - scoreA; // rank by highest score
-                }
-            }
-            // If all scores are within relative tolerance of one another,
-            // then simply rank by the lowest priority objective
-            const lastIndex = a.objectiveScores.length - 1;
-            return b.objectiveScores[lastIndex] - a.objectiveScores[lastIndex]; // rank by highest score
-        };
+        this._config = new OptimizerConfig;
+        this._prevOrientation = new Quaternion;
+        this._prevBounds = new Box3;
         this.#scratchSolution = new LayoutSolution();
+    }
+    _setConfig(adapter) {
+        const defaultConfig = this.system.config.optimize;
+        this._config.pulseRate = defaultConfig.pulseRate;
+        this._config.iterationsPerFrame = adapter.optimize.iterationsPerFrame ?? defaultConfig.iterationsPerFrame;
+        this._config.swarmSize = adapter.optimize.swarmSize ?? defaultConfig.swarmSize;
+        this._config.pulseFrequencyMin = adapter.optimize.pulseFrequencyMin ?? defaultConfig.pulseFrequencyMin;
+        this._config.pulseFrequencyMax = adapter.optimize.pulseFrequencyMax ?? defaultConfig.pulseFrequencyMax;
+        this._config.stepSizeMax = adapter.optimize.stepSizeMax ?? defaultConfig.stepSizeMax;
+        this._config.stepSizeMin = adapter.optimize.stepSizeMin ?? defaultConfig.stepSizeMin;
+        this._config.stepSizeStart = adapter.optimize.stepSizeStart ?? defaultConfig.stepSizeStart;
+        this._config.staleRestartRate = adapter.optimize.staleRestartRate ?? defaultConfig.staleRestartRate;
+        this._config.successRateMovingAverage = adapter.optimize.successRateMovingAverage ?? defaultConfig.successRateMovingAverage;
     }
     /**
      * Optimize the layouts defined on this adapter
      */
     update(adapter) {
-        if (adapter.layouts.length === 0)
+        if (adapter.allLayouts.length === 0 || adapter.metrics.innerBounds.isEmpty()) {
+            adapter.activeLayout = null;
             return;
-        const defaultConfig = this.system.config.optimize;
-        const pulseRate = defaultConfig.pulseRate;
-        const iterationsPerFrame = adapter.optimize.iterationsPerFrame ?? defaultConfig.iterationsPerFrame;
-        const swarmSize = adapter.optimize.swarmSize ?? defaultConfig.swarmSize;
-        const minFreq = adapter.optimize.pulseFrequencyMin ?? defaultConfig.pulseFrequencyMin;
-        const maxFreq = adapter.optimize.pulseFrequencyMax ?? defaultConfig.pulseFrequencyMax;
-        const stepSizeMax = adapter.optimize.stepSizeMax ?? defaultConfig.stepSizeMax;
-        const stepSizeMin = adapter.optimize.stepSizeMin ?? defaultConfig.stepSizeMin;
-        const stepSizeStart = adapter.optimize.stepSizeStart ?? defaultConfig.stepSizeStart;
-        const staleRestartRate = adapter.optimize.staleRestartRate ?? defaultConfig.staleRestartRate;
-        const newSolution = this.#scratchSolution;
-        const diversificationFactor = 1.5;
-        const intensificationFactor = 1.5 ** (-1 / 4);
-        const successRateSamples = adapter.optimize.successRateSamples ?? defaultConfig.successRateSamples;
-        const successAlpha = 2 / (successRateSamples + 1); // N-sample exponential moving average
-        for (const layout of adapter.layouts) {
-            // manage solution population (if necessary)
-            this._manageSolutionPopulation(adapter, layout, swarmSize);
-            // rescore and sort solutions
-            const solutions = layout.solutions;
-            newSolution.copy(solutions[0]);
-            for (const solution of layout.solutions) {
-                this.applyLayoutSolution(adapter, layout, solution, true);
-            }
-            layout.solutions.sort(this.compareSolutions);
-            // optimize solutions
-            for (let i = 0; i < iterationsPerFrame; i++) {
-                layout.iteration++;
-                const solutionBest = solutions[0];
-                // update solutions
-                for (const solution of solutions) {
-                    // generate new solution
-                    newSolution.copy(solution);
-                    newSolution.mutationStrategies = solution.mutationStrategies;
-                    let mutationStrategy = undefined;
-                    if (Math.random() < pulseRate) { // emit directional pulses! (global search / exploration)
-                        // select best and random solution
-                        let bestSolution = solutionBest !== solution ? solutionBest : solutions[1];
-                        let randomSolution;
-                        if (solutions.length > 2) {
-                            do {
-                                randomSolution = solutions[Math.floor(Math.random() * solutions.length)];
-                            } while (randomSolution === solution);
-                        }
-                        // move towards best or both solutions
-                        newSolution.moveTowards(bestSolution, minFreq, maxFreq);
-                        if (randomSolution && this.compareSolutions(randomSolution, solution) <= 0) {
-                            newSolution.moveTowards(randomSolution, minFreq, maxFreq);
-                        }
-                    }
-                    else { // gaussian/levy random walk! (local search / exploitation)
-                        mutationStrategy = newSolution.perturb();
-                    }
-                    // evaluate new solution
-                    this.applyLayoutSolution(adapter, layout, newSolution, true);
-                    // better than previous ?
-                    const success = this.compareSolutions(newSolution, solution) < 0;
-                    if (success)
-                        solution.copy(newSolution);
-                    if (mutationStrategy) {
-                        mutationStrategy.successRate = successAlpha * (success ? 1 : 0) + (1 - successAlpha) * mutationStrategy.successRate;
-                        mutationStrategy.stepSize *= success ? diversificationFactor : intensificationFactor;
-                        if (!success && solution !== solutionBest && mutationStrategy.stepSize < stepSizeMin && Math.random() < staleRestartRate) {
-                            for (const m of solution.mutationStrategies) {
-                                m.stepSize = stepSizeStart;
-                                m.successRate = 0.2;
-                            }
-                            solution.randomize(1);
-                            this.applyLayoutSolution(adapter, layout, solution, true);
-                        }
-                        else if (mutationStrategy.stepSize > stepSizeMax) {
-                            mutationStrategy.stepSize = stepSizeMax;
-                        }
-                    }
-                }
-                // best solution may have changed
-                solutions.sort(this.compareSolutions);
-            }
+        }
+        const prevParent = adapter.parentNode;
+        const prevOrientation = this._prevOrientation.copy(adapter.orientation.target);
+        const prevBounds = this._prevBounds.copy(adapter.bounds.target);
+        this._setConfig(adapter);
+        for (const layout of adapter.allLayouts) {
+            this._updateLayout(adapter, layout);
+        }
+        if (adapter.layouts.length === 0) {
+            adapter.parentNode = prevParent;
+            adapter.orientation.target = prevOrientation;
+            adapter.bounds.target = prevBounds;
+            adapter.metrics.invalidateNodeStates();
+            adapter.activeLayout = null;
+            return;
         }
         let bestLayout = adapter.layouts[0];
         let bestOfAllSolutions = adapter.layouts[0].solutions[0];
         for (const layout of adapter.layouts) {
             const bestSolution = layout.solutions[0];
-            if (this.compareSolutions(bestSolution, bestOfAllSolutions) < 0) {
+            if (layout.compareSolutions(bestSolution, bestOfAllSolutions) < 0) {
                 bestLayout = layout;
                 bestOfAllSolutions = bestSolution;
             }
@@ -249,14 +100,91 @@ export class SpatialOptimizer {
         return bestLayout;
     }
     #scratchSolution;
-    _manageSolutionPopulation(adapter, layout, swarmSize) {
+    _updateLayout(adapter, layout) {
+        const solutions = layout.solutions;
+        const c = this._config;
+        const newSolution = this.#scratchSolution;
+        const diversificationFactor = 1.5;
+        const intensificationFactor = 1.5 ** (-1 / 4);
+        const successAlpha = 2 / (c.successRateMovingAverage + 1); // N-sample exponential moving average
+        // const iterations = adapter.layouts.includes(layout) ? 
+        //     c.iterationsPerFrame : Math.min(Math.round(c.iterationsPerFrame * 0.1), 1)
+        const iterations = c.iterationsPerFrame;
+        // manage solution population (if necessary)
+        this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart);
+        // // rescore and sort solutions
+        newSolution.copy(solutions[0]);
+        for (let i = 0; i < solutions.length; i++) {
+            this.applyLayoutSolution(adapter, layout, solutions[i], true);
+        }
+        layout.sortSolutions();
+        // optimize solutions
+        for (let i = 0; i < iterations; i++) {
+            layout.iteration++;
+            const solutionBest = solutions[0];
+            // update solutions
+            for (let j = 0; j < solutions.length; j++) {
+                const solution = solutions[j];
+                // generate new solution
+                newSolution.copy(solution);
+                newSolution.mutationStrategies = solution.mutationStrategies;
+                let mutationStrategy = undefined;
+                if (Math.random() < c.pulseRate) { // emit directional pulses! (global search / exploration)
+                    // select best and random solution
+                    let bestSolution = solutionBest !== solution ? solutionBest : solutions[1];
+                    let randomSolution;
+                    if (solutions.length > 2) {
+                        do {
+                            randomSolution = solutions[Math.floor(Math.random() * solutions.length)];
+                        } while (randomSolution === solution);
+                    }
+                    // move towards best or both solutions
+                    newSolution.moveTowards(bestSolution, c.pulseFrequencyMin, c.pulseFrequencyMax);
+                    if (randomSolution && layout.compareSolutions(randomSolution, solution) <= 0) {
+                        newSolution.moveTowards(randomSolution, c.pulseFrequencyMin, c.pulseFrequencyMax);
+                    }
+                }
+                else { // gaussian/levy random walk! (local search / exploitation)
+                    mutationStrategy = newSolution.perturb();
+                }
+                // evaluate new solutions
+                // this.applyLayoutSolution(adapter, layout, solution, true)
+                this.applyLayoutSolution(adapter, layout, newSolution, true);
+                // better than previous ?
+                const success = layout.compareSolutions(newSolution, solution) < 0;
+                if (success)
+                    solution.copy(newSolution);
+                // adapt step size
+                if (mutationStrategy) {
+                    mutationStrategy.successRate = successAlpha * (success ? 1 : 0) + (1 - successAlpha) * mutationStrategy.successRate;
+                    mutationStrategy.stepSize *= success ? diversificationFactor : intensificationFactor;
+                    if (!success && solution !== solutionBest && mutationStrategy.stepSize < c.stepSizeMin && Math.random() < c.staleRestartRate) {
+                        // random restart
+                        for (const m of solution.mutationStrategies) {
+                            m.stepSize = c.stepSizeStart;
+                            m.successRate = 0.2;
+                        }
+                        solution.randomize(1);
+                        this.applyLayoutSolution(adapter, layout, solution, true);
+                    }
+                    else if (mutationStrategy.stepSize > c.stepSizeMax) {
+                        mutationStrategy.stepSize = c.stepSizeMax;
+                    }
+                }
+            }
+            // best solution may have changed
+            layout.sortSolutions();
+        }
+    }
+    _manageSolutionPopulation(adapter, layout, swarmSize, startStepSize) {
         if (swarmSize <= 1)
             throw new Error('Swarm size must be larger than 1');
         if (layout.solutions.length < swarmSize) {
             while (layout.solutions.length < swarmSize) {
-                const solution = new LayoutSolution().randomize(1);
-                solution.adapter = adapter;
-                solution.layout = layout;
+                const solution = new LayoutSolution(layout);
+                for (const s of solution.mutationStrategies)
+                    s.stepSize = startStepSize;
+                solution.randomize(1);
                 layout.solutions.push(solution);
             }
         }
@@ -276,16 +204,15 @@ export class SpatialOptimizer {
     applyLayoutSolution(adapter, layout, solution, evaluate = false) {
         adapter.parentNode = layout.parentNode;
         adapter.orientation.target = solution.orientation;
-        // adapter.origin.target = layout.origin
         adapter.bounds.target = solution.bounds;
-        adapter.metrics.invalidateLocalState();
+        adapter.metrics.invalidateNodeStates();
         if (evaluate) {
             const state = adapter.metrics.targetState;
             for (let i = 0; i < layout.constraints.length; i++) {
-                solution.constraintScores[i] = layout.constraints[i].score(state, layout);
+                solution.constraintScores[i] = layout.constraints[i].evaluate(state, layout);
             }
             for (let i = 0; i < layout.objectives.length; i++) {
-                solution.objectiveScores[i] = layout.objectives[i].score(state, layout);
+                solution.objectiveScores[i] = layout.objectives[i].evaluate(state, layout);
             }
         }
     }

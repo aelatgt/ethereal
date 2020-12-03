@@ -8,17 +8,68 @@
     <link href="https://fonts.googleapis.com/css?family=Inconsolata:400,700" rel="stylesheet">
     <title>traclabs xr</title>
     <script data-consolejs-channel="bbedf58c-734e-9899-e7db-dcd3fcf532b8" src="https://remotejs.com/agent/agent.js"></script>
-    <!-- <script src='https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js'></script> -->
-    <!-- <script>new WebXRPolyfill()</script> -->
     <!-- for Edge support on HoloLens-->
-    <script src='https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js'></script>
+    <script>
+      if (!window['DOMPointReadOnly']) {
+          const PRIVATE = Symbol('@@webxr-polyfill/DOMPointReadOnly');
+          class DOMPointReadOnly {
+            constructor(x, y, z, w) {
+              if (arguments.length === 1) {
+                this[PRIVATE] = {
+                  x: x.x,
+                  y: x.y,
+                  z: x.z,
+                  w: x.w
+                };
+              } else if (arguments.length === 4) {
+                this[PRIVATE] = {
+                  x: x,
+                  y: y,
+                  z: z,
+                  w: w
+                };
+              } else {
+                throw new TypeError('Must supply either 1 or 4 arguments')
+              }
+            }
+
+            /**
+             * @return {number}
+             */
+            get x() { return this[PRIVATE].x }
+
+            /**
+             * @return {number}
+             */
+            get y() { return this[PRIVATE].y }
+
+            /**
+             * @return {number}
+             */
+            get z() { return this[PRIVATE].z }
+
+            /**
+             * @return {number}
+             */
+            get w() { return this[PRIVATE].w }
+          }
+        DOMPointReadOnly.fromPoint = function(p) {
+          return new DOMPointReadOnly(p.x,p.y,p.z,p.w)
+        }
+        window.DOMPointReadOnly = DOMPointReadOnly
+        console.log('injected DOMPointReadOnly!')
+      }
+    </script>
+    <script src='https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js'></script>    <script>new WebXRPolyfill()</script>
+    <script>
+      console.log('starting!')
+      console.log(DOMPointReadOnly)
+
+      new WebXRPolyfill()
+    </script>
     <script src="https://dl.dropboxusercontent.com/s/r55397ld512etib/EncoderDecoderTogether.min.js?dl=0" type="text/javascript"></script>
   </head>
-  <body>
-    <script src="./main.ts"></script>
-    <noscript>
-      <strong>We're sorry but test doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
-    </noscript>
-    <div id="app"></div>
+  <body>    
+    <script src="main.ts"></script>
   </body>
 </html>

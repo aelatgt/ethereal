@@ -61,9 +61,18 @@ export declare type LinearMeasure = AtLeastOneProperty<{
  * all of which are summed together as a single measure
  */
 export declare type VisualMeasure = AtLeastOneProperty<{
+    /** Percent relative to user's view frustum */
     percent: number;
+    /** Percent relative to parent node's visual frustum */
+    offsetPercent: number;
+    /** Degrees relative to user's view frustum */
     degrees: number;
+    /** Degrees relative to parent node's visual frustum */
+    offsetDegrees: number;
+    /** Radians relative to user's view frustum */
     radians: number;
+    /** Radians relative to parent node's visual frustum */
+    offsetRadians: number;
 }>;
 export declare type LinearMeasureSpec = OneOrMany<DiscreteOrContinuous<LinearMeasure>>;
 export declare type VisualMeasureSpec = OneOrMany<DiscreteOrContinuous<VisualMeasure>>;
@@ -77,10 +86,11 @@ export declare class BoundsSpec {
     width?: LinearMeasureSpec;
     height?: LinearMeasureSpec;
     depth?: LinearMeasureSpec;
-    diagonalLength?: LinearMeasureSpec;
+    diagonal?: LinearMeasureSpec;
     centerX?: LinearMeasureSpec;
     centerY?: LinearMeasureSpec;
     centerZ?: LinearMeasureSpec;
+    pull?: PullSpec;
 }
 export declare class FrustumSpec {
     left?: VisualMeasureSpec;
@@ -91,14 +101,12 @@ export declare class FrustumSpec {
     far?: LinearMeasureSpec;
     width?: VisualMeasureSpec;
     height?: VisualMeasureSpec;
-    diagonalLength?: VisualMeasureSpec;
     depth?: LinearMeasureSpec;
+    diagonal?: VisualMeasureSpec;
     centerX?: VisualMeasureSpec;
     centerY?: VisualMeasureSpec;
     centerZ?: LinearMeasureSpec;
-    angleToCenter?: VisualMeasureSpec;
-    angleToClosestCorner?: VisualMeasureSpec;
-    angleToFurthestCorner?: VisualMeasureSpec;
+    pull?: PullSpec;
 }
 export declare type PullSpec = AtLeastOneProperty<{
     direction: AtLeastOneProperty<{
@@ -106,7 +114,7 @@ export declare type PullSpec = AtLeastOneProperty<{
         y: number;
         z: number;
     }>;
-    center: AtLeastOneProperty<{
+    position: AtLeastOneProperty<{
         x: number;
         y: number;
         z: number;
@@ -126,6 +134,7 @@ declare type ContinuousSpec<T> = T extends any[] | undefined ? never : T extends
  */
 export declare class SpatialLayout {
     #private;
+    adapter: SpatialAdapter<any>;
     static isDiscreteSpec<T>(s: T): s is DiscreteSpec<T>;
     static isContinuousSpec<T>(s: T): s is ContinuousSpec<T>;
     static getNumberPenalty(value: number, spec?: NumberSpec, epsillon?: number): number;
@@ -145,7 +154,7 @@ export declare class SpatialLayout {
     private static _getVisualMeasurePenaltySingle;
     static getMetersFromLinearMeasure(measure: LinearMeasure, rangeMeters: number): number;
     static getDegreesFromVisualMeasure(measure: VisualMeasure, rangeDegrees: number, nearMeters: number): number;
-    constructor();
+    constructor(adapter: SpatialAdapter<any>);
     /**
      * The constraints applied to this layout
      */
@@ -180,11 +189,6 @@ export declare class SpatialLayout {
      */
     orientation?: QuaternionSpec;
     orientationConstraint: LayoutConstraint;
-    local: BoundsSpec;
-    localConstraint: LayoutConstraint;
-    /** The visual bounds spec */
-    visual: FrustumSpec;
-    visualConstraint: LayoutConstraint;
     /**
      * The local position constraint spec (local units are ambigious).
      * Copies on assignment
@@ -196,29 +200,38 @@ export declare class SpatialLayout {
      */
     scale?: Vector3Spec;
     scaleConstraint: LayoutConstraint;
-    /**
-     * Pull influence
-     */
-    pull?: PullSpec;
-    /**
-     * Visual-space pull influence
-     */
-    visualPull?: PullSpec;
+    local: BoundsSpec;
+    localConstraint: LayoutConstraint;
+    /** The visual bounds spec */
+    visual: FrustumSpec;
+    visualConstraint: LayoutConstraint;
     /**
      * Occluders to minimize visual overlap with
      */
     occluders?: Node3D[];
     /** */
-    visualMaximize: boolean;
-    visualMaximizeObjective: LayoutObjective;
+    maximizeVisual: boolean;
+    maximizeVisualObjective: LayoutObjective;
+    private _pullCenter;
+    private _pullRay;
+    /** */
+    pullLocalObjective: LayoutObjective;
+    pullVisualObjective: LayoutObjective;
     /**
      * Add a new layout constraint
      */
-    private _addConstraint;
+    addConstraint(name: string, evaluate: ScoreFunction, opts?: {
+        relativeTolerance?: number;
+        absoluteTolerance?: number;
+        threshold?: number;
+    }): LayoutConstraint;
     /**
      * Add a new layout objective
      */
-    private _addObjective;
+    addObjective(name: string, evaluate: ScoreFunction, opts?: {
+        relativeTolerance?: number;
+        absoluteTolerance?: number;
+    }): LayoutObjective;
     /**
      * The solutions being explored for this layout
      */
@@ -231,10 +244,39 @@ export declare class SpatialLayout {
      * The current optimization iteration
      */
     iteration: number;
+    bestSolution: LayoutSolution;
+    /**
+     * Update best scores and sort solutions
+     */
+    sortSolutions(): void;
+    /**
+     * Each objective function should return a scalar value
+     * that increases in correlation with improved fitness.
+     * The fitness value does not need to be normalized, as objectives
+     * are not weighted directly aginst one another. Rather,
+     * solutions are ranked by preferring the solution that
+     * has the highest score within the `relativeTolerance`
+     * of each objective, in order of objective priority.
+     * If at any point the relative difference between
+     * scores is larger than the relative tolerance for
+     * a given objective, the two solutions will be ranked
+     * by that objective.
+     *
+     * If any two solutions are within relative tolerance
+     * of one another for all objectives, those two will be
+     * compared to ane another by the lowest priority objective
+     *
+     * If either solution breaks constraints, then
+     * the one with the lowest penalty is ranked higher
+     */
+    compareSolutions: (a: LayoutSolution, b: LayoutSolution) => number;
 }
 export interface LayoutObjective {
-    score: ScoreFunction;
+    name?: string;
+    evaluate: ScoreFunction;
     relativeTolerance?: number;
+    absoluteTolerance?: number;
+    bestScore?: number;
 }
 export interface LayoutConstraint extends LayoutObjective {
     threshold?: number;
@@ -245,10 +287,7 @@ export interface MutationStrategy {
     successRate: number;
 }
 export declare class LayoutSolution {
-    /**
-     * The adapter associated with this solution
-     */
-    adapter: SpatialAdapter<any>;
+    constructor(layout?: SpatialLayout);
     /**
      * The layout associated with this solution
      */

@@ -86,8 +86,13 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     get opacity(): Transitionable<number>;
     private _opacity;
     /**
-     * List of layout variants. If non-empty, the target
-     * orientation, bounds, and opacity will be automatically updated
+     * All layouts associated with this adapter.
+     */
+    allLayouts: SpatialLayout[];
+    /**
+     * List of presentable layout variants. If non-empty, the target
+     * orientation, bounds, and opacity will be automatically updated.
+     * Layouts in this list will be optimized with higher priority.
      */
     layouts: SpatialLayout[];
     get previousLayout(): SpatialLayout | null;

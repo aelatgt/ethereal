@@ -1,4 +1,4 @@
-import { Object3D, Mesh, MeshDepthMaterial, Geometry, Camera, Intersection, Texture, Matrix4, WebGLRenderer } from 'three';
+import { Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, Geometry, Camera, Intersection, Texture, Matrix4, WebGLRenderer } from 'three';
 import { WebLayer } from '../web-renderer';
 import { Bounds } from '../dom-utils';
 export interface WebLayer3DOptions {
@@ -17,7 +17,7 @@ export declare class WebLayer3DBase extends Object3D {
     textures: Map<HTMLCanvasElement | HTMLVideoElement, Texture>;
     get currentTexture(): Texture;
     content: Object3D;
-    contentMesh: Mesh;
+    contentMesh: Mesh<Geometry, MeshBasicMaterial>;
     cursor: Object3D;
     depthMaterial: MeshDepthMaterial;
     target: Object3D;
@@ -117,7 +117,7 @@ export declare class WebLayer3DBase extends Object3D {
 export declare class WebLayer3D extends WebLayer3DBase {
     options: WebLayer3DOptions;
     static layersByElement: WeakMap<Element, WebLayer3DBase>;
-    static layersByMesh: WeakMap<Mesh, WebLayer3DBase>;
+    static layersByMesh: WeakMap<Mesh<Geometry | import("three").BufferGeometry, import("three").Material | import("three").Material[]>, WebLayer3DBase>;
     static DEBUG_PERFORMANCE: boolean;
     static LAYER_ATTRIBUTE: string;
     static PIXEL_RATIO_ATTRIBUTE: string;

@@ -11,7 +11,6 @@ export class EtherealSystem {
         this.viewNode = viewNode;
         this.bindings = bindings;
         this.config = {
-            cachingEnabled: true,
             epsillonMeters: 1e-10,
             epsillonRadians: 1e-10,
             epsillonRatio: 1e-10,
@@ -26,19 +25,19 @@ export class EtherealSystem {
                 blend: true
             }),
             optimize: new OptimizerConfig({
-                constraintThreshold: 0.005,
-                constraintRelativeTolerance: 0.0001,
-                objectiveRelativeTolerance: 0.01,
-                iterationsPerFrame: 5,
-                swarmSize: 2,
+                constraintThreshold: 0.1,
+                relativeTolerance: 0.4,
+                absoluteTolerance: 0.1,
+                iterationsPerFrame: 30,
+                swarmSize: 5,
                 pulseFrequencyMin: 0,
                 pulseFrequencyMax: 1.5,
-                pulseRate: 0.1,
-                stepSizeMin: 0.0001,
+                pulseRate: 0.01,
+                stepSizeMin: 0.000001,
                 stepSizeMax: 10,
                 stepSizeStart: 0.5,
-                staleRestartRate: 0.9,
-                successRateSamples: 50
+                staleRestartRate: 0.02,
+                successRateMovingAverage: 50
             })
         };
         /**

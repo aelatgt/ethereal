@@ -16,11 +16,11 @@
     "Edge 18"
   ],
   "dependencies": {
-    "@etherealjs/parcel-resolver-esm": "file:../../packages/parcel-resolver-esm",
+    "@etherealjs/parcel-resolver-esm": "^1.0.0",
     "emotion": "latest",
-    "ethereal": "file:../../packages/ethereal",
+    "ethereal": "^1.0.0",
     "postprocessing": "latest",
-    "stats.js": "0.17.0"
+    "stats.js": "^0.17.0"
   },
   "license": "MIT",
   "private": true,

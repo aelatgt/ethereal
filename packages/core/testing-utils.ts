@@ -34,7 +34,7 @@ export class EtherealSystemMock extends EtherealSystem {
                 const nodeObj = metrics.node as Mesh
                 if (nodeObj.geometry) {
                     if (!nodeObj.geometry.boundingBox) nodeObj.geometry.computeBoundingBox()
-                    return bounds.copy(nodeObj.geometry.boundingBox)
+                    return bounds.copy(nodeObj.geometry.boundingBox!)
                 }
                 return bounds
             },

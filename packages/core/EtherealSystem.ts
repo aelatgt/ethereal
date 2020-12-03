@@ -28,7 +28,6 @@ export class EtherealSystem<N extends Node3D = Node3D> {
     constructor(public viewNode:N, public bindings:NodeBindings<N>) { }
 
     config = {
-        cachingEnabled: true,
         epsillonMeters: 1e-10,
         epsillonRadians: 1e-10,
         epsillonRatio: 1e-10,
@@ -43,19 +42,19 @@ export class EtherealSystem<N extends Node3D = Node3D> {
             blend: true
         }) as Required<TransitionConfig>,
         optimize: new OptimizerConfig({
-            constraintThreshold: 0.005,
-            constraintRelativeTolerance: 0.0001,
-            objectiveRelativeTolerance: 0.01,
-            iterationsPerFrame: 5, // iterations per frame per layout
-            swarmSize: 2, // solutions per layout
+            constraintThreshold: 0.1,
+            relativeTolerance: 0.4,
+            absoluteTolerance: 0.1,
+            iterationsPerFrame: 30, // iterations per frame per layout
+            swarmSize: 5, // solutions per layout
             pulseFrequencyMin: 0, // minimal exploitation pulse
             pulseFrequencyMax: 1.5, // maximal exploitation pulse
-            pulseRate: 0.1, // The ratio of directed exploitation vs random exploration,
-            stepSizeMin: 0.0001,
+            pulseRate: 0.01, // The ratio of directed exploitation vs random exploration,
+            stepSizeMin: 0.000001,
             stepSizeMax: 10,
             stepSizeStart: 0.5,
-            staleRestartRate: 0.9,
-            successRateSamples: 50
+            staleRestartRate: 0.02,
+            successRateMovingAverage: 50
         }) as Required<OptimizerConfig>
     }
 

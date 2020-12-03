@@ -4,6 +4,7 @@ import UI from './components/UI';
 import PrideAPI from './lib/PrideAPI';
 import * as THREE from 'three';
 import { createSystem } from 'ethereal';
+import * as ethereal from 'ethereal';
 import './lib/SpatialLayout';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -19,6 +20,7 @@ export class App extends AppBase {
         this.system = createSystem(this.camera);
         this.treadmill = new Treadmill(this);
         this.ui = new UI(this, this.treadmill);
+        this.ethereal = ethereal;
     }
 }
 const app = new App({
@@ -34,9 +36,14 @@ const app = new App({
         app.ui.state.immersiveMode = false;
     }
 });
-app.system.config.optimize.swarmSize = 2;
-app.system.config.optimize.iterationsPerFrame = 15;
-app.system.config.optimize.stepSizeMin = 0.0001;
+app.system.config.optimize.swarmSize = 3;
+app.system.config.optimize.iterationsPerFrame = 25;
+app.system.config.optimize.stepSizeMin = 0.000001;
+app.system.config.optimize.staleRestartRate = 0.02;
+app.system.config.optimize.stepSizeStart = 0.5;
+app.system.config.optimize.pulseRate = 0.01;
+app.system.config.optimize.constraintRelativeTolerance = 0.3;
+app.system.config.optimize.objectiveRelativeTolerance = 0.3;
 app.start().catch((e) => {
     console.error(e);
     alert(e);

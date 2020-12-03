@@ -197,7 +197,6 @@ export default class Treadmill {
             });
         }
         this.initDefault();
-        this.app.camera.add(this.snubberObject);
     }
     initDefault() {
         this.snubberTargetPosition.set(0, 0, -1);

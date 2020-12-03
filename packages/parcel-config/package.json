@@ -1,8 +1,8 @@
 {
   "name": "@etherealjs/parcel-config",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "dependencies": {
-    "@etherealjs/parcel-resolver-esm": "file:../parcel-resolver-esm"
+    "@etherealjs/parcel-resolver-esm": "^1.0.0"
   },
   "engines": {
     "parcel": "^2.0.0-alpha"

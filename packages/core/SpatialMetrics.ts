@@ -3,7 +3,6 @@ import { Box3, Vector3, Quaternion, Matrix4, V_000, DIRECTION, V_111 } from './m
 import { EtherealSystem, Node3D } from './EtherealSystem'
 import { LayoutFrustum } from './LayoutFrustum'
 import { MemoizationCache } from './MemoizationCache'
-import { MathUtils } from 'three'
 
 const InternalCurrentState = Symbol("current")
 const InternalTargetState = Symbol("target")
@@ -15,12 +14,7 @@ export class NodeState<N extends Node3D=Node3D> {
     private _cache = new MemoizationCache
 
     invalidate() {
-        if (this._cache.isClean()) return
         this._cache.invalidateAll()
-        for (const c of this.metrics.nodeChildren) {
-            const metrics = this.metrics.system.getMetrics(c)
-            metrics.invalidateWorldState()
-        }
     }
  
     get parent() {
@@ -37,8 +31,12 @@ export class NodeState<N extends Node3D=Node3D> {
 
     get parentState() {
         const parentMetrics = this.parent && this.metrics.system.getMetrics(this.parent)
-        const parentState = this.mode === 'current' ? parentMetrics?.currentState : parentMetrics?.targetState
-        return parentState
+        return this.mode === 'current' ? parentMetrics?.currentState : parentMetrics?.targetState
+    }
+
+    get outerState() {
+        const outerMetrics = this.metrics.outerMetrics
+        return this.mode === 'current' ? outerMetrics?.currentState : outerMetrics?.targetState
     }
 
     private _cachedLocalMatrix = this._cache.memoize(() => {
@@ -48,12 +46,12 @@ export class NodeState<N extends Node3D=Node3D> {
         this._localRotationInverse.makeRotationFromQuaternion(this._localOrientationInverse)
         return this._localMatrix
     })
-    get localMatrix() { return this._cachedLocalMatrix() }
+    get localMatrix() { return this._localMatrix }
     set localMatrix(val:Matrix4) {
         if (!this._localMatrix.equals(val)) {
             this.invalidate()
             this._localMatrix.copy(val)
-            this._localMatrixInverse.getInverse(this.localMatrix)
+            this._localMatrixInverse.getInverse(this._localMatrix)
         }
     }
 
@@ -71,22 +69,22 @@ export class NodeState<N extends Node3D=Node3D> {
     }
 
     get localPosition() {
-        this.localMatrix
+        this._cachedLocalMatrix()
         return this._localPosition
     }
 
     get localOrientation() {
-        this.localMatrix
+        this._cachedLocalMatrix()
         return this._localOrientation
     }
 
     get localOrientationInverse() {
-        this.localMatrix
+        this._cachedLocalMatrix()
         return this._localOrientationInverse
     }
 
     get localScale() {
-        this.localMatrix
+        this._cachedLocalMatrix()
         return this._localScale
     }
 
@@ -94,7 +92,7 @@ export class NodeState<N extends Node3D=Node3D> {
      * Local rotation matrix
      */
     get localRotation() {
-        this.localMatrix
+        this._cachedLocalMatrix()
         return this._localRotation
     }
 
@@ -102,7 +100,7 @@ export class NodeState<N extends Node3D=Node3D> {
      * Local Orientation matrix inverse
      */
     get localRotationInverse() {
-        this.localMatrix
+        this._cachedLocalMatrix()
         return this._localRotationInverse
     }
 
@@ -296,14 +294,6 @@ export class NodeState<N extends Node3D=Node3D> {
         return this._layoutCenter
     }
 
-    get outerState() {
-        let parentState = this.parentState
-        while (parentState?.metrics.innerBounds.isEmpty() || parentState?.metrics.isAdaptive) {
-            parentState = parentState.parentState
-        }
-        return parentState
-    }
-
     /**
      * The first non-empty parent bounds, reoriented
      */
@@ -424,6 +414,11 @@ export class NodeState<N extends Node3D=Node3D> {
         return this._cachedScreenBounds()
     }
     private _cachedScreenBounds = this._cache.memoize(() => {
+        if (this.metrics.system.viewNode === this.metrics.node) {
+            this._screenBounds.min.setScalar(-1)
+            this._screenBounds.max.setScalar(1)
+            return this._screenBounds
+        }
         const viewFrustum = this.metrics.system.viewFrustum
         const projection = viewFrustum.perspectiveProjectionMatrix
         const viewFromLocal = this.viewFromLocal
@@ -461,6 +456,9 @@ export class NodeState<N extends Node3D=Node3D> {
         return this._cachedVisualFrustum()
     }
     private _cachedVisualFrustum = this._cache.memoize(() => {
+        if (this.metrics.node === this.metrics.system.viewNode) {
+            return this.metrics.system.viewFrustum
+        }
         const projection = this.metrics.system.viewFrustum.perspectiveProjectionMatrix
         return this._visualFrustum.setFromPerspectiveProjectionMatrix(projection, this.screenBounds)
     }, this._viewState._cache)
@@ -602,6 +600,7 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
     constructor(public system:EtherealSystem<N>, public node:N) {}
 
     private _cache = new MemoizationCache()
+    
     needsUpdate = true
 
     /**
@@ -609,25 +608,22 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
      */
     update() {
         if (this.needsUpdate) {
-
             this.needsUpdate = false
+            
+            this._invalidateInnerBounds()
             const adapter = this.system.nodeAdapters.get(this.node)
 
             if (adapter) {
 
-                this.invalidateNodeState()
-
-                if (adapter.layouts.length) {
-                    adapter.onUpdate?.()
-                    this.system.optimizer.update(adapter)
-                } else if (adapter.onUpdate) {
-                    this.invalidateNodeState()        
+                if (adapter.onUpdate) {       
                     const nodeState = this.nodeState as NodeState<N>
                     const previousNodeParent = nodeState.parent
                     const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation)
                     const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds)
                     adapter.onUpdate()
-                    this.invalidateNodeState()
+                    // this.invalidateNodeStates()
+                    this._cachedNodeState.needsUpdate = true
+                    this._nodeState.invalidate()
                     this.nodeState // recompute
                     const config = this.system.config
                     const bounds = nodeState.layoutBounds
@@ -639,52 +635,73 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
                         previousNodeBounds.max.distanceTo(bounds.max) > config.epsillonMeters) 
                         adapter.bounds.target = nodeState.layoutBounds
                 }
-        
+
+                this.system.optimizer.update(adapter)
                 adapter.opacity.update()
                 adapter.orientation.update()
                 adapter.bounds.update()
 
-                this.invalidateNodeState()
-                this.invalidateLocalState()
+                this.invalidateNodeStates()
+                // this.invalidateAdapterState()
                 if (this.isAdaptive) {
                     this.system.bindings.apply(this, this.currentState)
-                    this.invalidateNodeState()
+                    this._cachedNodeState.needsUpdate = true
+                    this._nodeState.invalidate()
+                    // this.invalidateNodeStates()
                 }
                 adapter.onLayout?.()
 
             } else {
 
-                this._cache.invalidateAll()
+                this.invalidateNodeStates()
                 const parent = this.nodeState.parent
                 const parentMetrics = parent && this.system.getMetrics(parent)
                 parentMetrics?.update()
                 
             }
 
-            this._computeInnerBounds()
         }
     }
     private _nodeOrientation = new Quaternion
     private _nodeBounds = new Box3
     
-    private _computeInnerBounds() {
-        if (this.node === this.system.viewNode) return
+    private _cachedInnerBounds = this._cache.memoize(() => {
         const inner = this._innerBounds
+        if (this.node === this.system.viewNode) return inner
         inner.copy(this.intrinsicBounds)
         const childBounds = this._childBounds
         for (const c of this.boundsChildren) {
             const childMetrics = this.system.getMetrics(c)
             childBounds.copy(childMetrics.innerBounds)
-            childBounds.applyMatrix4(childMetrics.targetState.localMatrix)
+            childBounds.applyMatrix4(childMetrics.nodeState.localMatrix)
             inner.union(childBounds)
         }
         inner.getCenter(this._innerCenter)
         inner.getSize(this._innerSize)
-    }
+        return inner
+    })
     private _childBounds = new Box3
     private _innerBounds = new Box3
     private _innerCenter = new Vector3
     private _innerSize = new Vector3
+
+    /**
+     * The bounds of this node and non-adaptive child nodes in the local coordinate system
+     */
+    get innerBounds() {
+        return this._cachedInnerBounds()
+        // return this._innerBounds
+    }
+    
+    get innerCenter() {
+        this.innerBounds
+        return this._innerCenter
+    }
+
+    get innerSize() {
+        this.innerBounds
+        return this._innerSize
+    }
 
     /**
      * The intrinsic bounds of the geometry attached directly to this node (excluding child nodes)
@@ -721,22 +738,16 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         this._intrinsicBoundsNeedsUpdate = true
     }
 
-    /**
-     * The bounds of this node and non-adaptive child nodes in the local coordinate system
-     */
-    get innerBounds() {
-        this.update()
-        return this._innerBounds
-    }
-    
-    get innerCenter() {
-        this.update()
-        return this._innerCenter
-    }
-
-    get innerSize() {
-        this.update()
-        return this._innerSize
+    private _invalidateInnerBounds() {
+        if (this._cachedInnerBounds.needsUpdate) return
+        this._cachedNodeState.needsUpdate = true
+        this._cachedNodeChildren.needsUpdate = true
+        this._cachedBoundsChildren.needsUpdate = true
+        this._cachedInnerBounds.needsUpdate = true
+        for (const c of this.boundsChildren) {
+            const childMetrics = this.system.getMetrics(c)
+            childMetrics._invalidateInnerBounds()
+        }
     }
 
     /**
@@ -789,13 +800,15 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
     })
     private _nodeState:NodeState<N> = new NodeState('current', this)
 
-    /**
-     * Invalidate node state in order to allow
-     * it to be recomputed again in the same frame
-     */
-    invalidateNodeState() {
-        this._cachedNodeState.needsUpdate = true
-    }
+    // /**
+    //  * Invalidate node state in order to allow
+    //  * it to be recomputed again in the same frame
+    //  */
+    // invalidateNodeState() {
+    //     this._cachedNodeState.needsUpdate = true
+    //     this._nodeState.invalidate()
+    //     this._cachedBoundsChildren.needsUpdate = true
+    // }
 
     /**
      * Compute spatial state from layout orientation & bounds
@@ -886,12 +899,10 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         }
     })()
 
-    invalidateLocalState() {
+    invalidateNodeStates() {
+        this._cachedNodeState.needsUpdate = true
         this._cachedCurrentState.needsUpdate = true
         this._cachedTargetState.needsUpdate = true
-    }
-
-    invalidateWorldState() {
         this._nodeState.invalidate()
         this[InternalCurrentState].invalidate()
         this[InternalTargetState].invalidate()
@@ -901,10 +912,10 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
      * The current state
      */
     get currentState() : Readonly<NodeState<N>> {
+        this.update()
         return this._cachedCurrentState()
     }
     private _cachedCurrentState = this._cache.memoize(() => {
-        this.update()
         return this._computeState(this[InternalCurrentState])
     });
     [InternalCurrentState]:NodeState<N> = new NodeState('current', this)
@@ -913,13 +924,13 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
      * The target state
      */
     get targetState() : Readonly<NodeState<N>> {
+        this.update()
         return this._cachedTargetState()
     }
     private _cachedTargetState = this._cache.memoize(() => {
-        this.update()
         return this._computeState(this[InternalTargetState])
     });
-    [InternalTargetState]:NodeState<N>= new NodeState('target', this)
+    [InternalTargetState]:NodeState<N> = new NodeState('target', this)
 
     /** 
      * The parent node
@@ -941,10 +952,20 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
     }
 
     /**
+     * The closest non-empty or adapter containing metrics
+     */
+    get outerMetrics() {
+        let parentMetrics = this.parentMetrics
+        while (parentMetrics && (parentMetrics.innerBounds.isEmpty() || parentMetrics.isAdaptive)) {
+            parentMetrics = parentMetrics.parentMetrics
+        }
+        return parentMetrics
+    }
+
+    /**
      * The child nodes that are included in this bounding context
      */
     get boundsChildren() : ReadonlyArray<N> {
-        this.update()
         return this._cachedBoundsChildren()
     }
     private _cachedBoundsChildren = this._cache.memoize(() => {

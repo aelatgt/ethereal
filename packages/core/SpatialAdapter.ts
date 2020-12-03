@@ -2,8 +2,8 @@ import { EtherealSystem, Node3D } from './EtherealSystem'
 import { SpatialLayout } from './SpatialLayout'
 import { Transitionable, TransitionConfig, Transition } from './Transitionable'
 import { OptimizerConfig } from './SpatialOptimizer'
-import { Quaternion, Box3, V_000, V_111, Vector3 } from './math'
-import { SpatialMetrics, NodeState } from './SpatialMetrics'
+import { Quaternion, Box3, V_000, V_111 } from './math'
+import { SpatialMetrics } from './SpatialMetrics'
 
 
 /**
@@ -96,50 +96,55 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         const currentParent = typeof this._parentNode !== 'undefined' ? this._parentNode : this.metrics.nodeState.parent
         const newParent = typeof p !== 'undefined' ? p : this.metrics.nodeState.parent
         if (newParent === currentParent) return
-        this._parentNode = p
-        if (currentParent) {
-            const parentMetrics = this.system.getMetrics(currentParent)
-            const parentState = parentMetrics.targetState
-            const parentWorldOrientation = parentState.worldOrientation
-            const parentWorldCenter = parentState.worldCenter
-            this.orientation.start.premultiply(parentWorldOrientation)
-            this.orientation.target.premultiply(parentWorldOrientation)
-            this.orientation.reference?.premultiply(parentWorldOrientation)
-            for (const t of this.orientation.queue) { t.target.premultiply(parentWorldOrientation ) }
-            this.bounds.start.min.add(parentWorldCenter)
-            this.bounds.start.max.add(parentWorldCenter)
-            this.bounds.target.min.add(parentWorldCenter)
-            this.bounds.target.max.add(parentWorldCenter)
-            this.bounds.reference?.min.add(parentWorldCenter)
-            this.bounds.reference?.max.add(parentWorldCenter)
+        const currentOuterMetrics = this.metrics.outerMetrics
+        if (currentOuterMetrics) {
+            const outerWorldOrientation = currentOuterMetrics.currentState.worldOrientation
+            const outerWorldCenter = currentOuterMetrics.currentState.worldCenter
+            this.orientation.start.premultiply(outerWorldOrientation)
+            this.orientation.target.premultiply(outerWorldOrientation)
+            this.orientation.reference?.premultiply(outerWorldOrientation)
+            this.orientation.current.premultiply(outerWorldOrientation)
+            for (const t of this.orientation.queue) { 
+                t.target.premultiply(outerWorldOrientation) 
+            }
+            this.bounds.start.min.add(outerWorldCenter)
+            this.bounds.start.max.add(outerWorldCenter)
+            this.bounds.target.min.add(outerWorldCenter)
+            this.bounds.target.max.add(outerWorldCenter)
+            this.bounds.reference?.min.add(outerWorldCenter)
+            this.bounds.reference?.max.add(outerWorldCenter)
+            this.bounds.current.min.add(outerWorldCenter)
+            this.bounds.current.max.add(outerWorldCenter)
             for (const t of this.bounds.queue) {
-                t.target.min.add(parentWorldCenter)
-                t.target.max.add(parentWorldCenter)
+                t.target.min.add(outerWorldCenter)
+                t.target.max.add(outerWorldCenter)
             }
         }
-        if (newParent) {
-            const parentMetrics = this.system.getMetrics(newParent)
-            // if this node gets added to one of it's own descendents, 
-            // throw an error
-            if (this.metrics.containsNode(parentMetrics.node)) {
-                throw new Error(`Node cannot become it's own descendent`)
-            }
-            const parentState = parentMetrics.targetState
-            const parentWorldOrientationInverse = parentState.worldOrientationInverse
-            const parentWorldCenter = parentState.worldCenter
-            this.orientation.start.premultiply(parentWorldOrientationInverse)
-            this.orientation.target.premultiply(parentWorldOrientationInverse)
-            this.orientation.reference?.premultiply(parentWorldOrientationInverse)
-            for (const t of this.orientation.queue) { t.target.premultiply(parentWorldOrientationInverse ) }
-            this.bounds.start.min.sub(parentWorldCenter)
-            this.bounds.start.max.sub(parentWorldCenter)
-            this.bounds.target.min.sub(parentWorldCenter)
-            this.bounds.target.max.sub(parentWorldCenter)
-            this.bounds.reference?.min.sub(parentWorldCenter)
-            this.bounds.reference?.max.sub(parentWorldCenter)
+        this._parentNode = p
+        const newOuterMetrics = this.metrics.outerMetrics
+        if (this.metrics.parentNode && this.metrics.containsNode(this.metrics.parentNode)) {
+            throw new Error(`Node cannot become it's own descendent`)
+        }
+        if (newOuterMetrics) {
+            const outerState = newOuterMetrics.currentState
+            const outerWorldOrientationInverse = outerState.worldOrientationInverse
+            const outerWorldCenter = outerState.worldCenter
+            this.orientation.start.premultiply(outerWorldOrientationInverse)
+            this.orientation.target.premultiply(outerWorldOrientationInverse)
+            this.orientation.reference?.premultiply(outerWorldOrientationInverse)
+            this.orientation.current.premultiply(outerWorldOrientationInverse)
+            for (const t of this.orientation.queue) { t.target.premultiply(outerWorldOrientationInverse) }
+            this.bounds.start.min.sub(outerWorldCenter)
+            this.bounds.start.max.sub(outerWorldCenter)
+            this.bounds.target.min.sub(outerWorldCenter)
+            this.bounds.target.max.sub(outerWorldCenter)
+            this.bounds.reference?.min.sub(outerWorldCenter)
+            this.bounds.reference?.max.sub(outerWorldCenter)
+            this.bounds.current.min.sub(outerWorldCenter)
+            this.bounds.current.max.sub(outerWorldCenter)
             for (const t of this.bounds.queue) {
-                t.target.min.sub(parentWorldCenter)
-                t.target.max.sub(parentWorldCenter)
+                t.target.min.sub(outerWorldCenter)
+                t.target.max.sub(outerWorldCenter)
             }
         }
     }
@@ -184,8 +189,14 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
     // behaviors = Array<()=>void>()
 
     /**
-     * List of layout variants. If non-empty, the target 
-     * orientation, bounds, and opacity will be automatically updated
+     * All layouts associated with this adapter. 
+     */
+    allLayouts = new Array<SpatialLayout>()
+
+    /**
+     * List of presentable layout variants. If non-empty, the target 
+     * orientation, bounds, and opacity will be automatically updated.
+     * Layouts in this list will be optimized with higher priority.
      */
     layouts = new Array<SpatialLayout>()
 
@@ -219,7 +230,8 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
     //     this.behaviors.push(() => update(layout))
     // }
     createLayout() {
-        const layout = new SpatialLayout()
+        const layout = new SpatialLayout(this)
+        this.allLayouts.push(layout)
         this.layouts.push(layout)
         return layout
     }

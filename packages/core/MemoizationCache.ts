@@ -7,8 +7,13 @@ interface MemoizedFunction<R> {
 
 export class MemoizationCache {
     callbacks = [] as MemoizedFunction<any>[]
-    memoize<R>(cb:()=>R, ...otherCaches:MemoizationCache[]) : MemoizedFunction<R> {
-        return memoize(cb, this, ...otherCaches)
+    memoize<R>(cb:()=>R, ...caches:MemoizationCache[]) : MemoizedFunction<R> {
+        caches.push(this)
+        const memoized = memoize(cb)
+        for (const cache of caches) {
+            cache.callbacks.push(memoized)
+        }
+        return memoized
     }
     invalidateAll() {
         const callbacks = this.callbacks
@@ -16,7 +21,7 @@ export class MemoizationCache {
             callbacks[i].needsUpdate = true
         }
     }
-    isClean() {
+    isFullyInvalid() {
         const callbacks = this.callbacks
         for (let i=0; i < this.callbacks.length; i++) {
             if (!callbacks[i].needsUpdate) return false
@@ -28,7 +33,7 @@ export class MemoizationCache {
 
 const UNSET = Symbol('unset')
 
-export function memoize<R>(cb:()=>R, ...caches:MemoizationCache[]) : MemoizedFunction<R> {
+function memoize<R>(cb:()=>R) : MemoizedFunction<R> {
     let value:R = UNSET as any
     const wrapped:MemoizedFunction<R> = () => {
         if (wrapped.needsUpdate) {
@@ -41,8 +46,5 @@ export function memoize<R>(cb:()=>R, ...caches:MemoizationCache[]) : MemoizedFun
         return value
     }
     wrapped.needsUpdate = true
-    for (const cache of caches) {
-        cache.callbacks.push(wrapped)
-    }
     return wrapped
 }

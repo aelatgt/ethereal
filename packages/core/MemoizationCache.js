@@ -2,8 +2,13 @@ export class MemoizationCache {
     constructor() {
         this.callbacks = [];
     }
-    memoize(cb, ...otherCaches) {
-        return memoize(cb, this, ...otherCaches);
+    memoize(cb, ...caches) {
+        caches.push(this);
+        const memoized = memoize(cb);
+        for (const cache of caches) {
+            cache.callbacks.push(memoized);
+        }
+        return memoized;
     }
     invalidateAll() {
         const callbacks = this.callbacks;
@@ -11,7 +16,7 @@ export class MemoizationCache {
             callbacks[i].needsUpdate = true;
         }
     }
-    isClean() {
+    isFullyInvalid() {
         const callbacks = this.callbacks;
         for (let i = 0; i < this.callbacks.length; i++) {
             if (!callbacks[i].needsUpdate)
@@ -21,7 +26,7 @@ export class MemoizationCache {
     }
 }
 const UNSET = Symbol('unset');
-export function memoize(cb, ...caches) {
+function memoize(cb) {
     let value = UNSET;
     const wrapped = () => {
         if (wrapped.needsUpdate) {
@@ -34,8 +39,5 @@ export function memoize(cb, ...caches) {
         return value;
     };
     wrapped.needsUpdate = true;
-    for (const cache of caches) {
-        cache.callbacks.push(wrapped);
-    }
     return wrapped;
 }

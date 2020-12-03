@@ -27,7 +27,6 @@ export declare class EtherealSystem<N extends Node3D = Node3D> {
     bindings: NodeBindings<N>;
     constructor(viewNode: N, bindings: NodeBindings<N>);
     config: {
-        cachingEnabled: boolean;
         epsillonMeters: number;
         epsillonRadians: number;
         epsillonRatio: number;

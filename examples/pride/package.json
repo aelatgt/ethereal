@@ -12,21 +12,15 @@
     "Edge 18"
   ],
   "dependencies": {
-    "@etherealjs/parcel-resolver-esm": "file:../../packages/parcel-resolver-esm",
-    "@types/cannon": "0.1.3",
-    "@types/node": "13.7.1",
-    "@vue/compiler-sfc": "3.0.0-rc.10",
-    "@vue/composition-api": "1.0.0-beta.11",
-    "autoprefixer": "9.7.1",
-    "cannon": "0.6.2",
-    "ethereal": "file:../../packages/ethereal",
-    "rimraf": "3.0.0",
-    "three": "0.113.2",
-    "three-mesh-bvh": "0.1.3",
-    "three-stl-loader": "1.0.6",
-    "three-web-layer": "2.0.13",
-    "vue": "3.0.0-rc.10",
-    "yeux": "1.0.1"
+    "@types/cannon": "^0.1.3",
+    "@vue/compiler-sfc": "^3.0.0-rc.10",
+    "autoprefixer": "^9.7.1",
+    "cannon": "^0.6.2",
+    "ethereal": "^1.0.0",
+    "postcss": "^8.1.7",
+    "three-mesh-bvh": "^0.2.0",
+    "three-stl-loader": "^1.0.6",
+    "vue": "^3.0.0-rc.10"
   },
   "postcss": {
     "plugins": {
@@ -37,7 +31,7 @@
   "scripts": {
     "prebundle": "rimraf dist && mkdir dist && ln -sf ../src/static ./dist/static",
     "bundle": "parcel build src/index.html --target app --dist-dir dist --public-url /ethereal/pride-xr/",
-    "start": "npm run prebundle && parcel src/index.html --target app --dist-dir dist --https --host 0.0.0.0"
+    "start": "npm run prebundle && parcel src/index.html --target app --no-hmr --dist-dir dist --https --host 0.0.0.0"
   },
   "targets": {
     "app": {}

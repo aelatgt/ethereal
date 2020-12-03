@@ -937,7 +937,7 @@ const _getFovsVector = new Vector3()
 const FORWARD = new Vector3(0, 0, -1)
 function getFovs(projectionMatrix: Matrix4) {
   const out = _fovs
-  const invProjection = _getFovsMatrix.getInverse(projectionMatrix, true)
+  const invProjection = _getFovsMatrix.getInverse(projectionMatrix)
   const vec = _getFovsVector
   out.left = vec
     .set(-1, 0, -1)

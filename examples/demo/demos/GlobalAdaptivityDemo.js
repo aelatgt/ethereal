@@ -106,14 +106,14 @@ export class GlobalAdaptivityDemo extends DemoBase {
             layout.local.bottom = { percent: 50, meters: 1 }; // fix to top of outer bounds
             layout.local.bottom = { percent: 50, meters: 1 }; // fix to top of outer bounds
             layout.local.centerZ = [{ percent: -50 }, { percent: 50 }]; // fix to back or front of outer bounds
-            layout.visual.diagonalLength = { gt: { degrees: 5 } };
+            layout.visual.diagonal = { gt: { degrees: 5 } };
             // layout.bounds.centerZ = {gt:{percent: -50}, lt:{percent: 50}} // fix to back or front of outer bounds
             layout.aspect = 'preserve-3d';
             layout.visual.left = { gt: { percent: -50 } };
             layout.visual.right = { lt: { percent: 50 } };
             layout.visual.bottom = { gt: { percent: -50 } };
             layout.visual.top = { lt: { percent: 50 } };
-            layout.objectives.unshift({ score: (state) => {
+            layout.objectives.unshift({ evaluate: (state) => {
                     return 0 - (state.occludingPercent + state.occludedPercent) ** 4;
                 } });
             adapter.onUpdate = () => {

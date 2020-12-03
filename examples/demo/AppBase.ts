@@ -310,7 +310,7 @@ export default class AppBase {
         //     }
         // }
 
-        const frameOfRefType = 'eye-level'
+        const frameOfRefType = 'local'
         this.renderer.xr.setReferenceSpaceType(frameOfRefType)
         // ;(this.renderer.vr as any).setFrameOfReferenceType(frameOfRefType)
 

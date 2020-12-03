@@ -20,183 +20,188 @@ import { Quaternion, Box3, V_000, V_111 } from './math';
  *      enabling layout transitions that can be smoothly combined with various easings,
  *      and gauranteed to settle within their individual transition windows
  */
-let SpatialAdapter = /** @class */ (() => {
-    class SpatialAdapter {
-        constructor(
+export class SpatialAdapter {
+    constructor(
+    /**
+     * The EtherealSystem instance
+     */
+    system, 
+    /**
+     * The wrapped third-party scenegraph nodes
+     */
+    node) {
+        this.system = system;
+        this.node = node;
         /**
-         * The EtherealSystem instance
+         * Optimizer settings for this node
          */
-        system, 
+        this.optimize = new OptimizerConfig;
         /**
-         * The wrapped third-party scenegraph nodes
+         * Transition overrides for this node
          */
-        node) {
-            this.system = system;
-            this.node = node;
-            /**
-             * Optimizer settings for this node
-             */
-            this.optimize = new OptimizerConfig;
-            /**
-             * Transition overrides for this node
-             */
-            this.transition = new TransitionConfig;
-            // /** 
-            //  * Behaviors get called every frame
-            //  */
-            // behaviors = Array<()=>void>()
-            /**
-             * List of layout variants. If non-empty, the target
-             * orientation, bounds, and opacity will be automatically updated
-             */
-            this.layouts = new Array();
-            this._prevLayout = null;
-            this._activeLayout = null;
-            this.metrics = this.system.getMetrics(this.node);
-            this._orientation = new Transitionable(this.system, new Quaternion, undefined, this.transition);
-            this._bounds = new Transitionable(this.system, new Box3().setFromCenterAndSize(V_000, V_111), undefined, this.transition);
-            this._opacity = new Transitionable(this.system, 0, undefined, this.transition);
-            this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set;
-        }
+        this.transition = new TransitionConfig;
+        // /** 
+        //  * Behaviors get called every frame
+        //  */
+        // behaviors = Array<()=>void>()
         /**
-         * The target parent node
-         *
-         * If `undefined`, target parent is the current parent
-         * if `null`, this node is considered as flagged to be removed
+         * All layouts associated with this adapter.
          */
-        set parentNode(p) {
-            const currentParent = typeof this._parentNode !== 'undefined' ? this._parentNode : this.metrics.nodeState.parent;
-            const newParent = typeof p !== 'undefined' ? p : this.metrics.nodeState.parent;
-            if (newParent === currentParent)
-                return;
-            this._parentNode = p;
-            if (currentParent) {
-                const parentMetrics = this.system.getMetrics(currentParent);
-                const parentState = parentMetrics.targetState;
-                const parentWorldOrientation = parentState.worldOrientation;
-                const parentWorldCenter = parentState.worldCenter;
-                this.orientation.start.premultiply(parentWorldOrientation);
-                this.orientation.target.premultiply(parentWorldOrientation);
-                this.orientation.reference?.premultiply(parentWorldOrientation);
-                for (const t of this.orientation.queue) {
-                    t.target.premultiply(parentWorldOrientation);
-                }
-                this.bounds.start.min.add(parentWorldCenter);
-                this.bounds.start.max.add(parentWorldCenter);
-                this.bounds.target.min.add(parentWorldCenter);
-                this.bounds.target.max.add(parentWorldCenter);
-                this.bounds.reference?.min.add(parentWorldCenter);
-                this.bounds.reference?.max.add(parentWorldCenter);
-                for (const t of this.bounds.queue) {
-                    t.target.min.add(parentWorldCenter);
-                    t.target.max.add(parentWorldCenter);
-                }
+        this.allLayouts = new Array();
+        /**
+         * List of presentable layout variants. If non-empty, the target
+         * orientation, bounds, and opacity will be automatically updated.
+         * Layouts in this list will be optimized with higher priority.
+         */
+        this.layouts = new Array();
+        this._prevLayout = null;
+        this._activeLayout = null;
+        this.metrics = this.system.getMetrics(this.node);
+        this._orientation = new Transitionable(this.system, new Quaternion, undefined, this.transition);
+        this._bounds = new Transitionable(this.system, new Box3().setFromCenterAndSize(V_000, V_111), undefined, this.transition);
+        this._opacity = new Transitionable(this.system, 0, undefined, this.transition);
+        this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set;
+    }
+    /**
+     * The target parent node
+     *
+     * If `undefined`, target parent is the current parent
+     * if `null`, this node is considered as flagged to be removed
+     */
+    set parentNode(p) {
+        const currentParent = typeof this._parentNode !== 'undefined' ? this._parentNode : this.metrics.nodeState.parent;
+        const newParent = typeof p !== 'undefined' ? p : this.metrics.nodeState.parent;
+        if (newParent === currentParent)
+            return;
+        const currentOuterMetrics = this.metrics.outerMetrics;
+        if (currentOuterMetrics) {
+            const outerWorldOrientation = currentOuterMetrics.currentState.worldOrientation;
+            const outerWorldCenter = currentOuterMetrics.currentState.worldCenter;
+            this.orientation.start.premultiply(outerWorldOrientation);
+            this.orientation.target.premultiply(outerWorldOrientation);
+            this.orientation.reference?.premultiply(outerWorldOrientation);
+            this.orientation.current.premultiply(outerWorldOrientation);
+            for (const t of this.orientation.queue) {
+                t.target.premultiply(outerWorldOrientation);
             }
-            if (newParent) {
-                const parentMetrics = this.system.getMetrics(newParent);
-                // if this node gets added to one of it's own descendents, 
-                // throw an error
-                if (this.metrics.containsNode(parentMetrics.node)) {
-                    throw new Error(`Node cannot become it's own descendent`);
-                }
-                const parentState = parentMetrics.targetState;
-                const parentWorldOrientationInverse = parentState.worldOrientationInverse;
-                const parentWorldCenter = parentState.worldCenter;
-                this.orientation.start.premultiply(parentWorldOrientationInverse);
-                this.orientation.target.premultiply(parentWorldOrientationInverse);
-                this.orientation.reference?.premultiply(parentWorldOrientationInverse);
-                for (const t of this.orientation.queue) {
-                    t.target.premultiply(parentWorldOrientationInverse);
-                }
-                this.bounds.start.min.sub(parentWorldCenter);
-                this.bounds.start.max.sub(parentWorldCenter);
-                this.bounds.target.min.sub(parentWorldCenter);
-                this.bounds.target.max.sub(parentWorldCenter);
-                this.bounds.reference?.min.sub(parentWorldCenter);
-                this.bounds.reference?.max.sub(parentWorldCenter);
-                for (const t of this.bounds.queue) {
-                    t.target.min.sub(parentWorldCenter);
-                    t.target.max.sub(parentWorldCenter);
-                }
+            this.bounds.start.min.add(outerWorldCenter);
+            this.bounds.start.max.add(outerWorldCenter);
+            this.bounds.target.min.add(outerWorldCenter);
+            this.bounds.target.max.add(outerWorldCenter);
+            this.bounds.reference?.min.add(outerWorldCenter);
+            this.bounds.reference?.max.add(outerWorldCenter);
+            this.bounds.current.min.add(outerWorldCenter);
+            this.bounds.current.max.add(outerWorldCenter);
+            for (const t of this.bounds.queue) {
+                t.target.min.add(outerWorldCenter);
+                t.target.max.add(outerWorldCenter);
             }
         }
-        get parentNode() { return this._parentNode; }
-        /**
-         * Transitionable layout orientation
-         */
-        get orientation() {
-            return this._orientation;
+        this._parentNode = p;
+        const newOuterMetrics = this.metrics.outerMetrics;
+        if (this.metrics.parentNode && this.metrics.containsNode(this.metrics.parentNode)) {
+            throw new Error(`Node cannot become it's own descendent`);
         }
-        /**
-         * The relative point of attachment in the outer bounds
-         */
-        // get origin() {
-        //     return this._origin
-        // }
-        // private _origin : Transitionable<Vector3>
-        /**
-         * Transitionable layout bounds
-         */
-        get bounds() {
-            return this._bounds;
-        }
-        /**
-         * Transitionable opacity
-         */
-        get opacity() {
-            return this._opacity;
-        }
-        get previousLayout() {
-            return this._prevLayout;
-        }
-        set activeLayout(val) {
-            this._prevLayout = this._activeLayout;
-            this._activeLayout = val;
-        }
-        get activeLayout() {
-            return this._activeLayout;
-        }
-        /**
-         *
-         */
-        get isTargetStable() {
-            return this.metrics.parentNode && this.orientation.status === "unchanged" && this.bounds.status === "unchanged";
-        }
-        /**
-         * Add a layout with an associated behavior.
-         */
-        // layout = (update:(layout:SpatialLayout)=>void, active?:(layout:SpatialLayout)=>void) => {
-        //     const layout = new SpatialLayout(this.system, active)
-        //     this.layouts.push(layout)
-        //     this.behaviors.push(() => update(layout))
-        // }
-        createLayout() {
-            const layout = new SpatialLayout();
-            this.layouts.push(layout);
-            return layout;
+        if (newOuterMetrics) {
+            const outerState = newOuterMetrics.currentState;
+            const outerWorldOrientationInverse = outerState.worldOrientationInverse;
+            const outerWorldCenter = outerState.worldCenter;
+            this.orientation.start.premultiply(outerWorldOrientationInverse);
+            this.orientation.target.premultiply(outerWorldOrientationInverse);
+            this.orientation.reference?.premultiply(outerWorldOrientationInverse);
+            this.orientation.current.premultiply(outerWorldOrientationInverse);
+            for (const t of this.orientation.queue) {
+                t.target.premultiply(outerWorldOrientationInverse);
+            }
+            this.bounds.start.min.sub(outerWorldCenter);
+            this.bounds.start.max.sub(outerWorldCenter);
+            this.bounds.target.min.sub(outerWorldCenter);
+            this.bounds.target.max.sub(outerWorldCenter);
+            this.bounds.reference?.min.sub(outerWorldCenter);
+            this.bounds.reference?.max.sub(outerWorldCenter);
+            this.bounds.current.min.sub(outerWorldCenter);
+            this.bounds.current.max.sub(outerWorldCenter);
+            for (const t of this.bounds.queue) {
+                t.target.min.sub(outerWorldCenter);
+                t.target.max.sub(outerWorldCenter);
+            }
         }
     }
-    SpatialAdapter.behavior = {
-        fadeOnEnterExit(adapter) {
-            if (adapter.opacity.target === 0 &&
-                adapter.isTargetStable &&
-                adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalDegrees) {
-                adapter.opacity.forceCommit = new Transition({ target: 1, blend: false });
-                return;
-            }
-            if (adapter.opacity.target > 0 && !adapter.metrics.parentNode) {
-                adapter.opacity.target = 0;
-            }
-        },
-        fadeOnPoseChange(adapter, relativeDifference = 0.1) {
-            if (adapter.opacity.target === 0) { }
-        },
-        fadeOnLayoutChange() {
-        },
-        pauseMotionOnFade(adapter) {
-            if (adapter) { }
+    get parentNode() { return this._parentNode; }
+    /**
+     * Transitionable layout orientation
+     */
+    get orientation() {
+        return this._orientation;
+    }
+    /**
+     * The relative point of attachment in the outer bounds
+     */
+    // get origin() {
+    //     return this._origin
+    // }
+    // private _origin : Transitionable<Vector3>
+    /**
+     * Transitionable layout bounds
+     */
+    get bounds() {
+        return this._bounds;
+    }
+    /**
+     * Transitionable opacity
+     */
+    get opacity() {
+        return this._opacity;
+    }
+    get previousLayout() {
+        return this._prevLayout;
+    }
+    set activeLayout(val) {
+        this._prevLayout = this._activeLayout;
+        this._activeLayout = val;
+    }
+    get activeLayout() {
+        return this._activeLayout;
+    }
+    /**
+     *
+     */
+    get isTargetStable() {
+        return this.metrics.parentNode && this.orientation.status === "unchanged" && this.bounds.status === "unchanged";
+    }
+    /**
+     * Add a layout with an associated behavior.
+     */
+    // layout = (update:(layout:SpatialLayout)=>void, active?:(layout:SpatialLayout)=>void) => {
+    //     const layout = new SpatialLayout(this.system, active)
+    //     this.layouts.push(layout)
+    //     this.behaviors.push(() => update(layout))
+    // }
+    createLayout() {
+        const layout = new SpatialLayout(this);
+        this.allLayouts.push(layout);
+        this.layouts.push(layout);
+        return layout;
+    }
+}
+SpatialAdapter.behavior = {
+    fadeOnEnterExit(adapter) {
+        if (adapter.opacity.target === 0 &&
+            adapter.isTargetStable &&
+            adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalDegrees) {
+            adapter.opacity.forceCommit = new Transition({ target: 1, blend: false });
+            return;
         }
-    };
-    return SpatialAdapter;
-})();
-export { SpatialAdapter };
+        if (adapter.opacity.target > 0 && !adapter.metrics.parentNode) {
+            adapter.opacity.target = 0;
+        }
+    },
+    fadeOnPoseChange(adapter, relativeDifference = 0.1) {
+        if (adapter.opacity.target === 0) { }
+    },
+    fadeOnLayoutChange() {
+    },
+    pauseMotionOnFade(adapter) {
+        if (adapter) { }
+    }
+};

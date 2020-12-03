@@ -150,7 +150,6 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
      * The starting value for currently ongoing transitions
      */
     set start(value:TransitionableType<T>) {
-        if (this._isEqual(this._start, value)) return
         this._start = this._copy(this._start, value)
     }
     get start() {
@@ -162,11 +161,9 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
      * The current value. 
      */
     set current(value:TransitionableType<T>) {
-        if (this._isEqual(this._current, value)) return
         this._current = this._copy(this._current, value)
     }
     get current() {
-        this.update()
         return this._current
     }
     private _current!: TransitionableType<T>
@@ -175,7 +172,6 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
      * The "changed" reference value
      */
     set reference(value:TransitionableType<T>|undefined) {
-        if (this._isEqual(this._reference, value)) return
         this._reference = this._copy(this._reference, value)
     }
     get reference() {
@@ -188,7 +184,6 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
      */
     set target(value:TransitionableType<T>) {
         this.active = true
-        if (this._isEqual(this._target, value)) return
         this._target = this._copy(this._target, value)
     }
     get target() {
@@ -206,14 +201,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
     /**
      * If false, this transitionable is inert
      */
-    get active() {
-        return this._active
-    }
-    set active(val:boolean) {
-        if (this._active === val) return
-        this._active = val
-    }
-    private _active = false
+    active = false
 
     /**
      * Force the next update to commit the target value,

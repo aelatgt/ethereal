@@ -4,6 +4,7 @@ import UI from './components/UI'
 import PrideAPI from './lib/PrideAPI'
 import * as THREE from 'three'
 import {createSystem} from 'ethereal'
+import * as ethereal from 'ethereal'
 import './lib/SpatialLayout'
 
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh'
@@ -18,6 +19,7 @@ declare module 'three/src/core/BufferGeometry' {
     }
 }
 
+
 PrideAPI.get()
 setInterval(() => PrideAPI.get(), 5000)
 
@@ -27,6 +29,7 @@ export class App extends AppBase {
     system = createSystem(this.camera)
     treadmill = new Treadmill(this)
     ui = new UI(this, this.treadmill)
+    ethereal = ethereal
 }
 
 const app = new App({
@@ -44,13 +47,19 @@ const app = new App({
 })
 
 
-app.system.config.optimize.swarmSize = 2
-app.system.config.optimize.iterationsPerFrame = 15
-app.system.config.optimize.stepSizeMin = 0.0001
+// app.system.config.optimize.swarmSize = 3
+// app.system.config.optimize.iterationsPerFrame = 20
+// app.system.config.optimize.stepSizeMin = 0.000001
+// app.system.config.optimize.staleRestartRate = 0.02
+// app.system.config.optimize.stepSizeStart = 0.5
+// app.system.config.optimize.pulseRate = 0.01
+// app.system.config.optimize.constraintRelativeTolerance = 0.6
+// app.system.config.optimize.objectiveRelativeTolerance = 0.6
 
 app.start().catch((e: Error) => {
-    console.error(e)
+    console.log(e.stack)
     alert(e)
 })
 
 Object.assign( window, { THREE, app } );
+

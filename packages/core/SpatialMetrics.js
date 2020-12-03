@@ -126,6 +126,11 @@ export class NodeState {
         this._viewFromLayout = new Matrix4;
         this._layoutFromView = new Matrix4;
         this._cachedScreenBounds = this._cache.memoize(() => {
+            if (this.metrics.system.viewNode === this.metrics.node) {
+                this._screenBounds.min.setScalar(-1);
+                this._screenBounds.max.setScalar(1);
+                return this._screenBounds;
+            }
             const viewFrustum = this.metrics.system.viewFrustum;
             const projection = viewFrustum.perspectiveProjectionMatrix;
             const viewFromLocal = this.viewFromLocal;
@@ -145,6 +150,9 @@ export class NodeState {
         this._screenCenter = new Vector3;
         this._screenSize = new Vector3;
         this._cachedVisualFrustum = this._cache.memoize(() => {
+            if (this.metrics.node === this.metrics.system.viewNode) {
+                return this.metrics.system.viewFrustum;
+            }
             const projection = this.metrics.system.viewFrustum.perspectiveProjectionMatrix;
             return this._visualFrustum.setFromPerspectiveProjectionMatrix(projection, this.screenBounds);
         }, this._viewState._cache);
@@ -237,13 +245,7 @@ export class NodeState {
         this._occludedPercent = 0;
     }
     invalidate() {
-        if (this._cache.isClean())
-            return;
         this._cache.invalidateAll();
-        for (const c of this.metrics.nodeChildren) {
-            const metrics = this.metrics.system.getMetrics(c);
-            metrics.invalidateWorldState();
-        }
     }
     get parent() {
         return this._parent;
@@ -257,48 +259,51 @@ export class NodeState {
     }
     get parentState() {
         const parentMetrics = this.parent && this.metrics.system.getMetrics(this.parent);
-        const parentState = this.mode === 'current' ? parentMetrics?.currentState : parentMetrics?.targetState;
-        return parentState;
+        return this.mode === 'current' ? parentMetrics?.currentState : parentMetrics?.targetState;
     }
-    get localMatrix() { return this._cachedLocalMatrix(); }
+    get outerState() {
+        const outerMetrics = this.metrics.outerMetrics;
+        return this.mode === 'current' ? outerMetrics?.currentState : outerMetrics?.targetState;
+    }
+    get localMatrix() { return this._localMatrix; }
     set localMatrix(val) {
         if (!this._localMatrix.equals(val)) {
             this.invalidate();
             this._localMatrix.copy(val);
-            this._localMatrixInverse.getInverse(this.localMatrix);
+            this._localMatrixInverse.getInverse(this._localMatrix);
         }
     }
     get localMatrixInverse() {
         return this._localMatrixInverse;
     }
     get localPosition() {
-        this.localMatrix;
+        this._cachedLocalMatrix();
         return this._localPosition;
     }
     get localOrientation() {
-        this.localMatrix;
+        this._cachedLocalMatrix();
         return this._localOrientation;
     }
     get localOrientationInverse() {
-        this.localMatrix;
+        this._cachedLocalMatrix();
         return this._localOrientationInverse;
     }
     get localScale() {
-        this.localMatrix;
+        this._cachedLocalMatrix();
         return this._localScale;
     }
     /**
      * Local rotation matrix
      */
     get localRotation() {
-        this.localMatrix;
+        this._cachedLocalMatrix();
         return this._localRotation;
     }
     /**
      * Local Orientation matrix inverse
      */
     get localRotationInverse() {
-        this.localMatrix;
+        this._cachedLocalMatrix();
         return this._localRotationInverse;
     }
     get worldMatrix() {
@@ -393,13 +398,6 @@ export class NodeState {
     get layoutCenter() {
         this.layoutBounds;
         return this._layoutCenter;
-    }
-    get outerState() {
-        let parentState = this.parentState;
-        while (parentState?.metrics.innerBounds.isEmpty() || parentState?.metrics.isAdaptive) {
-            parentState = parentState.parentState;
-        }
-        return parentState;
     }
     get outerBounds() { return this._cachedOuterBounds(); }
     /**
@@ -539,6 +537,22 @@ export class SpatialMetrics {
         this.needsUpdate = true;
         this._nodeOrientation = new Quaternion;
         this._nodeBounds = new Box3;
+        this._cachedInnerBounds = this._cache.memoize(() => {
+            const inner = this._innerBounds;
+            if (this.node === this.system.viewNode)
+                return inner;
+            inner.copy(this.intrinsicBounds);
+            const childBounds = this._childBounds;
+            for (const c of this.boundsChildren) {
+                const childMetrics = this.system.getMetrics(c);
+                childBounds.copy(childMetrics.innerBounds);
+                childBounds.applyMatrix4(childMetrics.nodeState.localMatrix);
+                inner.union(childBounds);
+            }
+            inner.getCenter(this._innerCenter);
+            inner.getSize(this._innerSize);
+            return inner;
+        });
         this._childBounds = new Box3;
         this._innerBounds = new Box3;
         this._innerCenter = new Vector3;
@@ -557,6 +571,15 @@ export class SpatialMetrics {
             return this._nodeState;
         });
         this._nodeState = new NodeState('current', this);
+        // /**
+        //  * Invalidate node state in order to allow
+        //  * it to be recomputed again in the same frame
+        //  */
+        // invalidateNodeState() {
+        //     this._cachedNodeState.needsUpdate = true
+        //     this._nodeState.invalidate()
+        //     this._cachedBoundsChildren.needsUpdate = true
+        // }
         /**
          * Compute spatial state from layout orientation & bounds
          */
@@ -629,12 +652,10 @@ export class SpatialMetrics {
             };
         })();
         this._cachedCurrentState = this._cache.memoize(() => {
-            this.update();
             return this._computeState(this[InternalCurrentState]);
         });
         this[_a] = new NodeState('current', this);
         this._cachedTargetState = this._cache.memoize(() => {
-            this.update();
             return this._computeState(this[InternalTargetState]);
         });
         this[_b] = new NodeState('target', this);
@@ -658,21 +679,18 @@ export class SpatialMetrics {
     update() {
         if (this.needsUpdate) {
             this.needsUpdate = false;
+            this._invalidateInnerBounds();
             const adapter = this.system.nodeAdapters.get(this.node);
             if (adapter) {
-                this.invalidateNodeState();
-                if (adapter.layouts.length) {
-                    adapter.onUpdate?.();
-                    this.system.optimizer.update(adapter);
-                }
-                else if (adapter.onUpdate) {
-                    this.invalidateNodeState();
+                if (adapter.onUpdate) {
                     const nodeState = this.nodeState;
                     const previousNodeParent = nodeState.parent;
                     const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation);
                     const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds);
                     adapter.onUpdate();
-                    this.invalidateNodeState();
+                    // this.invalidateNodeStates()
+                    this._cachedNodeState.needsUpdate = true;
+                    this._nodeState.invalidate();
                     this.nodeState; // recompute
                     const config = this.system.config;
                     const bounds = nodeState.layoutBounds;
@@ -684,40 +702,42 @@ export class SpatialMetrics {
                         previousNodeBounds.max.distanceTo(bounds.max) > config.epsillonMeters)
                         adapter.bounds.target = nodeState.layoutBounds;
                 }
+                this.system.optimizer.update(adapter);
                 adapter.opacity.update();
                 adapter.orientation.update();
                 adapter.bounds.update();
-                this.invalidateNodeState();
-                this.invalidateLocalState();
+                this.invalidateNodeStates();
+                // this.invalidateAdapterState()
                 if (this.isAdaptive) {
                     this.system.bindings.apply(this, this.currentState);
-                    this.invalidateNodeState();
+                    this._cachedNodeState.needsUpdate = true;
+                    this._nodeState.invalidate();
+                    // this.invalidateNodeStates()
                 }
                 adapter.onLayout?.();
             }
             else {
-                this._cache.invalidateAll();
+                this.invalidateNodeStates();
                 const parent = this.nodeState.parent;
                 const parentMetrics = parent && this.system.getMetrics(parent);
                 parentMetrics?.update();
             }
-            this._computeInnerBounds();
         }
     }
-    _computeInnerBounds() {
-        if (this.node === this.system.viewNode)
-            return;
-        const inner = this._innerBounds;
-        inner.copy(this.intrinsicBounds);
-        const childBounds = this._childBounds;
-        for (const c of this.boundsChildren) {
-            const childMetrics = this.system.getMetrics(c);
-            childBounds.copy(childMetrics.innerBounds);
-            childBounds.applyMatrix4(childMetrics.targetState.localMatrix);
-            inner.union(childBounds);
-        }
-        inner.getCenter(this._innerCenter);
-        inner.getSize(this._innerSize);
+    /**
+     * The bounds of this node and non-adaptive child nodes in the local coordinate system
+     */
+    get innerBounds() {
+        return this._cachedInnerBounds();
+        // return this._innerBounds
+    }
+    get innerCenter() {
+        this.innerBounds;
+        return this._innerCenter;
+    }
+    get innerSize() {
+        this.innerBounds;
+        return this._innerSize;
     }
     /**
      * The intrinsic bounds of the geometry attached directly to this node (excluding child nodes)
@@ -745,20 +765,17 @@ export class SpatialMetrics {
     invalidateIntrinsicBounds() {
         this._intrinsicBoundsNeedsUpdate = true;
     }
-    /**
-     * The bounds of this node and non-adaptive child nodes in the local coordinate system
-     */
-    get innerBounds() {
-        this.update();
-        return this._innerBounds;
-    }
-    get innerCenter() {
-        this.update();
-        return this._innerCenter;
-    }
-    get innerSize() {
-        this.update();
-        return this._innerSize;
+    _invalidateInnerBounds() {
+        if (this._cachedInnerBounds.needsUpdate)
+            return;
+        this._cachedNodeState.needsUpdate = true;
+        this._cachedNodeChildren.needsUpdate = true;
+        this._cachedBoundsChildren.needsUpdate = true;
+        this._cachedInnerBounds.needsUpdate = true;
+        for (const c of this.boundsChildren) {
+            const childMetrics = this.system.getMetrics(c);
+            childMetrics._invalidateInnerBounds();
+        }
     }
     /**
      * Returns false if this node does not contain the passed node.
@@ -799,18 +816,10 @@ export class SpatialMetrics {
             this._nodeState = new NodeState('current', this);
         return this._cachedNodeState();
     }
-    /**
-     * Invalidate node state in order to allow
-     * it to be recomputed again in the same frame
-     */
-    invalidateNodeState() {
+    invalidateNodeStates() {
         this._cachedNodeState.needsUpdate = true;
-    }
-    invalidateLocalState() {
         this._cachedCurrentState.needsUpdate = true;
         this._cachedTargetState.needsUpdate = true;
-    }
-    invalidateWorldState() {
         this._nodeState.invalidate();
         this[InternalCurrentState].invalidate();
         this[InternalTargetState].invalidate();
@@ -819,12 +828,14 @@ export class SpatialMetrics {
      * The current state
      */
     get currentState() {
+        this.update();
         return this._cachedCurrentState();
     }
     /**
      * The target state
      */
     get targetState() {
+        this.update();
         return this._cachedTargetState();
     }
     /**
@@ -846,10 +857,19 @@ export class SpatialMetrics {
         return this.system.getMetrics(parent);
     }
     /**
+     * The closest non-empty or adapter containing metrics
+     */
+    get outerMetrics() {
+        let parentMetrics = this.parentMetrics;
+        while (parentMetrics && (parentMetrics.innerBounds.isEmpty() || parentMetrics.isAdaptive)) {
+            parentMetrics = parentMetrics.parentMetrics;
+        }
+        return parentMetrics;
+    }
+    /**
      * The child nodes that are included in this bounding context
      */
     get boundsChildren() {
-        this.update();
         return this._cachedBoundsChildren();
     }
     /**

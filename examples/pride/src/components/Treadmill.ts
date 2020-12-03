@@ -247,7 +247,6 @@ export default class Treadmill {
         }
 
         this.initDefault()
-        this.app.camera.add(this.snubberObject)
     }
     
     snubberTargetPosition = new THREE.Vector3()//.set(0,0,-1)

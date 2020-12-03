@@ -44,9 +44,11 @@ export default class UI {
             this.app.registerWebLayer(this.pride);
             const adapter = this.app.system.getAdapter(this.pride);
             adapter.transition.duration = 0.5;
-            adapter.transition.debounce = 0.5;
+            adapter.transition.debounce = 0.3;
+            adapter.transition.maxWait = 10;
             const immersiveLayout = adapter.createLayout();
             immersiveLayout.parentNode = this.app.scene;
+            immersiveLayout.position = { x: 0, y: 0, z: -1 };
             immersiveLayout.local.centerX = { meters: 0 };
             immersiveLayout.local.centerY = { meters: 0 };
             immersiveLayout.local.centerZ = { meters: -1 };
@@ -54,7 +56,8 @@ export default class UI {
             immersiveLayout.orientation = Q_IDENTITY;
             const flatLayout = adapter.createLayout();
             flatLayout.parentNode = this.app.camera; // attach the UI to the camera
-            flatLayout.visual.far = { meters: 5 };
+            flatLayout.visual.far = { meters: 1 };
+            flatLayout.visual.near = { gt: { meters: this.app.camera.near } };
             flatLayout.visual.width = { percent: 100 };
             flatLayout.visual.height = { percent: 100 };
             flatLayout.visual.centerX = { degrees: 0 };
@@ -77,48 +80,47 @@ export default class UI {
         const setupSnubberModel = () => {
             const snubberObject = this.treadmill.snubberObject;
             const adapter = app.system.getAdapter(snubberObject);
+            adapter.transition.duration = 0.5;
+            adapter.transition.debounce = 0.1;
+            adapter.transition.maxWait = 10;
             const flatLayout = adapter.createLayout();
             flatLayout.parentNode = this.model;
             flatLayout.orientation = Q_IDENTITY;
-            flatLayout.local.centerX = { meters: 0 };
-            flatLayout.local.centerY = { meters: 0 };
             // flatLayout.bounds.centerZ = {meters:0}
+            flatLayout.visual.pull = { position: { x: 0, y: 0 } };
             flatLayout.local.back = { percent: -50 };
-            flatLayout.local.width = { lt: { percent: 90 } };
-            flatLayout.local.height = { lt: { percent: 90 } };
-            flatLayout.local.depth = { meters: 0.3 };
-            flatLayout.visual.left = { gt: { percent: -50 } };
-            flatLayout.visual.right = { lt: { percent: 50 } };
-            flatLayout.visual.bottom = { gt: { percent: -50 } };
-            flatLayout.visual.top = { lt: { percent: 50 } };
-            // flatLayout.view.left        = {gt: {percent: -50}}
-            // flatLayout.view.right       = {lt: {percent: 50}}
-            // flatLayout.view.bottom      = {gt: {percent: -50}}
-            // flatLayout.view.top         = {lt: {percent: -50}}
+            flatLayout.local.depth = { meters: 0.2 };
+            // flatLayout.visual.left      = {gt: [{percent: -50}, {offsetDegrees:0}]}
+            // flatLayout.visual.right     = {lt: {percent: 50}}
+            // flatLayout.visual.bottom    = {gt: {percent: -50}}
+            // flatLayout.visual.top       = {lt: {percent: 50}}
+            // flatLayout.visual.left        = {gt: {percent: -50, referenceFrame:'parent'}}
+            // flatLayout.visual.right       = {lt: {percent: 50, referenceFrame:'parent'}}
+            // flatLayout.visual.bottom      = {gt: {percent: -50, referenceFrame:'parent'}}
+            // flatLayout.visual.top         = {lt: {percent: -50, referenceFrame:'parent'}}
             flatLayout.aspect = "preserve-2d";
-            const immersiveLayout = adapter.createLayout();
-            immersiveLayout.parentNode = this.app.scene;
-            immersiveLayout.scale = V_111;
-            const immersivePosition = immersiveLayout.position = new THREE.Vector3();
-            immersiveLayout.orientation = Q_IDENTITY;
-            const IMMERSIVE = [immersiveLayout];
+            const IMMERSIVE = [];
             const FLAT = [flatLayout];
             adapter.onUpdate = () => {
                 if (this.state.immersiveMode) {
+                    adapter.layouts = IMMERSIVE;
+                    adapter.parentNode = this.app.scene;
                     if (this.treadmill.treadmillAnchorObject && this.treadmill.treadmillAnchorObject.parent) {
-                        immersiveLayout.parentNode = this.treadmill.treadmillAnchorObject;
                         snubberObject.position.copy(this.treadmill.snubberTargetPosition);
                         snubberObject.quaternion.setFromAxisAngle(ethereal.V_001, Math.PI);
                     }
                     else {
-                        immersivePosition.set(0, this.app.xrPresenting ? 1.6 : 0, -0.3);
-                        if (this.app.xrPresenting)
-                            snubberObject.scale.setScalar(4);
+                        snubberObject.scale.setScalar(4);
+                        snubberObject.position.set(0, this.app.xrPresenting ? 1.6 : 0, -1);
                     }
-                    adapter.layouts = IMMERSIVE;
                 }
                 else {
                     adapter.layouts = FLAT;
+                    const modelVisual = this.app.system.getState(this.model).visualFrustum;
+                    flatLayout.visual.left = { gt: { degrees: modelVisual.leftDegrees + 2 } };
+                    flatLayout.visual.right = { lt: { degrees: modelVisual.rightDegrees - 2 } };
+                    flatLayout.visual.bottom = { gt: { degrees: modelVisual.bottomDegrees + 2 } };
+                    flatLayout.visual.top = { lt: { degrees: modelVisual.topDegrees - 2 } };
                 }
             };
         };

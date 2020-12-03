@@ -1,6 +1,6 @@
-export function createXRButton(renderer: THREE.WebGLRenderer, options?:{refereceSpaceType:string}) {
-  if (options && options.refereceSpaceType) {
-    renderer.xr.setReferenceSpaceType(options.refereceSpaceType)
+export function createXRButton(renderer: THREE.WebGLRenderer, options?:{referenceSpaceType:'viewer' | 'local' | 'local-floor' | 'bounded-floor' | 'unbounded'}) {
+  if (options && options.referenceSpaceType) {
+    renderer.xr.setReferenceSpaceType(options.referenceSpaceType)
   }
 
   // function showEnterVR(device:VRDisplay) {

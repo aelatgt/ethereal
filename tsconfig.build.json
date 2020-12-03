@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["**/node_modules","packages/examples/*"],
+  "exclude": ["**/node_modules","examples/*"],
   "compilerOptions": {
     "noEmit": false
   }

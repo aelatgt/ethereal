@@ -1,6 +1,6 @@
 export function createXRButton(renderer, options) {
-    if (options && options.refereceSpaceType) {
-        renderer.xr.setReferenceSpaceType(options.refereceSpaceType);
+    if (options && options.referenceSpaceType) {
+        renderer.xr.setReferenceSpaceType(options.referenceSpaceType);
     }
     // function showEnterVR(device:VRDisplay) {
     //   button.style.display = ''
