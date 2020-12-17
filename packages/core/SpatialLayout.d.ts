@@ -209,14 +209,14 @@ export declare class SpatialLayout {
      * Occluders to minimize visual overlap with
      */
     occluders?: Node3D[];
-    /** */
-    maximizeVisual: boolean;
-    maximizeVisualObjective: LayoutObjective;
     private _pullCenter;
     private _pullRay;
     /** */
     pullLocalObjective: LayoutObjective;
     pullVisualObjective: LayoutObjective;
+    /** */
+    maximizeVisual: boolean;
+    maximizeVisualObjective: LayoutObjective;
     /**
      * Add a new layout constraint
      */

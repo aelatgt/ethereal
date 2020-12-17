@@ -125,6 +125,11 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
      */
     active: boolean;
     /**
+     * At 0, a new transition is pending (though may be cancelled).
+     * At 1, no transitions are active or pending
+     */
+    get progress(): number;
+    /**
      * Force the next update to commit the target value,
      * or the specified transition
      */
@@ -147,6 +152,8 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
     delayTime: number;
     debounceTime: number;
     waitTime: number;
+    private _previousStatus;
+    get previousStatus(): "unchanged" | "changed" | "settling" | "committing";
     /**
      * Describes the status of the target value
      *
@@ -155,7 +162,7 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
      * "settling" - the target value has changed, pending stabalization/timeout, or reversion to "unchanged" state
      * "committing" - the target value will be accepted as a new transition targets
      */
-    get status(): string;
+    get status(): "unchanged" | "changed" | "settling" | "committing";
     private _status;
     private _computeStatus;
     /**

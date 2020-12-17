@@ -1,6 +1,6 @@
 
 import * as THREE from 'three'
-import {WebLayer3D} from 'ethereal'
+import {WebLayer3D, WebLayer3DOptions} from 'ethereal'
 
 export interface EnterXREvent {
     type: 'enterxr'
@@ -40,10 +40,11 @@ export default class AppBase {
 
     clock = new THREE.Clock
 
-    pointer = new THREE.Vector2()
-    raycaster = new THREE.Raycaster()
-    mouseRay = [this.raycaster.ray]
-    immersiveRays = new Set<THREE.Object3D>()
+    private pointer = new THREE.Vector2()
+    private raycaster = new THREE.Raycaster()
+    private mouseRay = [this.raycaster.ray]
+    private immersiveRays = new Set<THREE.Object3D>()
+    interactionRays : (THREE.Ray|THREE.Object3D)[] = [] 
 
     // a map of XRCoordinateSystem instances and their Object3D proxies to be updated each frame
     xrObjects = new Map<any, THREE.Object3D>() // XRCoordinateSystem -> Three.js Object3D Map
@@ -226,8 +227,11 @@ export default class AppBase {
 
     webLayers = new Set<WebLayer3D>()
 
-    registerWebLayer(layer:WebLayer3D) {
-        this.webLayers.add(layer)
+    createWebLayerTree(el:HTMLDivElement, options:WebLayer3DOptions) {
+        const l = new WebLayer3D(el, options)
+        l.interactionRays = this.interactionRays
+        this.webLayers.add(l)
+        return l
     }
 
     // requestVuforiaTrackableFromDataSet() {}
@@ -250,7 +254,6 @@ export default class AppBase {
             // this.renderer.domElement.style.height ='100%'
             // this.renderer.domElement.style.top = '0'
             this.renderer.domElement.style.backgroundColor = 'lightgrey'
-            window.requestAnimationFrame(this.onAnimate)
         })
     }
     
@@ -259,15 +262,24 @@ export default class AppBase {
         if (!this.xrPresenting) this._setSize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio)
         const delta = Math.min(this.clock.getDelta(), 1/60)
         this.update(delta)
-        for (const layer of this.webLayers) {
-            layer.interactionRays = this.interactionSpace === 'world' ? Array.from(this.immersiveRays) : this.mouseRay
-        }
         this.renderer.render(this.scene, this.camera)
     }
 
     private _wasPresenting = false
 
     update = (deltaTime:number) => {
+
+
+        this.interactionRays.length = 0
+        if (this.interactionSpace === 'world') {
+            for (const r of this.immersiveRays) {
+                this.interactionRays.push(r)
+            }
+        } else {
+            for (const r of this.mouseRay) {
+                this.interactionRays.push(r)
+            }
+        }
         
         // try {
         //     // buggy on HoloLens, sometimes crashes :\

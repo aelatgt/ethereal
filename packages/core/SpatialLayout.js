@@ -96,13 +96,6 @@ export class SpatialLayout {
                 return 0;
             return SpatialLayout.getVisualBoundsPenalty(m, this.visual);
         });
-        /** */
-        this.maximizeVisual = true;
-        this.maximizeVisualObjective = this.addObjective('maximize-visual', (state) => {
-            if (!this.maximizeVisual)
-                return 0;
-            return state.visualFrustum.diagonalDegrees ** 10;
-        });
         this._pullCenter = new Vector3;
         this._pullRay = new Ray;
         /** */
@@ -146,6 +139,13 @@ export class SpatialLayout {
                 directionDist = ray.closestPointToPoint(center, center).length();
             }
             return -centerDist + directionDist;
+        });
+        /** */
+        this.maximizeVisual = true;
+        this.maximizeVisualObjective = this.addObjective('maximize-visual', (state) => {
+            if (!this.maximizeVisual)
+                return 0;
+            return state.visualFrustum.diagonalDegrees;
         });
         this.#solutions = new Array();
         /**
@@ -204,8 +204,9 @@ export class SpatialLayout {
                 }
                 const cRelTol = this.constraints[i].relativeTolerance ?? relTol;
                 const cAbsTol = this.constraints[i].absoluteTolerance ?? absTol;
-                const bestScore = this.constraints[i].bestScore || 0; // Math.min(scoreA, scoreB) //this.constraints[i].bestScore || 0 // bestSolution.constraintScores[i]//constraint.bestScore ?? Math.min(scoreA, scoreB)
-                const tolerance = Math.min(bestScore / (1 - cRelTol), bestScore + cAbsTol);
+                // const bestScore = Math.min(scoreA, scoreB)
+                const bestScore = this.constraints[i].bestScore || 0; //  //this.constraints[i].bestScore || 0 // bestSolution.constraintScores[i]//constraint.bestScore ?? Math.min(scoreA, scoreB)
+                const tolerance = Math.max(bestScore / (1 - cRelTol), bestScore + cAbsTol);
                 if (scoreA > tolerance || scoreB > tolerance) {
                     return scoreA - scoreB;
                 }
@@ -222,8 +223,9 @@ export class SpatialLayout {
                     continue; // consider equal
                 const oRelTol = this.objectives[i].relativeTolerance ?? relTol;
                 const oAbsTol = this.objectives[i].absoluteTolerance ?? absTol;
+                // const bestScore = Math.min(scoreA, scoreB)  
                 const bestScore = this.objectives[i].bestScore || 0; // Math.min(scoreA, scoreB)  //this.objectives[i].bestScore || 0 //objective.bestScore ?? Math.max(scoreA, scoreB)
-                const tolerance = Math.max(bestScore * (1 - oRelTol), bestScore - oAbsTol);
+                const tolerance = Math.min(bestScore * (1 - oRelTol), bestScore - oAbsTol);
                 if (scoreA < tolerance || scoreB < tolerance) {
                     return scoreB - scoreA; // rank by highest score
                 }
@@ -721,7 +723,6 @@ export class LayoutSolution {
         const bounds = this.bounds;
         const center = bounds.getCenter(LayoutSolution._center);
         const size = bounds.getSize(LayoutSolution._size);
-        size.clampScalar(1e-6, 1e10);
         // center mutation strategies
         if (strategyType === 'centerX') {
             const outerSize = this.layout.adapter.metrics.targetState.outerSize;
@@ -761,7 +762,7 @@ export class LayoutSolution {
         size.x = Math.abs(size.x);
         size.y = Math.abs(size.y);
         size.z = Math.abs(size.z);
-        size.clampScalar(1e-6, 1e10);
+        size.clampScalar(this.layout.adapter.system.config.epsillonMeters / 10, 1e20);
         bounds.setFromCenterAndSize(center, size);
         if (strategyType === 'minX') {
             const outerSize = this.layout.adapter.metrics.targetState.outerSize;

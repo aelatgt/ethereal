@@ -33,6 +33,7 @@ export class Transitionable extends TransitionConfig {
         this.delayTime = 0;
         this.debounceTime = 0;
         this.waitTime = 0;
+        this._previousStatus = 'unchanged';
         this._status = 'unchanged';
         this._scratchV2 = new Vector2;
         this._scratchV3 = new Vector3;
@@ -160,6 +161,22 @@ export class Transitionable extends TransitionConfig {
         return this._target;
     }
     /**
+     * At 0, a new transition is pending (though may be cancelled).
+     * At 1, no transitions are active or pending
+     */
+    get progress() {
+        if (!this.active)
+            return 1;
+        if (this.queue.length > 0) {
+            const t = this.queue[this.queue.length - 1];
+            return t.elapsed / t.duration;
+        }
+        else if (this.status !== 'unchanged') {
+            return 0;
+        }
+        return 1;
+    }
+    /**
      * Force the next update to commit the target value,
      * or the specified transition
      */
@@ -202,6 +219,9 @@ export class Transitionable extends TransitionConfig {
         r.blend = this.blend ?? adapterConfig?.blend ?? systemConfig.blend;
         return r;
     }
+    get previousStatus() {
+        return this._previousStatus;
+    }
     /**
      * Describes the status of the target value
      *
@@ -212,6 +232,7 @@ export class Transitionable extends TransitionConfig {
      */
     get status() {
         if (this.needsUpdate) {
+            this._previousStatus = this._status;
             this._status = this._computeStatus();
         }
         return this._status;
@@ -220,7 +241,7 @@ export class Transitionable extends TransitionConfig {
         if (this.forceCommit)
             return 'committing';
         const config = this.resolvedConfig;
-        const threshold = Math.max(config.threshold, 0.00001);
+        const threshold = config.threshold;
         const delta = this.system.deltaTime * config.multiplier;
         const delay = this.delayTime + delta;
         const debounce = this.debounceTime + delta;
@@ -248,6 +269,20 @@ export class Transitionable extends TransitionConfig {
         const queue = this.queue;
         const status = this.status;
         const delta = deltaTime * config.multiplier;
+        // Finite Impulse Response Interruptable Transitions
+        while (queue.length && queue[0].elapsed >= queue[0].duration) {
+            this.start = queue.shift().target;
+        }
+        this.current = this.start;
+        const current = this._current;
+        let previousTarget = this.start;
+        for (const transition of queue) {
+            this._addTransitionToCurrent(current, previousTarget, transition);
+            transition.elapsed += delta;
+            previousTarget = transition.target;
+            if (!transition.blend)
+                break;
+        }
         // Hysteresis-Aware Target Change Trigger
         switch (status) {
             case 'changed':
@@ -263,6 +298,25 @@ export class Transitionable extends TransitionConfig {
                     this.waitTime += delta;
                 }
                 break;
+            case 'unchanged':
+                this.reference = undefined;
+                this.delayTime = 0;
+                this.debounceTime = 0;
+                this.waitTime = 0;
+                // if relative difference is greater than 0
+                // (and less then the change threshold),
+                // instantly update the last committed value to the 
+                // current target
+                if (this.relativeDifference > 0) {
+                    if (this.queue.length > 0) {
+                        const t = this.queue[this.queue.length - 1];
+                        t.target = this._copy(t.target, this.target);
+                    }
+                    else {
+                        this.start = this._copy(this.start, this.target);
+                    }
+                }
+                break;
             case 'committing':
                 const transition = typeof this.forceCommit === 'object' ?
                     this.forceCommit : new Transition();
@@ -272,26 +326,6 @@ export class Transitionable extends TransitionConfig {
                 transition.blend = transition.blend ?? config.blend;
                 transition.elapsed = transition.elapsed ?? 0;
                 queue.push(transition);
-            // continue
-            case 'unchanged':
-                this.reference = undefined;
-                this.delayTime = 0;
-                this.debounceTime = 0;
-                this.waitTime = 0;
-                break;
-        }
-        // Finite Impulse Response Interruptable Transitions
-        while (queue.length && queue[0].elapsed >= queue[0].duration) {
-            this.start = queue.shift().target;
-        }
-        this.current = this.start;
-        const current = this._current;
-        let previousTarget = this.start;
-        for (const transition of queue) {
-            this._addTransitionToCurrent(current, previousTarget, transition);
-            transition.elapsed += delta;
-            previousTarget = transition.target;
-            if (!transition.blend)
                 break;
         }
     }

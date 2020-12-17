@@ -18,26 +18,27 @@ export class EtherealSystem {
                 multiplier: 1,
                 duration: 0,
                 easing: easing.easeInOut,
-                threshold: 0,
+                threshold: 0.0001,
                 delay: 0,
                 debounce: 0,
                 maxWait: 10,
                 blend: true
             }),
             optimize: new OptimizerConfig({
-                constraintThreshold: 0.1,
-                relativeTolerance: 0.4,
-                absoluteTolerance: 0.1,
-                iterationsPerFrame: 30,
-                swarmSize: 5,
-                pulseFrequencyMin: 0,
-                pulseFrequencyMax: 1.5,
-                pulseRate: 0.01,
-                stepSizeMin: 0.000001,
-                stepSizeMax: 10,
-                stepSizeStart: 0.5,
-                staleRestartRate: 0.02,
-                successRateMovingAverage: 50
+                constraintThreshold: 1,
+                relativeTolerance: 0.001,
+                absoluteTolerance: 0.00001,
+                iterationsPerFrame: 4,
+                swarmSize: 10,
+                pulseFrequencyMin: 0.3,
+                pulseFrequencyMax: 1,
+                pulseRate: 0.5,
+                stepSizeMin: 0.01,
+                stepSizeMax: 1.5,
+                stepSizeStart: 0.3,
+                staleRestartRate: 0.1,
+                successRateMovingAverage: 200,
+                successRateMin: 0.005
             })
         };
         /**

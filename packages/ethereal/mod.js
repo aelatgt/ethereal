@@ -80,3 +80,13 @@ export function createSystem(viewNode, bindings = DefaultBindings) {
 }
 export * from '@etherealjs/core/mod';
 export { WebLayer3D, WebLayer3DBase, WebRenderer } from '@etherealjs/web-layer/mod';
+// import {WebLayer3D,WebLayer3DOptions} from '@etherealjs/web-layer/mod'
+// export class AdaptiveWebLayer extends WebLayer3D {
+//     constructor(elementOrHTML:Element|string, options:WebLayer3DOptions) {
+//         super(elementOrHTML, options)
+//         const oLC = options.onLayerCreate
+//         options.onLayerCreate = (layer) => {
+//             oLC?.(layer)
+//         }
+//     }
+// }

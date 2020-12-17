@@ -30,6 +30,7 @@ export declare class WebLayer {
     cachedMargin: Map<string, Edges>;
     private _dynamicAttributes;
     private _svgDocument;
+    private _rasterizingDocument;
     private _svgSrc;
     private _hashingCanvas;
     _canvas: HTMLCanvasElement;
@@ -80,7 +81,7 @@ export declare class WebRenderer {
     private static _runTasks;
     static scheduleTasks(): Promise<void>;
     static scheduleIdle(cb: (deadline?: RequestIdleCallbackDeadline) => any): void;
-    static setLayerNeedsUpdate(layer: WebLayer): void;
+    static setLayerNeedsRefresh(layer: WebLayer): void;
     static createLayerTree(element: Element, eventCallback: EventCallback): WebLayer;
     static disposeLayer(layer: WebLayer): void;
     static getClosestLayer(element: Element | null): WebLayer | undefined;

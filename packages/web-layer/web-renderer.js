@@ -46,6 +46,7 @@ export class WebLayer {
         this.cachedMargin = new Map();
         this._dynamicAttributes = '';
         this._svgDocument = '';
+        this._rasterizingDocument = '';
         this._svgSrc = '';
         this._hashingCanvas = document.createElement('canvas');
         WebRenderer.layers.set(element, this);
@@ -199,17 +200,17 @@ export class WebLayer {
                 layerHTML +
                 parentsHTML[1] +
                 '</foreignObject></svg>';
-            this._svgDocument = docString;
-            const svgSrc = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(docString));
+            const svgDoc = this._svgDocument = docString;
+            // const svgSrc = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(docString))
             // check for existing canvas
-            const canvasHash = WebLayer.canvasHashes.get(svgSrc);
+            const canvasHash = WebLayer.canvasHashes.get(svgDoc);
             if (canvasHash && WebLayer.cachedCanvases.has(canvasHash)) {
                 this.canvas = WebLayer.cachedCanvases.get(canvasHash);
                 return;
             }
             // rasterize the svg document if no existing canvas matches
-            this.cachedBounds.set(svgSrc, new Bounds().copy(this.bounds));
-            this.cachedMargin.set(svgSrc, new Edges().copy(this.margin));
+            this.cachedBounds.set(svgDoc, new Bounds().copy(this.bounds));
+            this.cachedMargin.set(svgDoc, new Edges().copy(this.margin));
             WebRenderer.addToRasterizeQueue(this);
         }
     }
@@ -219,7 +220,8 @@ export class WebLayer {
                 WebRenderer.addToRenderQueue(this);
                 resolve();
             };
-            this.svgImage.src = this._svgSrc;
+            this._rasterizingDocument = this._svgDocument;
+            this.svgImage.src = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(this._svgDocument));
             if (this.svgImage.complete && this.svgImage.currentSrc === this.svgImage.src) {
                 WebRenderer.addToRenderQueue(this);
                 this.svgImage.onload = null;
@@ -228,8 +230,9 @@ export class WebLayer {
         });
     }
     render() {
-        const src = this.svgImage.currentSrc;
-        if (!this.cachedBounds.has(src) || !this.cachedMargin.has(src)) {
+        const svgDoc = this._rasterizingDocument;
+        // const src = this.svgImage.currentSrc
+        if (!this.cachedBounds.has(svgDoc) || !this.cachedMargin.has(svgDoc)) {
             this.needsRefresh = true;
             return;
         }
@@ -237,8 +240,8 @@ export class WebLayer {
             WebRenderer.addToRenderQueue(this);
             return;
         }
-        let { width, height } = this.cachedBounds.get(src);
-        let { left, top } = this.cachedMargin.get(src);
+        let { width, height } = this.cachedBounds.get(svgDoc);
+        let { left, top } = this.cachedMargin.get(svgDoc);
         const hashingCanvas = this._hashingCanvas;
         let hw = (hashingCanvas.width = Math.max(width * 0.05, 40));
         let hh = (hashingCanvas.height = Math.max(height * 0.05, 40));
@@ -251,11 +254,12 @@ export class WebLayer {
             width +
             ';h=' +
             height;
-        WebLayer.canvasHashes.set(src, newHash);
-        const blankRetryCount = WebLayer.blankRetryCounts.get(src) || 0;
-        if (WebRenderer.isBlankImage(hashData) && blankRetryCount < 3) {
-            WebLayer.blankRetryCounts.set(src, blankRetryCount + 1);
+        WebLayer.canvasHashes.set(svgDoc, newHash);
+        const blankRetryCount = WebLayer.blankRetryCounts.get(svgDoc) || 0;
+        if (WebRenderer.isBlankImage(hashData) && blankRetryCount < 10) {
+            WebLayer.blankRetryCounts.set(svgDoc, blankRetryCount + 1);
             setTimeout(() => WebRenderer.addToRenderQueue(this), 500);
+            return;
         }
         if (WebLayer.cachedCanvases.has(newHash)) {
             this.canvas = WebLayer.cachedCanvases.get(newHash);
@@ -401,7 +405,7 @@ export class WebRenderer {
             setTimeout(cb, 1);
         }
     }
-    static setLayerNeedsUpdate(layer) {
+    static setLayerNeedsRefresh(layer) {
         layer.needsRefresh = true;
     }
     static createLayerTree(element, eventCallback) {
@@ -779,8 +783,8 @@ WebRenderer.handleMutations = (records) => {
         }
         // layer.traverseParentLayers(WebRenderer.setLayerNeedsRasterize) // may be needed to support :focus-within() and future :has() selector support
         layer.parentLayer
-            ? layer.parentLayer.traverseChildLayers(WebRenderer.setLayerNeedsUpdate)
-            : layer.traverseLayers(WebRenderer.setLayerNeedsUpdate);
+            ? layer.parentLayer.traverseChildLayers(WebRenderer.setLayerNeedsRefresh)
+            : layer.traverseLayers(WebRenderer.setLayerNeedsRefresh);
     }
 };
 WebRenderer._triggerRefresh = async (e) => {
@@ -790,8 +794,8 @@ WebRenderer._triggerRefresh = async (e) => {
     if (layer) {
         // layer.traverseParentLayers(WebRenderer.setLayerNeedsRasterize) // may be needed to support :focus-within() and future :has() selector support
         layer.parentLayer
-            ? layer.parentLayer.traverseChildLayers(WebRenderer.setLayerNeedsUpdate)
-            : layer.traverseLayers(WebRenderer.setLayerNeedsUpdate);
+            ? layer.parentLayer.traverseChildLayers(WebRenderer.setLayerNeedsRefresh)
+            : layer.traverseLayers(WebRenderer.setLayerNeedsRefresh);
     }
 };
 WebRenderer._embeddedPageCSS = new Map();

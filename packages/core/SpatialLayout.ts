@@ -511,13 +511,6 @@ export class SpatialLayout {
      */
     occluders?: Node3D[]
 
-    /** */
-    public maximizeVisual = true
-    public maximizeVisualObjective = this.addObjective('maximize-visual', (state) => {
-        if (!this.maximizeVisual) return 0
-        return state.visualFrustum.diagonalDegrees ** 10
-    })
-
     private _pullCenter = new Vector3
     private _pullRay = new Ray
 
@@ -563,6 +556,13 @@ export class SpatialLayout {
             directionDist = ray.closestPointToPoint(center, center).length()
         }
         return -centerDist + directionDist
+    })
+
+    /** */
+    public maximizeVisual = true
+    public maximizeVisualObjective = this.addObjective('maximize-visual', (state) => {
+        if (!this.maximizeVisual) return 0
+        return state.visualFrustum.diagonalDegrees
     })
 
     /**
@@ -679,8 +679,9 @@ export class SpatialLayout {
             }
             const cRelTol = this.constraints[i].relativeTolerance ?? relTol
             const cAbsTol = this.constraints[i].absoluteTolerance ?? absTol
-            const bestScore = this.constraints[i].bestScore || 0 // Math.min(scoreA, scoreB) //this.constraints[i].bestScore || 0 // bestSolution.constraintScores[i]//constraint.bestScore ?? Math.min(scoreA, scoreB)
-            const tolerance = Math.min(
+            // const bestScore = Math.min(scoreA, scoreB)
+            const bestScore = this.constraints[i].bestScore || 0 //  //this.constraints[i].bestScore || 0 // bestSolution.constraintScores[i]//constraint.bestScore ?? Math.min(scoreA, scoreB)
+            const tolerance = Math.max(
                 bestScore / (1 - cRelTol), 
                 bestScore + cAbsTol
             )
@@ -701,8 +702,9 @@ export class SpatialLayout {
                 continue // consider equal
             const oRelTol = this.objectives[i].relativeTolerance ?? relTol
             const oAbsTol = this.objectives[i].absoluteTolerance ?? absTol
+            // const bestScore = Math.min(scoreA, scoreB)  
             const bestScore = this.objectives[i].bestScore || 0 // Math.min(scoreA, scoreB)  //this.objectives[i].bestScore || 0 //objective.bestScore ?? Math.max(scoreA, scoreB)
-            const tolerance = Math.max(
+            const tolerance = Math.min(
                 bestScore * (1 - oRelTol), 
                 bestScore - oAbsTol
             )
@@ -942,7 +944,6 @@ export class LayoutSolution {
         const bounds = this.bounds
         const center = bounds.getCenter(LayoutSolution._center)
         const size = bounds.getSize(LayoutSolution._size)
-        size.clampScalar(1e-6,1e10)
 
         // center mutation strategies
         if (strategyType === 'centerX')  {
@@ -979,7 +980,7 @@ export class LayoutSolution {
         size.x = Math.abs(size.x)
         size.y = Math.abs(size.y)
         size.z = Math.abs(size.z)
-        size.clampScalar(1e-6,1e10)
+        size.clampScalar(this.layout.adapter.system.config.epsillonMeters/10,1e20)
         bounds.setFromCenterAndSize(center, size)
 
         if (strategyType === 'minX')  {

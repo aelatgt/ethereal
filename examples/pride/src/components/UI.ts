@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import * as ethereal from 'ethereal'
-import {WebLayer3D, Q_IDENTITY, V_111, V_000} from 'ethereal'
+import {Q_IDENTITY, V_111} from 'ethereal'
 
 import {App} from '../main'
 import {UpdateEvent} from '../app'
@@ -17,8 +17,21 @@ export default class UI {
     state = state
     prideVue = createApp(PrideVue).mount(document.createElement('div'))
 
-    pride = new WebLayer3D( this.prideVue.$el, {
-        layerSeparation: 0.002
+    pride = this.app.createWebLayerTree( this.prideVue.$el, {
+        layerSeparation: 0.002,
+        onLayerCreate: (layer) => {
+            const adapter = this.app.system.getAdapter(layer)
+            adapter.syncWithParentAdapter = false
+            adapter.transition.duration = 0.6
+            adapter.transition.debounce = 0.5
+            adapter.transition.maxWait = 10
+            adapter.onPreUpdate = () => {
+                layer.updateLayout()
+            }
+            adapter.onPostUpdate = () => {
+                if (adapter.progress > 0.1) layer.updateContent()
+            }
+        }
     })
     procedure = this.pride.querySelector('#procedure')!
     step = this.pride.querySelector('#step')!
@@ -45,44 +58,38 @@ export default class UI {
             this.app.scene.add(this.immersiveAnchor)
             const adapter = this.app.system.getAdapter(this.immersiveAnchor)
             const center = new THREE.Vector3
-            adapter.onUpdate = () => {
+            adapter.onPreUpdate = () => {
                 center.set(0, this.app.xrPresenting ? 1.6 : 0, this.app.xrPresenting ? -0.7 : -1.4) // position away from camera
                 adapter.bounds.target.setFromCenterAndSize(center, ethereal.V_111)
             }
         }
 
         const setupPrideLayer = () => {
-            this.app.registerWebLayer(this.pride)
             const adapter = this.app.system.getAdapter(this.pride)
-            adapter.transition.duration = 0.5
-            adapter.transition.debounce = 0.1
-            adapter.transition.maxWait = 10
 
             const immersiveLayout = adapter.createLayout()
             immersiveLayout.parentNode = this.app.scene
             immersiveLayout.position = {x:0,y:0,z:-1}
-            immersiveLayout.local.centerX = {meters:0}  
-            immersiveLayout.local.centerY = {meters:0}
-            immersiveLayout.local.centerZ = {meters:-1}
             immersiveLayout.scale = V_111
             immersiveLayout.orientation = Q_IDENTITY
 
             const flatLayout = adapter.createLayout()
             flatLayout.parentNode = this.app.camera // attach the UI to the camera
-            flatLayout.visual.far = {meters:1}
+            // flatLayout.visual.far = {meters:1}
             flatLayout.visual.near = {gt:{meters:this.app.camera.near}}
             flatLayout.visual.width = {percent:100}
             flatLayout.visual.height = {percent:100}
             flatLayout.visual.centerX = {degrees:0}
             flatLayout.visual.centerY = {degrees:0}
+            flatLayout.scale = V_111
             flatLayout.orientation = Q_IDENTITY
 
             this.app.camera.add(this.pride)
 
-            adapter.onUpdate = () => {
-                this.updateAugmentations()
-                this.pride.options.autoRefresh = this.app.timeSinceLastResize > 500
-                this.pride.update(this.app.system.deltaTime)
+            adapter.onPreUpdate = () => {
+                this.pride.options.autoRefresh = (this.app.timeSinceLastResize > 100)
+                this.pride.updateLayout()
+                this.pride.updateContent()
                 
                 if (this.state.immersiveMode) {
                     adapter.layouts = [immersiveLayout]
@@ -96,6 +103,7 @@ export default class UI {
 
         const setupSnubberModel = () => {
             const snubberObject = this.treadmill.snubberObject
+            this.model.add(snubberObject)
             const adapter = app.system.getAdapter(snubberObject)
             adapter.transition.duration = 0.5
             adapter.transition.debounce = 0.1
@@ -104,25 +112,13 @@ export default class UI {
             const flatLayout = adapter.createLayout()
             flatLayout.parentNode = this.model
             flatLayout.orientation = Q_IDENTITY
-            // flatLayout.bounds.centerZ = {meters:0}
             flatLayout.local.pull = {position: {x:0,y:0}}
             flatLayout.local.back = {percent:-50}
-            // flatLayout.local.depth = {meters:0.4}
-
-            // flatLayout.visual.left      = {gt: {percent: -50}}
-            // flatLayout.visual.right     = {lt: {percent: 50}}
-            // flatLayout.visual.bottom    = {gt: {percent: -50}}
-            // flatLayout.visual.top       = {lt: {percent: 50}}
-            // flatLayout.visual.left        = {gt: {percent: -50, referenceFrame:'parent'}}
-            // flatLayout.visual.right       = {lt: {percent: 50, referenceFrame:'parent'}}
-            // flatLayout.visual.bottom      = {gt: {percent: -50, referenceFrame:'parent'}}
-            // flatLayout.visual.top         = {lt: {percent: -50, referenceFrame:'parent'}}
-            // flatLayout.aspect = "preserve-3d"
 
             const IMMERSIVE = [] as any
             const FLAT = [flatLayout]
 
-            adapter.onUpdate = () => {
+            adapter.onPreUpdate = () => {
                 if (this.state.immersiveMode) {
                     adapter.layouts = IMMERSIVE
                     adapter.parentNode = this.app.scene

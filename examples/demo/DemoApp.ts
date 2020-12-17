@@ -14,7 +14,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial'
 
 import { GlobalAdaptivityDemo } from './demos/GlobalAdaptivityDemo'
 import { DemoBase } from './demos/DemoBase'
-import { easing, SphericalCoordinate, Q_IDENTITY, V_010, V_111 } from 'ethereal'
+import { SphericalCoordinate, Q_IDENTITY, V_010, V_111 } from 'ethereal'
 import * as ethereal from 'ethereal'
 
 export class DemoApp extends AppBase {
@@ -76,11 +76,11 @@ export class DemoApp extends AppBase {
             layout.local.height = {meters:6}
             layout.aspect = 'preserve-3d'
 
-            adapter.onUpdate = () => {
+            adapter.onPreUpdate = () => {
 
             }
 
-            adapter.onLayout = () => {
+            adapter.onPostUpdate = () => {
 
             }
         }
@@ -89,7 +89,7 @@ export class DemoApp extends AppBase {
             const adapter = this.system.getAdapter(this.dolly)
             this.dolly.position.set(0,-10,0)
             adapter.transition.duration = 1.5
-            adapter.onUpdate = () => {
+            adapter.onPreUpdate = () => {
                 adapter.bounds.target.setFromCenterAndSize(this.dollyPosition, V_111)
                 adapter.orientation.target.copy(this.dollyOrientation)
             }
@@ -100,7 +100,7 @@ export class DemoApp extends AppBase {
             const adapter = this.system.getAdapter(this.camera)
             const spherical = new SphericalCoordinate
             adapter.transition.duration = 0.2
-            adapter.onUpdate = () => {
+            adapter.onPreUpdate = () => {
                 if (!this.xrPresenting) {
                     const dollyState = this.system.getState(this.dolly)
                     spherical.setWithDegrees(
@@ -211,7 +211,7 @@ export class DemoApp extends AppBase {
             this.room.add(gltf.scene)
 
             const roomLinesAdapter = this.system.getAdapter(roomLines)
-            roomLinesAdapter.onUpdate = () => {
+            roomLinesAdapter.onPreUpdate = () => {
                 lineMaterial.resolution = this.resolution
             }
             

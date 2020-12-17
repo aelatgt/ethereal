@@ -1,4 +1,4 @@
-import { Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, Geometry, Camera, Intersection, Texture, Matrix4, WebGLRenderer } from 'three';
+import { Vector3, Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, Geometry, Camera, Intersection, Texture, Matrix4, WebGLRenderer } from 'three';
 import { WebLayer } from '../web-renderer';
 import { Bounds } from '../dom-utils';
 export interface WebLayer3DOptions {
@@ -16,12 +16,12 @@ export declare class WebLayer3DBase extends Object3D {
     protected _webLayer: WebLayer;
     textures: Map<HTMLCanvasElement | HTMLVideoElement, Texture>;
     get currentTexture(): Texture;
-    content: Object3D;
+    textureNeedsUpdate: boolean;
     contentMesh: Mesh<Geometry, MeshBasicMaterial>;
     cursor: Object3D;
     depthMaterial: MeshDepthMaterial;
-    target: Object3D;
-    contentTarget: Object3D;
+    domLayout: Object3D;
+    domSize: Vector3;
     get needsRefresh(): boolean;
     set needsRefresh(value: boolean);
     /**
@@ -39,15 +39,14 @@ export declare class WebLayer3DBase extends Object3D {
     /** If true, this layer needs to be removed from the scene */
     get needsRemoval(): boolean;
     get bounds(): Bounds;
-    get parentLayer(): WebLayer3DBase | undefined;
-    childLayers: WebLayer3DBase[];
+    get parentWebLayer(): WebLayer3DBase | undefined;
+    childWebLayers: WebLayer3DBase[];
     /**
-     * Specifies whether or not this layer's layout
-     * should match the layout stored in the `target` object
+     * Specifies whether or not the DOM layout should be applied.
      *
-     * When set to `true`, the target layout should always be applied.
-     * When set to `false`, the target layout should never be applied.
-     * When set to `'auto'`, the target layout should only be applied
+     * When set to `true`, the dom layout should always be applied.
+     * When set to `false`, the dom layout should never be applied.
+     * When set to `'auto'`, the dom layout should only be applied
      * when the `parentLayer` is the same as the `parent` object.
      *
      * It is the responsibiltiy of the update callback
@@ -55,29 +54,20 @@ export declare class WebLayer3DBase extends Object3D {
      *
      * Defaults to `auto`
      */
-    shouldApplyTargetPose: true | false | 'auto';
+    shouldApplyDOMLayout: true | false | 'auto';
     /**
-     * Specifies whether or not the update callback should update
-     * the `content` layout to match the layout stored in
-     * the `contentTarget` object
-     *
-     * It is the responsibiltiy of the update callback
-     * to follow these rules.
-     *
-     * Defaults to `true`
+     * Refresh from DOM
      */
-    shouldApplyContentTargetPose: boolean;
-    private _lastTargetPosition;
-    private _lastContentTargetScale;
-    refresh(forceRefresh?: boolean): void;
+    refresh(recurse?: boolean): void;
+    updateLayout(): void;
+    updateContent(): void;
     querySelector(selector: string): WebLayer3DBase | undefined;
-    traverseParentLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): void;
-    traverseLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): void;
-    traverseChildLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): T;
+    traverseParentWebLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): void;
+    traverseWebLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): void;
+    traverseChildWebLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): T;
     dispose(): void;
     private _refreshVideoBounds;
-    private _refreshTargetPose;
-    _refreshMesh(): void;
+    private _refreshDOMLayout;
 }
 /**
  * Transform a DOM tree into 3D layers.
@@ -123,19 +113,15 @@ export declare class WebLayer3D extends WebLayer3DBase {
     static PIXEL_RATIO_ATTRIBUTE: string;
     static STATES_ATTRIBUTE: string;
     static HOVER_DEPTH_ATTRIBUTE: string;
-    private static DISABLE_TRANSFORMS_ATTRIBUTE;
     static DEFAULT_LAYER_SEPARATION: number;
     static DEFAULT_PIXELS_PER_UNIT: number;
     static GEOMETRY: Geometry;
     static computeNaturalDistance(projection: Matrix4 | Camera, renderer: WebGLRenderer): number;
-    static UPDATE_DEFAULT: (layer: WebLayer3DBase, deltaTime?: number) => void;
-    static shouldApplyTargetPose(layer: WebLayer3DBase): boolean;
-    private static _updateInteractions;
-    private static _doRefreshMesh;
-    private _doRefresh;
-    private static scheduleRefresh;
+    static shouldApplyDOMLayout(layer: WebLayer3DBase): boolean;
+    private _doRecursiveRefresh;
+    scheduleRefresh(): void;
     private static _hideCursor;
-    get parentLayer(): WebLayer3DBase;
+    get parentWebLayer(): WebLayer3DBase;
     private _interactionRays;
     private _raycaster;
     private _hitIntersections;
@@ -147,13 +133,16 @@ export declare class WebLayer3D extends WebLayer3DBase {
     get interactionRays(): Array<THREE.Ray | THREE.Object3D>;
     set interactionRays(rays: Array<THREE.Ray | THREE.Object3D>);
     /**
-     * Update the pose and opacity of this layer (does not rerender the DOM).
-     * This should be called each frame, and can only be called on a root WebLayer3D instance.
-     *
-     * @param lerp - lerp value
-     * @param updateCallback - update callback called for each layer. Default is WebLayer3D.UDPATE_DEFAULT
+     * Update the pose and opacity of this layer, handle interactions,
+     * and schedule DOM refreshes. This should be called each frame.
      */
-    update(lerp?: number, updateCallback?: (layer: WebLayer3DBase, lerp: number) => void): void;
+    updateLayout(): void;
+    updateContent(): void;
+    /**
+     * Update this layer and child layers, recursively
+     */
+    updateAll(): void;
+    private _updateInteractions;
     static getLayerForQuery(selector: string): WebLayer3DBase | undefined;
     static getClosestLayerForElement(element: Element): WebLayer3DBase | undefined;
     hitTest(ray: THREE.Ray): {

@@ -59,6 +59,7 @@ export class SpatialOptimizer {
         this._config.pulseFrequencyMax = adapter.optimize.pulseFrequencyMax ?? defaultConfig.pulseFrequencyMax;
         this._config.stepSizeMax = adapter.optimize.stepSizeMax ?? defaultConfig.stepSizeMax;
         this._config.stepSizeMin = adapter.optimize.stepSizeMin ?? defaultConfig.stepSizeMin;
+        this._config.successRateMin = adapter.optimize.successRateMin ?? defaultConfig.successRateMin;
         this._config.stepSizeStart = adapter.optimize.stepSizeStart ?? defaultConfig.stepSizeStart;
         this._config.staleRestartRate = adapter.optimize.staleRestartRate ?? defaultConfig.staleRestartRate;
         this._config.successRateMovingAverage = adapter.optimize.successRateMovingAverage ?? defaultConfig.successRateMovingAverage;
@@ -158,17 +159,23 @@ export class SpatialOptimizer {
                 if (mutationStrategy) {
                     mutationStrategy.successRate = successAlpha * (success ? 1 : 0) + (1 - successAlpha) * mutationStrategy.successRate;
                     mutationStrategy.stepSize *= success ? diversificationFactor : intensificationFactor;
-                    if (!success && solution !== solutionBest && mutationStrategy.stepSize < c.stepSizeMin && Math.random() < c.staleRestartRate) {
+                    if (mutationStrategy.stepSize > c.stepSizeMax) {
+                        mutationStrategy.stepSize = c.stepSizeMax;
+                    }
+                    else if (mutationStrategy.stepSize < c.stepSizeMin) {
+                        mutationStrategy.stepSize = c.stepSizeMin;
+                    }
+                    if (mutationStrategy.successRate < c.successRateMin &&
+                        Math.random() < c.staleRestartRate && !success) {
                         // random restart
                         for (const m of solution.mutationStrategies) {
                             m.stepSize = c.stepSizeStart;
                             m.successRate = 0.2;
                         }
-                        solution.randomize(1);
-                        this.applyLayoutSolution(adapter, layout, solution, true);
-                    }
-                    else if (mutationStrategy.stepSize > c.stepSizeMax) {
-                        mutationStrategy.stepSize = c.stepSizeMax;
+                        if (solution !== solutionBest) {
+                            solution.randomize(1);
+                            this.applyLayoutSolution(adapter, layout, solution, true);
+                        }
                     }
                 }
             }

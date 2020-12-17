@@ -169,12 +169,12 @@ function makeDefaultMaterial(layer: WebLayer3DBase) {
 // shadows
 function toggleShadows(enabled:boolean) {
   if (enabled) {
-    todoLayer.traverseLayers(layer => {
+    todoLayer.traverseWebLayers(layer => {
       layer.contentMesh.material = makeShadowMaterial(layer)
     })
     // scene.add(shadowCameraHelper)
   } else {
-    todoLayer.traverseLayers(layer => {
+    todoLayer.traverseWebLayers(layer => {
       layer.contentMesh.material = makeDefaultMaterial(layer)
     })
     // scene.remove(shadowCameraHelper)
@@ -363,7 +363,7 @@ function animate() {
     todoLayer.position.z = 0
   }
 
-  todoLayer.traverseLayers(layer => {
+  todoLayer.traverseWebLayers(layer => {
     // layer.transitioner.multiplier = Controls.lerpSpeed
     // layer.content.transitioner.multiplier = Controls.lerpSpeed
 
@@ -391,7 +391,7 @@ function animate() {
   })
 
   // update transitions
-  todoLayer.update(deltaTime)
+  todoLayer.update()
   // ethereal.update(deltaTime)
 
   // render!

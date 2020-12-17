@@ -68,6 +68,10 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     get parentNode(): N | null | undefined;
     private _parentNode?;
     /**
+     * The closest ancestor adapter
+     */
+    get parentAdapter(): SpatialAdapter<N> | null;
+    /**
      * Transitionable layout orientation
      */
     get orientation(): Transitionable<Quaternion>;
@@ -100,14 +104,23 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     set activeLayout(val: SpatialLayout | null);
     get activeLayout(): SpatialLayout | null;
     private _activeLayout;
+    previousStatus: 'stable' | 'transitioning' | 'transition-begin';
     /**
      *
      */
-    get isTargetStable(): boolean | null;
+    get status(): "stable" | "transitioning" | "transition-begin";
+    /**
+     *
+     */
+    get progress(): number;
     /**
      * Add a layout with an associated behavior.
      */
     createLayout(): SpatialLayout;
-    onUpdate?: () => void;
-    onLayout?: () => void;
+    onPreUpdate?: () => void;
+    onPostUpdate?: () => void;
+    syncWithParentAdapter: boolean;
+    private _nodeOrientation;
+    private _nodeBounds;
+    _update(): void;
 }

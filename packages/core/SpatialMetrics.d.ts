@@ -206,8 +206,6 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * Update metrics, if necessary
      */
     update(): void;
-    private _nodeOrientation;
-    private _nodeBounds;
     private _cachedInnerBounds;
     private _childBounds;
     private _innerBounds;
@@ -233,7 +231,7 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * Invalidate intrinsic bounds in order to allow it to be recomputed
      */
     invalidateIntrinsicBounds(): void;
-    private _invalidateInnerBounds;
+    invalidateInnerBounds(): void;
     /**
      * Returns false if this node does not contain the passed node.
      * If the given node is a descendent of this node, returns
@@ -279,7 +277,7 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      */
     get parentMetrics(): SpatialMetrics<N> | null;
     /**
-     * The closest non-empty or adapter containing metrics
+     * The closest non-empty containing metrics
      */
     get outerMetrics(): SpatialMetrics<N> | null;
     /**

@@ -12,6 +12,7 @@ export declare class OptimizerConfig {
     stepSizeMax?: number;
     stepSizeStart?: number;
     staleRestartRate?: number;
+    successRateMin?: number;
     /** The number of samples to use for computing success rate */
     successRateMovingAverage?: number;
     iterationsPerFrame?: number;

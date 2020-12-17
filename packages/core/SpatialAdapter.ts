@@ -3,7 +3,7 @@ import { SpatialLayout } from './SpatialLayout'
 import { Transitionable, TransitionConfig, Transition } from './Transitionable'
 import { OptimizerConfig } from './SpatialOptimizer'
 import { Quaternion, Box3, V_000, V_111 } from './math'
-import { SpatialMetrics } from './SpatialMetrics'
+import { SpatialMetrics, NodeState } from './SpatialMetrics'
 
 
 /**
@@ -29,7 +29,7 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
     static behavior = {
         fadeOnEnterExit(adapter:SpatialAdapter) {
             if (adapter.opacity.target === 0 && 
-                adapter.isTargetStable && 
+                adapter.status === 'stable' && 
                 adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalDegrees) {
                 adapter.opacity.forceCommit = new Transition({target: 1, blend:false})
                 return
@@ -152,6 +152,18 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
     private _parentNode? : N | null
 
     /**
+     * The closest ancestor adapter
+     */
+    get parentAdapter() {
+        let nodeMetrics : SpatialMetrics<N>|null = this.metrics
+        while (nodeMetrics = nodeMetrics.parentMetrics) {
+            const adapter = this.system.nodeAdapters.get(nodeMetrics.node)
+            if (adapter) return adapter
+        }
+        return null
+    }
+
+    /**
      * Transitionable layout orientation                                                                          
      */
     get orientation() {
@@ -214,11 +226,28 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
     }
     private _activeLayout = null as SpatialLayout|null
 
+    previousStatus : 'stable' | 'transitioning' | 'transition-begin' = 'stable' 
+
     /**
      * 
      */
-    get isTargetStable() {
-        return this.metrics.parentNode && this.orientation.status === "unchanged" && this.bounds.status === "unchanged"
+    get status() {
+        if (this.progress === 1)
+            return 'stable'
+        if (this.progress === 0)
+            return 'transition-begin'
+        return 'transitioning'
+    }
+
+    /**
+     * 
+     */
+    get progress() {
+        return Math.min(
+            this.orientation.progress, 
+            this.bounds.progress, 
+            this.opacity.progress
+        )
     }
 
     /**
@@ -236,30 +265,59 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         return layout
     }
 
-    // /**
-    //  * Reset the target state to match the current node state
-    //  */
-    // retarget(node:Node3D=this.node) {
-    //     this.enabled = false
-    //     this.metrics.invalidateCurrentState()
-    //     this.parentNode = this.metrics.parentNode
-    //     this.orientation.target = this.metrics.layoutOrientation
-    //     this.bounds.target = this.metrics.layoutBounds
-    //     this.opacity.target = this.metrics.opacity
-    //     this.enabled = true
-    // }
 
-    // _update() {
-    //     const metrics = this.metrics
-    //     const nodeState = metrics.nodeState as NodeState
+    onPreUpdate? : () => void
 
-       
-    // }
-    // private _currentMatrix = new Matrix4
+    onPostUpdate? : () => void
+
+    syncWithParentAdapter = false
 
 
-    onUpdate? : () => void
+    private _nodeOrientation = new Quaternion
+    private _nodeBounds = new Box3
 
-    onLayout? : () => void
+    _update() {
+        this.previousStatus = this.status
+
+        const metrics = this.metrics
+
+        if (this.onPreUpdate) {       
+            const nodeState = metrics.nodeState as NodeState<N>
+            const previousNodeParent = nodeState.parent
+            const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation)
+            const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds)
+            this.onPreUpdate()
+            metrics.invalidateIntrinsicBounds()
+            metrics.invalidateInnerBounds()
+            metrics.invalidateNodeStates()
+            metrics.nodeState // recompute
+            const config = this.system.config
+            const bounds = nodeState.layoutBounds
+            if (previousNodeParent !== nodeState.parent) 
+                this.parentNode = nodeState.parent
+            if (!previousNodeOrientation.equals(nodeState.localOrientation)) 
+                this.orientation.target = nodeState.localOrientation
+            if (previousNodeBounds.min.distanceTo(bounds.min) > config.epsillonMeters ||
+                previousNodeBounds.max.distanceTo(bounds.max) > config.epsillonMeters) 
+                this.bounds.target = bounds
+        }
+
+        this.system.optimizer.update(this)
+
+        if (this.syncWithParentAdapter && this.parentAdapter?.progress === 0) {
+            this.opacity.forceCommit = true
+            this.orientation.forceCommit = true
+            this.bounds.forceCommit = true
+        }
+
+        this.opacity.update()
+        this.orientation.update()
+        this.bounds.update()
+
+        metrics.invalidateNodeStates()
+        this.system.bindings.apply(metrics, metrics.currentState)
+        metrics.invalidateNodeStates()
+        this.onPostUpdate?.()
+    }
 
 }

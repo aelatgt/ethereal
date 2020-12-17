@@ -56,6 +56,10 @@ export class SpatialAdapter {
         this.layouts = new Array();
         this._prevLayout = null;
         this._activeLayout = null;
+        this.previousStatus = 'stable';
+        this.syncWithParentAdapter = false;
+        this._nodeOrientation = new Quaternion;
+        this._nodeBounds = new Box3;
         this.metrics = this.system.getMetrics(this.node);
         this._orientation = new Transitionable(this.system, new Quaternion, undefined, this.transition);
         this._bounds = new Transitionable(this.system, new Box3().setFromCenterAndSize(V_000, V_111), undefined, this.transition);
@@ -129,6 +133,18 @@ export class SpatialAdapter {
     }
     get parentNode() { return this._parentNode; }
     /**
+     * The closest ancestor adapter
+     */
+    get parentAdapter() {
+        let nodeMetrics = this.metrics;
+        while (nodeMetrics = nodeMetrics.parentMetrics) {
+            const adapter = this.system.nodeAdapters.get(nodeMetrics.node);
+            if (adapter)
+                return adapter;
+        }
+        return null;
+    }
+    /**
      * Transitionable layout orientation
      */
     get orientation() {
@@ -166,8 +182,18 @@ export class SpatialAdapter {
     /**
      *
      */
-    get isTargetStable() {
-        return this.metrics.parentNode && this.orientation.status === "unchanged" && this.bounds.status === "unchanged";
+    get status() {
+        if (this.progress === 1)
+            return 'stable';
+        if (this.progress === 0)
+            return 'transition-begin';
+        return 'transitioning';
+    }
+    /**
+     *
+     */
+    get progress() {
+        return Math.min(this.orientation.progress, this.bounds.progress, this.opacity.progress);
     }
     /**
      * Add a layout with an associated behavior.
@@ -183,11 +209,48 @@ export class SpatialAdapter {
         this.layouts.push(layout);
         return layout;
     }
+    _update() {
+        this.previousStatus = this.status;
+        const metrics = this.metrics;
+        if (this.onPreUpdate) {
+            const nodeState = metrics.nodeState;
+            const previousNodeParent = nodeState.parent;
+            const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation);
+            const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds);
+            this.onPreUpdate();
+            metrics.invalidateIntrinsicBounds();
+            metrics.invalidateInnerBounds();
+            metrics.invalidateNodeStates();
+            metrics.nodeState; // recompute
+            const config = this.system.config;
+            const bounds = nodeState.layoutBounds;
+            if (previousNodeParent !== nodeState.parent)
+                this.parentNode = nodeState.parent;
+            if (!previousNodeOrientation.equals(nodeState.localOrientation))
+                this.orientation.target = nodeState.localOrientation;
+            if (previousNodeBounds.min.distanceTo(bounds.min) > config.epsillonMeters ||
+                previousNodeBounds.max.distanceTo(bounds.max) > config.epsillonMeters)
+                this.bounds.target = bounds;
+        }
+        this.system.optimizer.update(this);
+        if (this.syncWithParentAdapter && this.parentAdapter?.progress === 0) {
+            this.opacity.forceCommit = true;
+            this.orientation.forceCommit = true;
+            this.bounds.forceCommit = true;
+        }
+        this.opacity.update();
+        this.orientation.update();
+        this.bounds.update();
+        metrics.invalidateNodeStates();
+        this.system.bindings.apply(metrics, metrics.currentState);
+        metrics.invalidateNodeStates();
+        this.onPostUpdate?.();
+    }
 }
 SpatialAdapter.behavior = {
     fadeOnEnterExit(adapter) {
         if (adapter.opacity.target === 0 &&
-            adapter.isTargetStable &&
+            adapter.status === 'stable' &&
             adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalDegrees) {
             adapter.opacity.forceCommit = new Transition({ target: 1, blend: false });
             return;
