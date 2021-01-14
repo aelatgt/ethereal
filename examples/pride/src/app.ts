@@ -288,7 +288,8 @@ export default class AppBase {
         
 
         if (this.xrPresenting) {
-            // this.renderer.setClearColor(new THREE.Color('blue'))
+            this.renderer.setClearColor(new THREE.Color('blue'))
+            this.renderer.setClearColor(new THREE.Color('white'), 0)
             this._wasPresenting = true
             const vrCamera = this.renderer.xr.getCamera(this.camera) as THREE.ArrayCamera
             this.camera.matrix.copy(vrCamera.matrix)

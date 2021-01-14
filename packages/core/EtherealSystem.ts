@@ -60,7 +60,7 @@ export class EtherealSystem<N extends Node3D = Node3D> {
             allowInvalidLayout: false,
             relativeTolerance: 0.2,
             iterationsPerFrame: 1, // iterations per frame per layout
-            swarmSize: 20, // solutions per layout
+            swarmSize: 10, // solutions per layout
             pulseFrequencyMin: 0, // minimal exploitation pulse
             pulseFrequencyMax: 1.5, // maximal exploitation pulse
             pulseRate: 0.3, // The ratio of directed exploitation vs random exploration,

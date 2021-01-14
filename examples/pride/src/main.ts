@@ -5,7 +5,6 @@ import PrideAPI from './lib/PrideAPI'
 import * as THREE from 'three'
 import {createSystem} from 'ethereal'
 import * as ethereal from 'ethereal'
-import './lib/SpatialLayout'
 
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh'
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree

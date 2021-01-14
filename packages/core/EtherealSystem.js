@@ -41,7 +41,7 @@ export class EtherealSystem {
                 allowInvalidLayout: false,
                 relativeTolerance: 0.2,
                 iterationsPerFrame: 1,
-                swarmSize: 20,
+                swarmSize: 10,
                 pulseFrequencyMin: 0,
                 pulseFrequencyMax: 1.5,
                 pulseRate: 0.3,
