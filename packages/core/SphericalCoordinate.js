@@ -1,4 +1,4 @@
-import { Vector3, MathUtils } from './math';
+import { Vector3, MathUtils } from './math-utils';
 const scratchVector3 = new Vector3;
 export class SphericalCoordinate {
     constructor(horizontalRadians = 0, verticalRadians = 0, distance = 0) {

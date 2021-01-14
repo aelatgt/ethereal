@@ -70,10 +70,10 @@ export class DemoApp extends AppBase {
             const adapter = this.system.getAdapter(this.room)
             const layout = adapter.createLayout()
             layout.orientation = Q_IDENTITY
-            layout.local.centerX = {meters:0}
-            layout.local.centerZ = {meters:0}
-            layout.local.bottom = {meters:0}
-            layout.local.height = {meters:6}
+            layout.local.centerX = '0 m'
+            layout.local.centerZ = '0 m'
+            layout.local.bottom = '0 m'
+            layout.local.height = '6 m'
             layout.aspect = 'preserve-3d'
 
             adapter.onPreUpdate = () => {

@@ -1,6 +1,6 @@
 
 
-import {Vector3, MathUtils} from './math'
+import {Vector3, MathUtils} from './math-utils'
 
 const scratchVector3 = new Vector3
 

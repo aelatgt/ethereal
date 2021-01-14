@@ -1,5 +1,5 @@
 import {EtherealSystem, Node3D} from './EtherealSystem'
-import {Box3} from './math'
+import {Box3} from './math-utils'
 
 import {Object3D, Mesh, PerspectiveCamera} from 'three'
 import { SpatialMetrics, NodeState } from './SpatialMetrics'

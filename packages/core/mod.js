@@ -1,4 +1,4 @@
-export * from './math';
+export * from './math-utils';
 export * from './LayoutFrustum';
 export * from './SpatialMetrics';
 export * from './SpatialAdapter';

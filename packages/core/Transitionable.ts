@@ -12,7 +12,7 @@ import {
     Q_IDENTITY, 
     computeRelativeDifference,
     MathType
-} from './math'
+} from './math-utils'
 import { EtherealSystem } from './EtherealSystem'
 
 import * as easingImport from '@popmotion/easing'
@@ -183,7 +183,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
      * The target value. 
      */
     set target(value:TransitionableType<T>) {
-        this.active = true
+        this.enabled = true
         this._target = this._copy(this._target, value)
     }
     get target() {
@@ -201,27 +201,34 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
     /**
      * If false, this transitionable is inert
      */
-    active = false
+    enabled = false
 
     /**
-     * At 0, a new transition is pending (though may be cancelled).
-     * At 1, no transitions are active or pending
+     * At 0, a new transition has started
+     * Between 0 and 1 represents the transition progress
+     * At 1, no transitions are active
      */
     get progress() {
-        if (!this.active) return 1
+        if (!this.enabled) return 1
         
         if (this.queue.length > 0) {
             const t = this.queue[this.queue.length-1]
             return t.elapsed / t.duration
-        } else if (this.status !== 'unchanged') {
-            return 0
         }
+        
         return 1
     }
 
+    /** 
+     * Force the next update to not commit the target value
+     **/
+    forceWait = false
+
     /**
      * Force the next update to commit the target value,
-     * or the specified transition
+     * or the specified transition.
+     * If forceCommit is set while forceWait is also set, 
+     * forceWait takes precedence. 
      */
     get forceCommit() {
         return this._forceCommit
@@ -308,7 +315,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
 
         if (!changed) return 'unchanged'
 
-        if ((delay >= config.delay && debounce >= config.debounce) || wait >= config.maxWait) {
+        if (!this.forceWait && ((delay >= config.delay && debounce >= config.debounce) || wait >= config.maxWait)) {
             return 'committing'
         }
 
@@ -390,8 +397,10 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
                 transition.blend = transition.blend ?? config.blend
                 transition.elapsed = transition.elapsed ?? 0
                 queue.push(transition as Required<Transition<T>>)
+                this.forceCommit = false
                 break
         }
+        this.forceWait = false
     }
 
     private _scratchV2 = new Vector2
@@ -470,17 +479,17 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
 
         if (!this._isEqual(this._previousTarget, this.target)) {
             this._target = this._target
-            this.active = true
+            this.enabled = true
         }
 
         this._previousTarget = this._copy(this._previousTarget, this.target)
 
-        if (!this.active) return
+        if (!this.enabled) return
 
         const syncGroup = this.syncGroup as Set<Transitionable>
         if (!this.forceCommit && syncGroup) {
             for (const t of syncGroup) {
-                if (t.active && t.status === 'committing') {
+                if (t.enabled && t.status === 'committing') {
                     for (const to of syncGroup) { 
                         if (to.needsUpdate && to.forceCommit === false) to.forceCommit = true 
                     }
@@ -491,7 +500,6 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
 
         this._updateTransitionable()
         this.needsUpdate = false
-        this.forceCommit = false
     }
     private _previousTarget! : TransitionableType<T>
 

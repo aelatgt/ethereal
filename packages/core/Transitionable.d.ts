@@ -1,4 +1,4 @@
-import { MathType } from './math';
+import { MathType } from './math-utils';
 import { EtherealSystem } from './EtherealSystem';
 export declare type Easing = (v: number) => number;
 export declare type EasingModifier = (easing: Easing) => Easing;
@@ -123,15 +123,22 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
     /**
      * If false, this transitionable is inert
      */
-    active: boolean;
+    enabled: boolean;
     /**
-     * At 0, a new transition is pending (though may be cancelled).
-     * At 1, no transitions are active or pending
+     * At 0, a new transition has started
+     * Between 0 and 1 represents the transition progress
+     * At 1, no transitions are active
      */
     get progress(): number;
     /**
+     * Force the next update to not commit the target value
+     **/
+    forceWait: boolean;
+    /**
      * Force the next update to commit the target value,
-     * or the specified transition
+     * or the specified transition.
+     * If forceCommit is set while forceWait is also set,
+     * forceWait takes precedence.
      */
     get forceCommit(): boolean | Transition<T>;
     set forceCommit(val: boolean | Transition<T>);

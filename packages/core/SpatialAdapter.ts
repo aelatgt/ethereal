@@ -1,8 +1,8 @@
 import { EtherealSystem, Node3D } from './EtherealSystem'
 import { SpatialLayout } from './SpatialLayout'
-import { Transitionable, TransitionConfig, Transition } from './Transitionable'
+import { Transitionable, TransitionConfig } from './Transitionable'
 import { OptimizerConfig } from './SpatialOptimizer'
-import { Quaternion, Box3, V_000, V_111 } from './math'
+import { Quaternion, Box3, V_000, V_111 } from './math-utils'
 import { SpatialMetrics, NodeState } from './SpatialMetrics'
 
 
@@ -28,12 +28,12 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
 
     static behavior = {
         fadeOnEnterExit(adapter:SpatialAdapter) {
-            if (adapter.opacity.target === 0 && 
-                adapter.status === 'stable' && 
-                adapter.metrics.targetState.visualFrustum.angleToCenter < adapter.system.viewFrustum.diagonalDegrees) {
-                adapter.opacity.forceCommit = new Transition({target: 1, blend:false})
-                return
-            }
+            // if (adapter.opacity.target === 0 && 
+                // adapter.progress === 1 && 
+                // adapter.metrics.targetState.visualBounds.angleToCenter < adapter.system.viewFrustum.diagonalDegrees) {
+                // adapter.opacity.forceCommit = new Transition({target: 1, blend:false})
+                // return
+            // }
             if (adapter.opacity.target > 0 && !adapter.metrics.parentNode) {
                 adapter.opacity.target = 0
             }
@@ -226,21 +226,12 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
     }
     private _activeLayout = null as SpatialLayout|null
 
-    previousStatus : 'stable' | 'transitioning' | 'transition-begin' = 'stable' 
+    previousProgress = 1
 
     /**
-     * 
-     */
-    get status() {
-        if (this.progress === 1)
-            return 'stable'
-        if (this.progress === 0)
-            return 'transition-begin'
-        return 'transitioning'
-    }
-
-    /**
-     * 
+     * At 0, a new transition has started
+     * Between 0 and 1 represents the transition progress
+     * At 1, no transitions are active
      */
     get progress() {
         return Math.min(
@@ -270,14 +261,13 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
 
     onPostUpdate? : () => void
 
-    syncWithParentAdapter = false
-
+    syncWithParentAdapter = true
 
     private _nodeOrientation = new Quaternion
     private _nodeBounds = new Box3
 
     _update() {
-        this.previousStatus = this.status
+        this.previousProgress = this.progress
 
         const metrics = this.metrics
 
@@ -295,14 +285,22 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             const bounds = nodeState.layoutBounds
             if (previousNodeParent !== nodeState.parent) 
                 this.parentNode = nodeState.parent
-            if (!previousNodeOrientation.equals(nodeState.localOrientation)) 
+            if (previousNodeOrientation.angleTo(nodeState.localOrientation) > config.epsillonRadians) 
                 this.orientation.target = nodeState.localOrientation
             if (previousNodeBounds.min.distanceTo(bounds.min) > config.epsillonMeters ||
                 previousNodeBounds.max.distanceTo(bounds.max) > config.epsillonMeters) 
                 this.bounds.target = bounds
+            if (!this.system.optimizer.update(this)) {
+                this.parentNode = previousNodeParent
+                this.orientation.target = previousNodeOrientation
+                this.bounds.target = previousNodeBounds
+            }
+        } else {
+            metrics.invalidateIntrinsicBounds()
+            metrics.invalidateInnerBounds()
+            metrics.invalidateNodeStates()
+            this.system.optimizer.update(this)
         }
-
-        this.system.optimizer.update(this)
 
         if (this.syncWithParentAdapter && this.parentAdapter?.progress === 0) {
             this.opacity.forceCommit = true

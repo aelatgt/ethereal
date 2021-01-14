@@ -1,31 +1,10 @@
-import { Quaternion, Box3 } from './math';
+import { Quaternion, Box3 } from './math-utils';
 import { LayoutSolution } from './SpatialLayout';
 export class OptimizerConfig {
     constructor(config) {
         config && Object.assign(this, config);
     }
 }
-/**
- * A standard set of objective functions that can be used
- * in order to evaluate fitness and thereby rank layout solutions.
- *
- * The returned numerical value should increase in correlation with improved fitness.
- */
-export const Objective = {
-    maximizeVisualSize: (s) => {
-        return s.visualFrustum.diagonalDegrees;
-    },
-    towardsLayoutDirection: (s, direction) => {
-        return s.layoutCenter.distanceTo(direction);
-    },
-    towardsViewDirection: (s, direction) => {
-        const f = s.visualFrustum;
-        // f.centerMeters
-        return 0;
-    },
-    towardsPosition: (metrics) => 0,
-    towardsViewPosition: (metrics) => 0
-};
 /**
  * Implements an optimization metaheuristic inspired by:
  *  - Novel Adaptive Bat Algorithm (NABA)
@@ -52,6 +31,7 @@ export class SpatialOptimizer {
     }
     _setConfig(adapter) {
         const defaultConfig = this.system.config.optimize;
+        this._config.allowInvalidLayout = defaultConfig.allowInvalidLayout;
         this._config.pulseRate = defaultConfig.pulseRate;
         this._config.iterationsPerFrame = adapter.optimize.iterationsPerFrame ?? defaultConfig.iterationsPerFrame;
         this._config.swarmSize = adapter.optimize.swarmSize ?? defaultConfig.swarmSize;
@@ -66,15 +46,19 @@ export class SpatialOptimizer {
     }
     /**
      * Optimize the layouts defined on this adapter
+     *
+     * Returns true if layout is valid (no constraints are violated)
+     * Returrns false if layout is invalid
      */
     update(adapter) {
         if (adapter.allLayouts.length === 0 || adapter.metrics.innerBounds.isEmpty()) {
             adapter.activeLayout = null;
-            return;
+            return true;
         }
         const prevParent = adapter.parentNode;
         const prevOrientation = this._prevOrientation.copy(adapter.orientation.target);
         const prevBounds = this._prevBounds.copy(adapter.bounds.target);
+        const prevLayout = adapter.activeLayout;
         this._setConfig(adapter);
         for (const layout of adapter.allLayouts) {
             this._updateLayout(adapter, layout);
@@ -83,33 +67,41 @@ export class SpatialOptimizer {
             adapter.parentNode = prevParent;
             adapter.orientation.target = prevOrientation;
             adapter.bounds.target = prevBounds;
+            adapter.activeLayout = prevLayout;
             adapter.metrics.invalidateNodeStates();
-            adapter.activeLayout = null;
-            return;
+            return true;
         }
-        let bestLayout = adapter.layouts[0];
-        let bestOfAllSolutions = adapter.layouts[0].solutions[0];
+        let bestLayout;
+        let bestSolution;
         for (const layout of adapter.layouts) {
-            const bestSolution = layout.solutions[0];
-            if (layout.compareSolutions(bestSolution, bestOfAllSolutions) < 0) {
+            const solution = layout.solutions[0];
+            if ((this._config.allowInvalidLayout || solution.isValid) &&
+                (!bestSolution || layout.compareSolutions(solution, bestSolution) < 0)) {
                 bestLayout = layout;
-                bestOfAllSolutions = bestSolution;
+                bestSolution = solution;
             }
         }
-        this.applyLayoutSolution(adapter, bestLayout, bestOfAllSolutions, false);
-        adapter.activeLayout = bestLayout;
-        return bestLayout;
+        if (bestLayout) {
+            this.applyLayoutSolution(adapter, bestLayout, bestSolution, false);
+            adapter.activeLayout = bestLayout;
+            return true;
+        }
+        adapter.parentNode = prevParent;
+        adapter.orientation.target = prevOrientation;
+        adapter.bounds.target = prevBounds;
+        adapter.activeLayout = prevLayout;
+        adapter.metrics.invalidateNodeStates();
+        return false;
     }
     #scratchSolution;
     _updateLayout(adapter, layout) {
+        layout.measureCache.clear();
         const solutions = layout.solutions;
         const c = this._config;
         const newSolution = this.#scratchSolution;
         const diversificationFactor = 1.5;
         const intensificationFactor = 1.5 ** (-1 / 4);
         const successAlpha = 2 / (c.successRateMovingAverage + 1); // N-sample exponential moving average
-        // const iterations = adapter.layouts.includes(layout) ? 
-        //     c.iterationsPerFrame : Math.min(Math.round(c.iterationsPerFrame * 0.1), 1)
         const iterations = c.iterationsPerFrame;
         // manage solution population (if necessary)
         this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart);
@@ -214,12 +206,11 @@ export class SpatialOptimizer {
         adapter.bounds.target = solution.bounds;
         adapter.metrics.invalidateNodeStates();
         if (evaluate) {
-            const state = adapter.metrics.targetState;
             for (let i = 0; i < layout.constraints.length; i++) {
-                solution.constraintScores[i] = layout.constraints[i].evaluate(state, layout);
+                solution.constraintScores[i] = layout.constraints[i].evaluate();
             }
             for (let i = 0; i < layout.objectives.length; i++) {
-                solution.objectiveScores[i] = layout.objectives[i].evaluate(state, layout);
+                solution.objectiveScores[i] = layout.objectives[i].evaluate();
             }
         }
     }

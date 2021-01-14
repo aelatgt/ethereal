@@ -1,5 +1,5 @@
 // import {tracked, cached} from './tracking'
-import { MathUtils, Vector2, Vector3, Matrix4, Box3, Box2 } from './math'
+import { MathUtils, Vector2, Vector3, Matrix4, Box3, Box2 } from './math-utils'
 import { MemoizationCache } from './MemoizationCache'
 
 export class LayoutFrustum {
@@ -95,10 +95,11 @@ export class LayoutFrustum {
     // }
 
     get sizeDegrees() {
-        return this._size.set( 
+        this._size.set( 
             this.rightDegrees - this.leftDegrees, 
             this.topDegrees - this.bottomDegrees
         )
+        return this._size
     }
     private _size = new Vector2
 

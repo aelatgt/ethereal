@@ -34,6 +34,8 @@ export class App extends AppBase {
 
 const app = new App({
     onUpdate: (event) => {
+        app.system.viewFrustum.setFromPerspectiveProjectionMatrix(app.camera.projectionMatrix)
+        app.renderer.getSize(app.system.viewResolution)
         app.system.update(event.deltaTime, event.elapsedTime)
         app.treadmill.update(event)
         app.ui.update(event)

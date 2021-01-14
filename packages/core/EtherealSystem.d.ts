@@ -1,6 +1,7 @@
+/// <reference types="mathjs" />
 import { SpatialMetrics, NodeState } from './SpatialMetrics';
 import { SpatialAdapter } from './SpatialAdapter';
-import { Box3, MathType } from './math';
+import { Box3, MathType, Vector2 } from './math-utils';
 import { SpatialOptimizer, OptimizerConfig } from './SpatialOptimizer';
 import { Transitionable, TransitionConfig } from './Transitionable';
 import { LayoutFrustum } from './LayoutFrustum';
@@ -26,6 +27,15 @@ export declare class EtherealSystem<N extends Node3D = Node3D> {
     viewNode: N;
     bindings: NodeBindings<N>;
     constructor(viewNode: N, bindings: NodeBindings<N>);
+    math: import("mathjs").MathJsStatic;
+    mathScope: {
+        meter: import("mathjs").Unit;
+        pixel: import("mathjs").Unit;
+        percent: import("mathjs").Unit | undefined;
+        vdeg: import("mathjs").Unit | undefined;
+        vw: import("mathjs").Unit | undefined;
+        vh: import("mathjs").Unit | undefined;
+    };
     config: {
         epsillonMeters: number;
         epsillonRadians: number;
@@ -42,13 +52,16 @@ export declare class EtherealSystem<N extends Node3D = Node3D> {
      */
     viewFrustum: LayoutFrustum;
     /**
+     * The view size in pixels
+     */
+    viewResolution: Vector2;
+    /**
      * The deltaTime for the current frame (seconds)
      * @readonly
      */
     deltaTime: number;
     /**
-     * The time for the current frame (seconds)
-     * @readonly
+     *
      */
     time: number;
     /**
@@ -89,11 +102,10 @@ export declare class EtherealSystem<N extends Node3D = Node3D> {
      */
     createTransitionable: <T extends MathType>(value: T, config?: TransitionConfig | undefined) => Transitionable<T>;
     /**
+     * Call this each frame, after updating `viewNode`, `viewFrustum`,
+     * and `viewResolution`
      *
-     * @param sceneNode
-     * @param viewNode
      * @param deltaTime
-     * @param time
      */
     update(deltaTime: number, time: number): void;
 }

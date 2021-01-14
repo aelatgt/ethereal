@@ -1,4 +1,4 @@
-import { Vector2, Matrix4, Box3 } from './math';
+import { Vector2, Matrix4, Box3 } from './math-utils';
 export declare class LayoutFrustum {
     #private;
     private _cache;

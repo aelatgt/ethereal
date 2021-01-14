@@ -1,6 +1,5 @@
-import { Box3, Vector3, Quaternion, Matrix4 } from './math';
+import { Box3, Vector3, Quaternion, Matrix4 } from './math-utils';
 import { EtherealSystem, Node3D } from './EtherealSystem';
-import { LayoutFrustum } from './LayoutFrustum';
 declare const InternalCurrentState: unique symbol;
 declare const InternalTargetState: unique symbol;
 export declare class NodeState<N extends Node3D = Node3D> {
@@ -13,7 +12,7 @@ export declare class NodeState<N extends Node3D = Node3D> {
     set parent(val: N | null);
     private _parent;
     get parentState(): Readonly<NodeState<N>> | undefined;
-    get outerState(): Readonly<NodeState<N>> | undefined;
+    get outerState(): Readonly<NodeState<N>>;
     private _cachedLocalMatrix;
     get localMatrix(): Matrix4;
     set localMatrix(val: Matrix4);
@@ -144,22 +143,32 @@ export declare class NodeState<N extends Node3D = Node3D> {
     /**
      * The view projection space from layout space
      */
-    get screenBounds(): Box3;
-    private _cachedScreenBounds;
-    private _viewProjectionFromLocal;
-    private _screenBounds;
-    private _screenCenter;
-    private _screenSize;
-    get screenCenter(): Vector3;
-    get screenSize(): Vector3;
     /**
-     * The visual bounds of the this node.
-     * X and Y coordinates are in degrees, with the origin being centered in the visual space
-     * Z coordinate are in meters
+     * Normalized Device Coordinates
      */
-    get visualFrustum(): LayoutFrustum;
-    private _cachedVisualFrustum;
-    private _visualFrustum;
+    get ndcBounds(): Box3;
+    private _cachedNDCBounds;
+    private _viewProjectionFromLocal;
+    private _ndcBounds;
+    private _ndcCenter;
+    private _ndcSize;
+    get ndcCenter(): Vector3;
+    get ndcSize(): Vector3;
+    /**
+     * The visual bounds of this node.
+     *
+     * Horizontal and vertical units are in pixels, with screen center at (0,0)
+     * Z dimension is in meters
+     */
+    get visualBounds(): Box3;
+    private _cachedVisualBounds;
+    private _visualBounds;
+    private _visualCenter;
+    private _visualSize;
+    private _v1;
+    private _inverseProjection;
+    get visualCenter(): Vector3;
+    get visualSize(): Vector3;
     /**
      * The view position relative to this node state
      */
@@ -178,6 +187,10 @@ export declare class NodeState<N extends Node3D = Node3D> {
     private _orthogonalRotation;
     private _orthogonalOrientation;
     private _computeOcclusion;
+    private static _boxA;
+    private static _boxB;
+    private static _sizeA;
+    private static _sizeB;
     /**
      * The percent of this node occluding another node
      */
@@ -279,7 +292,7 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The closest non-empty containing metrics
      */
-    get outerMetrics(): SpatialMetrics<N> | null;
+    get outerMetrics(): SpatialMetrics<N>;
     /**
      * The child nodes that are included in this bounding context
      */

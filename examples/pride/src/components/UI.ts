@@ -22,8 +22,8 @@ export default class UI {
         onLayerCreate: (layer) => {
             const adapter = this.app.system.getAdapter(layer)
             adapter.syncWithParentAdapter = false
-            adapter.transition.duration = 0.6
-            adapter.transition.debounce = 0.5
+            adapter.transition.duration = 1
+            // adapter.transition.debounce = 0.5 // 0.4
             adapter.transition.maxWait = 10
             adapter.onPreUpdate = () => {
                 layer.updateLayout()
@@ -66,6 +66,7 @@ export default class UI {
 
         const setupPrideLayer = () => {
             const adapter = this.app.system.getAdapter(this.pride)
+            // adapter.transition.debounce = 0.5 // 0.1
 
             const immersiveLayout = adapter.createLayout()
             immersiveLayout.parentNode = this.app.scene
@@ -76,11 +77,10 @@ export default class UI {
             const flatLayout = adapter.createLayout()
             flatLayout.parentNode = this.app.camera // attach the UI to the camera
             // flatLayout.visual.far = {meters:1}
-            flatLayout.visual.near = {gt:{meters:this.app.camera.near}}
-            flatLayout.visual.width = {percent:100}
-            flatLayout.visual.height = {percent:100}
-            flatLayout.visual.centerX = {degrees:0}
-            flatLayout.visual.centerY = {degrees:0}
+            flatLayout.visual.width = '100 vw'
+            flatLayout.visual.height = '100 vh'
+            flatLayout.visual.centerX = '0 vdeg'
+            flatLayout.visual.centerY = '0 vdeg'
             flatLayout.scale = V_111
             flatLayout.orientation = Q_IDENTITY
 
@@ -101,19 +101,25 @@ export default class UI {
             setTimeout(() => (this.video.element as HTMLVideoElement).play(), 5000)
         }
 
-        const setupSnubberModel = () => {
+        const setupSnubberModel = () => {   ``  
             const snubberObject = this.treadmill.snubberObject
             this.model.add(snubberObject)
             const adapter = app.system.getAdapter(snubberObject)
-            adapter.transition.duration = 0.5
-            adapter.transition.debounce = 0.1
+            adapter.transition.duration = 1
+            // adapter.transition.debounce = 0 // 0.3
             adapter.transition.maxWait = 10
             
             const flatLayout = adapter.createLayout()
             flatLayout.parentNode = this.model
             flatLayout.orientation = Q_IDENTITY
-            flatLayout.local.pull = {position: {x:0,y:0}}
-            flatLayout.local.back = {percent:-50}
+            flatLayout.local.back       = '0.1m'
+            flatLayout.visual.left      = {gt: '10px'}
+            flatLayout.visual.right     = {lt: '-10px'}
+            flatLayout.visual.bottom    = {gt: '10px'}
+            flatLayout.visual.top       = {lt: '-10px'}
+            flatLayout.visual.diagonal = {gt: '10vdeg'}
+            flatLayout.visual.pull      = {position: {x:0,y:0}}
+            // flatLayout.visual.pull = {position: {x:0,y:0}}
 
             const IMMERSIVE = [] as any
             const FLAT = [flatLayout]
@@ -131,11 +137,7 @@ export default class UI {
                     }
                 } else {
                     adapter.layouts = FLAT
-                    const modelVisual = this.app.system.getState(this.model).visualFrustum
-                    flatLayout.visual.left      = {gt: {degrees: modelVisual.leftDegrees + 2}}
-                    flatLayout.visual.right     = {lt: {degrees: modelVisual.rightDegrees - 2}}
-                    flatLayout.visual.bottom    = {gt: {degrees: modelVisual.bottomDegrees + 2}}
-                    flatLayout.visual.top       = {lt: {degrees: modelVisual.topDegrees - 2}}
+                    // const modelBounds = this.app.system.getState(this.model).visualBounds
                 }
             }
         }

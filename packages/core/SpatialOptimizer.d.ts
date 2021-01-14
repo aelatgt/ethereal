@@ -1,18 +1,15 @@
 import { EtherealSystem, Node3D } from './EtherealSystem';
-import { Vector3 } from './math';
 import { LayoutSolution, SpatialLayout } from './SpatialLayout';
 import { SpatialAdapter } from './SpatialAdapter';
-import { SpatialMetrics, NodeState } from './SpatialMetrics';
 export declare class OptimizerConfig {
     constructor(config?: OptimizerConfig);
-    constraintThreshold?: number;
     relativeTolerance?: number;
-    absoluteTolerance?: number;
     stepSizeMin?: number;
     stepSizeMax?: number;
     stepSizeStart?: number;
     staleRestartRate?: number;
     successRateMin?: number;
+    allowInvalidLayout?: boolean;
     /** The number of samples to use for computing success rate */
     successRateMovingAverage?: number;
     iterationsPerFrame?: number;
@@ -33,19 +30,6 @@ export declare class OptimizerConfig {
      */
     pulseFrequencyMax?: number;
 }
-/**
- * A standard set of objective functions that can be used
- * in order to evaluate fitness and thereby rank layout solutions.
- *
- * The returned numerical value should increase in correlation with improved fitness.
- */
-export declare const Objective: {
-    maximizeVisualSize: (s: NodeState<any>) => number;
-    towardsLayoutDirection: (s: NodeState<any>, direction: Vector3) => number;
-    towardsViewDirection: (s: NodeState<any>, direction: Vector3) => number;
-    towardsPosition: (metrics: SpatialMetrics<any>) => number;
-    towardsViewPosition: (metrics: SpatialMetrics<any>) => number;
-};
 /**
  * Implements an optimization metaheuristic inspired by:
  *  - Novel Adaptive Bat Algorithm (NABA)
@@ -72,8 +56,11 @@ export declare class SpatialOptimizer<N extends Node3D> {
     private _prevBounds;
     /**
      * Optimize the layouts defined on this adapter
+     *
+     * Returns true if layout is valid (no constraints are violated)
+     * Returrns false if layout is invalid
      */
-    update(adapter: SpatialAdapter<any>): SpatialLayout | undefined;
+    update(adapter: SpatialAdapter<any>): boolean;
     private _updateLayout;
     private _manageSolutionPopulation;
     /**

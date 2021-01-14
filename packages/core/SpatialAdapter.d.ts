@@ -2,7 +2,7 @@ import { EtherealSystem, Node3D } from './EtherealSystem';
 import { SpatialLayout } from './SpatialLayout';
 import { Transitionable, TransitionConfig } from './Transitionable';
 import { OptimizerConfig } from './SpatialOptimizer';
-import { Quaternion, Box3 } from './math';
+import { Quaternion, Box3 } from './math-utils';
 import { SpatialMetrics } from './SpatialMetrics';
 /**
  * This class enables *spatially adaptive layout* for a single node in a scenegraph.
@@ -104,13 +104,11 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     set activeLayout(val: SpatialLayout | null);
     get activeLayout(): SpatialLayout | null;
     private _activeLayout;
-    previousStatus: 'stable' | 'transitioning' | 'transition-begin';
+    previousProgress: number;
     /**
-     *
-     */
-    get status(): "stable" | "transitioning" | "transition-begin";
-    /**
-     *
+     * At 0, a new transition has started
+     * Between 0 and 1 represents the transition progress
+     * At 1, no transitions are active
      */
     get progress(): number;
     /**

@@ -62,6 +62,5 @@ temp
 .rts2_cache_umd
 .cache
 .parcel-cache
-lib
 
 .DS_Store

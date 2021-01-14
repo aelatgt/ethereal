@@ -1,6 +1,5 @@
 var _a, _b;
-import { Box3, Vector3, Quaternion, Matrix4, V_000, DIRECTION, V_111 } from './math';
-import { LayoutFrustum } from './LayoutFrustum';
+import { Box3, Vector3, Quaternion, Matrix4, V_000, DIRECTION, V_111, Box2, Vector2 } from './math-utils';
 import { MemoizationCache } from './MemoizationCache';
 const InternalCurrentState = Symbol("current");
 const InternalTargetState = Symbol("target");
@@ -125,38 +124,53 @@ export class NodeState {
         this._viewFromLocal = new Matrix4;
         this._viewFromLayout = new Matrix4;
         this._layoutFromView = new Matrix4;
-        this._cachedScreenBounds = this._cache.memoize(() => {
+        this._cachedNDCBounds = this._cache.memoize(() => {
             if (this.metrics.system.viewNode === this.metrics.node) {
-                this._screenBounds.min.setScalar(-1);
-                this._screenBounds.max.setScalar(1);
-                return this._screenBounds;
+                this._ndcBounds.min.setScalar(-1);
+                this._ndcBounds.max.setScalar(1);
+                return this._ndcBounds;
             }
             const viewFrustum = this.metrics.system.viewFrustum;
             const projection = viewFrustum.perspectiveProjectionMatrix;
             const viewFromLocal = this.viewFromLocal;
             const viewProjectionFromLocal = this._viewProjectionFromLocal.multiplyMatrices(projection, viewFromLocal);
-            const bounds = this._screenBounds.copy(this.metrics.innerBounds).applyMatrix4(viewProjectionFromLocal);
+            const bounds = this._ndcBounds.copy(this.metrics.innerBounds).applyMatrix4(viewProjectionFromLocal);
             // measure as slightly smaller than actual to hide gaps at edges
-            bounds.min.x *= 0.999;
-            bounds.max.x *= 0.999;
-            bounds.min.y *= 0.999;
-            bounds.max.y *= 0.999;
-            bounds.getCenter(this._screenCenter);
-            bounds.getSize(this._screenSize);
+            // bounds.min.x *= 0.999
+            // bounds.max.x *= 0.999
+            // bounds.min.y *= 0.999
+            // bounds.max.y *= 0.999
+            bounds.getCenter(this._ndcCenter);
+            bounds.getSize(this._ndcSize);
             return bounds;
         }, this._viewState._cache);
         this._viewProjectionFromLocal = new Matrix4;
-        this._screenBounds = new Box3;
-        this._screenCenter = new Vector3;
-        this._screenSize = new Vector3;
-        this._cachedVisualFrustum = this._cache.memoize(() => {
-            if (this.metrics.node === this.metrics.system.viewNode) {
-                return this.metrics.system.viewFrustum;
-            }
-            const projection = this.metrics.system.viewFrustum.perspectiveProjectionMatrix;
-            return this._visualFrustum.setFromPerspectiveProjectionMatrix(projection, this.screenBounds);
+        this._ndcBounds = new Box3;
+        this._ndcCenter = new Vector3;
+        this._ndcSize = new Vector3;
+        this._cachedVisualBounds = this._cache.memoize(() => {
+            const system = this.metrics.system;
+            const projection = system.viewFrustum.perspectiveProjectionMatrix;
+            const inverseProjection = this._inverseProjection.getInverse(projection);
+            const bounds = this._visualBounds.copy(this.ndcBounds);
+            const v = this._v1;
+            const nearMeters = v.set(0, 0, bounds.min.z).applyMatrix4(inverseProjection).z;
+            const farMeters = v.set(0, 0, bounds.max.z).applyMatrix4(inverseProjection).z;
+            bounds.min.z = farMeters;
+            bounds.max.z = nearMeters;
+            bounds.min.x *= 0.5 * system.viewResolution.x;
+            bounds.max.x *= 0.5 * system.viewResolution.x;
+            bounds.min.y *= 0.5 * system.viewResolution.y;
+            bounds.max.y *= 0.5 * system.viewResolution.y;
+            bounds.getCenter(this._visualCenter);
+            bounds.getSize(this._visualSize);
+            return bounds;
         }, this._viewState._cache);
-        this._visualFrustum = new LayoutFrustum;
+        this._visualBounds = new Box3;
+        this._visualCenter = new Vector3;
+        this._visualSize = new Vector3;
+        this._v1 = new Vector3;
+        this._inverseProjection = new Matrix4;
         this._viewPosition = new Vector3;
         this._cachedViewAlignedOrientation = this._cache.memoize(() => {
             const relativeViewMatrix = this._relativeViewMatrix.multiplyMatrices(this.worldMatrixInverse, this._viewState.worldMatrix);
@@ -220,8 +234,13 @@ export class NodeState {
                 return;
             const system = metrics.system;
             const adapters = system.nodeAdapters.values();
-            const myFrustum = this.visualFrustum;
-            const myNear = myFrustum.nearMeters;
+            const myBounds = this.visualBounds;
+            const myNear = myBounds.min.z;
+            const a = NodeState._boxA;
+            const b = NodeState._boxB;
+            a.min.set(myBounds.min.x, myBounds.min.y);
+            a.min.set(myBounds.max.x, myBounds.max.y);
+            const myLength = a.getSize(NodeState._sizeA).length();
             for (const adapter of adapters) {
                 const otherMetrics = adapter.metrics;
                 if (otherMetrics === metrics)
@@ -231,10 +250,14 @@ export class NodeState {
                 if (otherMetrics.containedByNode(adapter.node))
                     continue;
                 const otherState = this.mode === 'current' ? otherMetrics.currentState : otherMetrics.targetState;
-                const otherFrustum = otherState.visualFrustum;
-                const overlapPercent = myFrustum.overlapPercent(otherFrustum);
+                const otherBounds = otherState.visualBounds;
+                a.min.set(myBounds.min.x, myBounds.min.y);
+                a.min.set(myBounds.max.x, myBounds.max.y);
+                b.min.set(otherBounds.min.x, otherBounds.min.y);
+                b.min.set(otherBounds.max.x, otherBounds.max.y);
+                const overlapPercent = a.intersect(b).getSize(NodeState._sizeB).length() / myLength;
                 if (overlapPercent > 0) {
-                    if (myNear < otherFrustum.nearMeters)
+                    if (myNear < otherBounds.min.z)
                         this._occludingPercent += overlapPercent;
                     else
                         this._occludedPercent += overlapPercent;
@@ -244,6 +267,46 @@ export class NodeState {
         this._occludingPercent = 0;
         this._occludedPercent = 0;
     }
+    // mathScope = Object.create(this.metrics.system.mathScope, {
+    //     'outerVisual': {
+    //         get: this._cache.memoize(() => {
+    //             const m = this.metrics.system.math
+    //             const outerVisual = this.outerState.visualBounds
+    //             const outerVisualSize = this.outerState.visualSize
+    //             return {
+    //                 left: m.unit(outerVisual.min.x, 'px'),
+    //                 right: m.unit(outerVisual.max.x, 'px'),
+    //                 bottom: m.unit(outerVisual.min.y, 'px'),
+    //                 top: m.unit(outerVisual.max.y, 'px'),
+    //                 back: m.unit(outerVisual.min.z, 'm'),
+    //                 front: m.unit(outerVisual.max.z, 'm'),
+    //                 width: m.unit(outerVisualSize.x, 'px'),
+    //                 height: m.unit(outerVisualSize.y, 'px'),
+    //                 depth: m.unit(outerVisualSize.z, 'm'),
+    //                 diagonal: m.unit(Math.sqrt(outerVisualSize.x ** 2 + outerVisualSize.y ** 2),'px')
+    //             }
+    //         })
+    //     },
+    //     'outerBounds': {
+    //         get: this._cache.memoize(() => {
+    //             const m = this.metrics.system.math
+    //             const outerBounds = this.outerBounds
+    //             const outerSize = this.outerSize
+    //             return {
+    //                left: m.unit(outerBounds.min.x, 'm'),
+    //                right: m.unit(outerBounds.max.x, 'm'),
+    //                bottom: m.unit(outerBounds.min.y, 'm'),
+    //                top: m.unit(outerBounds.max.y, 'm'),
+    //                back: m.unit(outerBounds.min.z, 'm'),
+    //                front: m.unit(outerBounds.max.z, 'm'),
+    //                width: m.unit(outerSize.x, 'm'),
+    //                height: m.unit(outerSize.y, 'm'),
+    //                depth: m.unit(outerSize.z, 'm'),
+    //                diagonal: m.unit(Math.sqrt(outerSize.x ** 2 + outerSize.y ** 2 + outerSize.z ** 2),'m')
+    //             }
+    //         })
+    //     }
+    // })
     invalidate() {
         this._cache.invalidateAll();
     }
@@ -476,25 +539,53 @@ export class NodeState {
     //     return this._viewProjectionFromLayout.multiplyMatrices(this.viewFromLocal, perspective)
     // }
     // private _viewProjectionFromLayout = new Matrix4
-    get screenBounds() {
-        return this._cachedScreenBounds();
+    /**
+     * Normalized Device Coordinates
+     */
+    get ndcBounds() {
+        return this._cachedNDCBounds();
     }
-    get screenCenter() {
-        this._cachedScreenBounds();
-        return this._screenCenter;
+    get ndcCenter() {
+        this._cachedNDCBounds();
+        return this._ndcCenter;
     }
-    get screenSize() {
-        this._cachedScreenBounds();
-        return this._screenSize;
+    get ndcSize() {
+        this._cachedNDCBounds();
+        return this._ndcSize;
     }
     /**
-     * The visual bounds of the this node.
-     * X and Y coordinates are in degrees, with the origin being centered in the visual space
-     * Z coordinate are in meters
+     * The visual bounds of this node.
+     *
+     * Horizontal and vertical units are in pixels, with screen center at (0,0)
+     * Z dimension is in meters
      */
-    get visualFrustum() {
-        return this._cachedVisualFrustum();
+    get visualBounds() {
+        return this._cachedVisualBounds();
     }
+    get visualCenter() {
+        this._cachedVisualBounds();
+        return this._visualCenter;
+    }
+    get visualSize() {
+        this._cachedVisualBounds();
+        return this._visualSize;
+    }
+    // /**
+    //  * The visual bounds of the this node.
+    //  * X and Y coordinates are in degrees, with the origin being centered in the visual space
+    //  * Z coordinate are in meters
+    //  */
+    // get visualFrustum() {
+    //     return this._cachedVisualFrustum()
+    // }
+    // private _cachedVisualFrustum = this._cache.memoize(() => {
+    //     if (this.metrics.node === this.metrics.system.viewNode) {
+    //         return this.metrics.system.viewFrustum
+    //     }
+    //     const projection = this.metrics.system.viewFrustum.perspectiveProjectionMatrix
+    //     return this._visualFrustum.setFromPerspectiveProjectionMatrix(projection, this.ndcBounds)
+    // }, this._viewState._cache)
+    // private _visualFrustum  = new LayoutFrustum
     /**
      * The view position relative to this node state
      */
@@ -522,6 +613,10 @@ export class NodeState {
         return this._occludedPercent;
     }
 }
+NodeState._boxA = new Box2;
+NodeState._boxB = new Box2;
+NodeState._sizeA = new Vector2;
+NodeState._sizeB = new Vector2;
 /**
  * Maintains current & target scenegraph state,
  * and efficiently/reactively compute spatial metrics
@@ -552,11 +647,11 @@ export class SpatialMetrics {
             if (size.length() > 0) {
                 const sizeEpsillon = this.system.config.epsillonMeters;
                 if (Math.abs(size.x) <= sizeEpsillon)
-                    size.x = (Math.sign(size.x) || 1) * sizeEpsillon * 10;
+                    size.x = (Math.sign(size.x) || 1) * sizeEpsillon * 1000;
                 if (Math.abs(size.y) <= sizeEpsillon)
-                    size.y = (Math.sign(size.y) || 1) * sizeEpsillon * 10;
+                    size.y = (Math.sign(size.y) || 1) * sizeEpsillon * 1000;
                 if (Math.abs(size.z) <= sizeEpsillon)
-                    size.z = (Math.sign(size.z) || 1) * sizeEpsillon * 10;
+                    size.z = (Math.sign(size.z) || 1) * sizeEpsillon * 1000;
                 inner.setFromCenterAndSize(center, size);
             }
             return inner;
@@ -598,11 +693,11 @@ export class SpatialMetrics {
                 const useCurrent = state.mode === 'current';
                 const adapter = this.system.nodeAdapters.get(this.node);
                 localOrientation.copy((useCurrent ?
-                    adapter?.orientation.active && adapter?.orientation.current :
-                    adapter?.orientation.active && adapter?.orientation.target) || this.nodeState.localOrientation);
+                    adapter?.orientation.enabled && adapter?.orientation.current :
+                    adapter?.orientation.enabled && adapter?.orientation.target) || this.nodeState.localOrientation);
                 const layoutBounds = (useCurrent ?
-                    adapter?.bounds.active && adapter?.bounds.current :
-                    adapter?.bounds.active && adapter?.bounds.target);
+                    adapter?.bounds.enabled && adapter?.bounds.current :
+                    adapter?.bounds.enabled && adapter?.bounds.target);
                 const parentMetrics = this.parentMetrics;
                 state.parent = parentMetrics?.node ?? null;
                 if (layoutBounds) {
@@ -832,6 +927,8 @@ export class SpatialMetrics {
         while (parentMetrics && (parentMetrics.innerBounds.isEmpty())) {
             parentMetrics = parentMetrics.parentMetrics;
         }
+        if (!parentMetrics)
+            return this.system.viewMetrics;
         return parentMetrics;
     }
     /**

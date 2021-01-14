@@ -9,22 +9,22 @@ test('ranking solutions', (t) => {
     const system = new EtherealSystemMock
     const adapter = system.getAdapter(new Object3D)
     const layout = adapter.createLayout()
-    layout.objectives = [
-        {
-            evaluate: () => 0, // ignored
-            bestScore: 0
-        },
-        {
-            evaluate: () => 0, // ignored
-            relativeTolerance: 0, // default
-            bestScore: 0
-        },
-        {
-            evaluate: () => 0, // ignored
-            relativeTolerance: 0, // default
-            bestScore: 0
-        }
-    ]
+    // layout.objectives = [
+    //     {
+    //         evaluate: () => 0, // ignored
+    //         bestScore: 0
+    //     },
+    //     {
+    //         evaluate: () => 0, // ignored
+    //         relativeTolerance: 0, // default
+    //         bestScore: 0
+    //     },
+    //     {
+    //         evaluate: () => 0, // ignored
+    //         relativeTolerance: 0, // default
+    //         bestScore: 0
+    //     }
+    // ]
     const solutionA = new LayoutSolution()
     const solutionB = new LayoutSolution()
     solutionA.layout = layout

@@ -1,5 +1,5 @@
 // import { cached, tracked, TrackedArray } from './tracking'
-import { Vector2, Vector3, Quaternion, Box3, Color, MathUtils, V_00, V_000, Q_IDENTITY, computeRelativeDifference } from './math';
+import { Vector2, Vector3, Quaternion, Box3, Color, MathUtils, V_00, V_000, Q_IDENTITY, computeRelativeDifference } from './math-utils';
 import * as easingImport from '@popmotion/easing';
 export const easing = easingImport;
 export class Transition {
@@ -27,7 +27,11 @@ export class Transitionable extends TransitionConfig {
         /**
          * If false, this transitionable is inert
          */
-        this.active = false;
+        this.enabled = false;
+        /**
+         * Force the next update to not commit the target value
+         **/
+        this.forceWait = false;
         this._forceCommit = false;
         this._resolvedConfig = new TransitionConfig;
         this.delayTime = 0;
@@ -154,31 +158,31 @@ export class Transitionable extends TransitionConfig {
      * The target value.
      */
     set target(value) {
-        this.active = true;
+        this.enabled = true;
         this._target = this._copy(this._target, value);
     }
     get target() {
         return this._target;
     }
     /**
-     * At 0, a new transition is pending (though may be cancelled).
-     * At 1, no transitions are active or pending
+     * At 0, a new transition has started
+     * Between 0 and 1 represents the transition progress
+     * At 1, no transitions are active
      */
     get progress() {
-        if (!this.active)
+        if (!this.enabled)
             return 1;
         if (this.queue.length > 0) {
             const t = this.queue[this.queue.length - 1];
             return t.elapsed / t.duration;
         }
-        else if (this.status !== 'unchanged') {
-            return 0;
-        }
         return 1;
     }
     /**
      * Force the next update to commit the target value,
-     * or the specified transition
+     * or the specified transition.
+     * If forceCommit is set while forceWait is also set,
+     * forceWait takes precedence.
      */
     get forceCommit() {
         return this._forceCommit;
@@ -250,7 +254,7 @@ export class Transitionable extends TransitionConfig {
         const changed = relDiff > threshold;
         if (!changed)
             return 'unchanged';
-        if ((delay >= config.delay && debounce >= config.debounce) || wait >= config.maxWait) {
+        if (!this.forceWait && ((delay >= config.delay && debounce >= config.debounce) || wait >= config.maxWait)) {
             return 'committing';
         }
         const refRelDiff = this.referenceRelativeDifference;
@@ -326,8 +330,10 @@ export class Transitionable extends TransitionConfig {
                 transition.blend = transition.blend ?? config.blend;
                 transition.elapsed = transition.elapsed ?? 0;
                 queue.push(transition);
+                this.forceCommit = false;
                 break;
         }
+        this.forceWait = false;
     }
     /**
      *
@@ -337,15 +343,15 @@ export class Transitionable extends TransitionConfig {
             return;
         if (!this._isEqual(this._previousTarget, this.target)) {
             this._target = this._target;
-            this.active = true;
+            this.enabled = true;
         }
         this._previousTarget = this._copy(this._previousTarget, this.target);
-        if (!this.active)
+        if (!this.enabled)
             return;
         const syncGroup = this.syncGroup;
         if (!this.forceCommit && syncGroup) {
             for (const t of syncGroup) {
-                if (t.active && t.status === 'committing') {
+                if (t.enabled && t.status === 'committing') {
                     for (const to of syncGroup) {
                         if (to.needsUpdate && to.forceCommit === false)
                             to.forceCommit = true;
@@ -356,7 +362,6 @@ export class Transitionable extends TransitionConfig {
         }
         this._updateTransitionable();
         this.needsUpdate = false;
-        this.forceCommit = false;
     }
     set syncGroup(group) {
         if (this._syncGroup)

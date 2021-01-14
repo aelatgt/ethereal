@@ -1,9 +1,10 @@
 import { SpatialMetrics, NodeState } from './SpatialMetrics'
 import { SpatialAdapter } from './SpatialAdapter'
-import { Box3, MathType } from './math'
+import { Box3, MathType, Vector2 } from './math-utils'
 import { SpatialOptimizer, OptimizerConfig } from './SpatialOptimizer'
 import { Transitionable, TransitionConfig, easing } from './Transitionable'
 import { LayoutFrustum } from './LayoutFrustum'
+import { create, all } from 'mathjs'
 
 /**
  * A third-party scenegraph node instance (e.g., THREE.Object3D)
@@ -25,37 +26,50 @@ export interface NodeBindings<N extends Node3D> {
  */
 export class EtherealSystem<N extends Node3D = Node3D> {
 
-    constructor(public viewNode:N, public bindings:NodeBindings<N>) { }
+    constructor(public viewNode:N, public bindings:NodeBindings<N>) {}
+
+    math = create(all, <any>{
+        predictable: true
+    }) as math.MathJsStatic
+
+
+    mathScope = {
+        meter: this.math.unit('meter'),
+        pixel: this.math.createUnit('pixel',{aliases:['pixels','px']}),
+        percent: undefined as math.Unit|undefined,
+        vdeg: undefined as math.Unit|undefined,
+        vw: undefined as math.Unit|undefined,
+        vh: undefined as math.Unit|undefined
+    }
 
     config = {
-        epsillonMeters: 1e-10,
-        epsillonRadians: 1e-10,
-        epsillonRatio: 1e-10,
+        epsillonMeters: 1e-8,
+        epsillonRadians: 1e-8,
+        epsillonRatio: 1e-8,
         transition: new TransitionConfig({
             multiplier: 1,
             duration: 0,
             easing: easing.easeInOut,
-            threshold: 0.0001,
+            threshold: 0.001,
             delay: 0,
             debounce: 0,
             maxWait: 10,
             blend: true
         }) as Required<TransitionConfig>,
         optimize: new OptimizerConfig({
-            constraintThreshold: 1,
-            relativeTolerance: 0.001,
-            absoluteTolerance: 0.00001,
-            iterationsPerFrame: 4, // iterations per frame per layout
-            swarmSize: 10, // solutions per layout
-            pulseFrequencyMin: 0.3, // minimal exploitation pulse
-            pulseFrequencyMax: 1, // maximal exploitation pulse
-            pulseRate: 0.5, // The ratio of directed exploitation vs random exploration,
-            stepSizeMin: 0.01,
+            allowInvalidLayout: false,
+            relativeTolerance: 0.2,
+            iterationsPerFrame: 1, // iterations per frame per layout
+            swarmSize: 20, // solutions per layout
+            pulseFrequencyMin: 0, // minimal exploitation pulse
+            pulseFrequencyMax: 1.5, // maximal exploitation pulse
+            pulseRate: 0.3, // The ratio of directed exploitation vs random exploration,
+            stepSizeMin: 0.01, 
             stepSizeMax: 1.5,
-            stepSizeStart: 0.3,
-            staleRestartRate: 0.1,
+            stepSizeStart: 0.8,
+            staleRestartRate: 0.01,
             successRateMovingAverage: 200,
-            successRateMin: 0.005
+            successRateMin: 0.15
         }) as Required<OptimizerConfig>
     }
 
@@ -70,16 +84,20 @@ export class EtherealSystem<N extends Node3D = Node3D> {
     viewFrustum = new LayoutFrustum
 
     /**
+     * The view size in pixels
+     */
+    viewResolution = new Vector2(1000,1000)
+
+    /**
      * The deltaTime for the current frame (seconds)
      * @readonly
      */
     deltaTime = 1/60
 
     /**
-     * The time for the current frame (seconds)
-     * @readonly
+     * 
      */
-    time = -1
+    time = 0
     
     /**
      * The maximum delta time value
@@ -153,16 +171,19 @@ export class EtherealSystem<N extends Node3D = Node3D> {
     }
 
     /**
+     * Call this each frame, after updating `viewNode`, `viewFrustum`, 
+     * and `viewResolution`
      * 
-     * @param sceneNode 
-     * @param viewNode 
-     * @param deltaTime 
-     * @param time 
+     * @param deltaTime
      */
     update(deltaTime:number, time:number) {
 
         this.deltaTime = Math.max(deltaTime, this.maxDeltaTime)
         this.time = time
+        
+        this.mathScope.vdeg = this.math.unit(this.viewResolution.y/this.viewFrustum.sizeDegrees.y,'px')
+        this.mathScope.vw = this.math.unit(this.viewResolution.x/100,'px')
+        this.mathScope.vh = this.math.unit(this.viewResolution.y/100,'px')
 
         for (const metrics of this.nodeMetrics.values()) {
             metrics.needsUpdate = true
