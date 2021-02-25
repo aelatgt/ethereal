@@ -54,51 +54,51 @@ export class NodeState {
         this._worldCenter = new Vector3;
         // private _worldOrigin = new Vector3
         /**
-         * The layout space (convert to world space from layout space)
+         * The spatial frame (convert to world frame from spatial frame)
          */
-        this._cachedLayoutMatrix = this._cache.memoize(() => {
-            const layoutMatrix = this._layoutMatrix.compose(this.worldOrigin, this.worldOrientation, V_111);
-            this._layoutMatrixInverse.getInverse(this._layoutMatrix);
-            this._localFromLayout.multiplyMatrices(this.worldMatrixInverse, layoutMatrix);
-            this._layoutFromLocal.getInverse(this._localFromLayout);
-            return layoutMatrix;
+        this._cachedSpatialMatrix = this._cache.memoize(() => {
+            const spatialMatrix = this._spatialMatrix.compose(this.worldOrigin, this.worldOrientation, V_111);
+            this._spatialMatrixInverse.getInverse(this._spatialMatrix);
+            this._localFromSpatial.multiplyMatrices(this.worldMatrixInverse, spatialMatrix);
+            this._spatialFromLocal.getInverse(this._localFromSpatial);
+            return spatialMatrix;
         });
-        this._layoutMatrix = new Matrix4;
-        this._layoutMatrixInverse = new Matrix4;
-        this._localFromLayout = new Matrix4;
-        this._layoutFromLocal = new Matrix4;
+        this._spatialMatrix = new Matrix4;
+        this._spatialMatrixInverse = new Matrix4;
+        this._localFromSpatial = new Matrix4;
+        this._spatialFromLocal = new Matrix4;
         // // /**
-        // //  * Convert to layout space from parent space
+        // //  * Convert to spatial frame from parent frame
         // //  */
-        // get layoutFromParent() {
-        //     return this._layoutFromParent.multiplyMatrices(this.layoutFromLocal, this.localMatrixInverse)
+        // get spatialFromParent() {
+        //     return this._spatialFromParent.multiplyMatrices(this.spatialFromLocal, this.localMatrixInverse)
         // }
-        // private _layoutFromParent = new Matrix4
+        // private _spatialFromParent = new Matrix4
         // // /**
-        // //  * Convert to parent space from layout space
+        // //  * Convert to parent frame from spatial frame
         // //  */
-        // get parentFromLayout() {
-        //     return this._parentFromLayout.getInverse(this.layoutFromParent)
+        // get parentFromSpatial() {
+        //     return this._parentFromSpatial.getInverse(this.spatialFromParent)
         // }
-        // private _parentFromLayout = new Matrix4
+        // private _parentFromSpatial = new Matrix4
         /**
-         * The layout bounds
+         * The spatial bounds
          */
-        this._cachedLayoutBounds = this._cache.memoize(() => {
+        this._cachedSpatialBounds = this._cache.memoize(() => {
             if (this.metrics.innerBounds.isEmpty()) {
-                this._layoutBounds.setFromCenterAndSize(V_000, V_111);
+                this._spatialBounds.setFromCenterAndSize(V_000, V_111);
             }
             else {
-                this._layoutBounds.copy(this.metrics.innerBounds);
+                this._spatialBounds.copy(this.metrics.innerBounds);
             }
-            const bounds = this._layoutBounds.applyMatrix4(this.layoutFromLocal);
-            bounds.getCenter(this._layoutCenter);
-            bounds.getSize(this._layoutSize);
+            const bounds = this._spatialBounds.applyMatrix4(this.spatialFromLocal);
+            bounds.getCenter(this._spatialCenter);
+            bounds.getSize(this._spatialSize);
             return bounds;
         });
-        this._layoutBounds = new Box3;
-        this._layoutSize = new Vector3;
-        this._layoutCenter = new Vector3;
+        this._spatialBounds = new Box3;
+        this._spatialSize = new Vector3;
+        this._spatialCenter = new Vector3;
         /**
          * The first non-empty parent bounds, reoriented
          */
@@ -110,8 +110,8 @@ export class NodeState {
             }
             else {
                 bounds.copy(outerState.metrics.innerBounds);
-                const layoutFromOuter = this._layoutFromOuter.multiplyMatrices(this.layoutMatrixInverse, outerState.worldMatrix);
-                bounds.applyMatrix4(layoutFromOuter);
+                const spatialFromOuter = this._spatialFromOuter.multiplyMatrices(this.spatialMatrixInverse, outerState.worldMatrix);
+                bounds.applyMatrix4(spatialFromOuter);
             }
             bounds.getCenter(this._outerCenter);
             bounds.getSize(this._outerSize);
@@ -120,10 +120,10 @@ export class NodeState {
         this._outerBounds = new Box3;
         this._outerCenter = new Vector3;
         this._outerSize = new Vector3;
-        this._layoutFromOuter = new Matrix4;
+        this._spatialFromOuter = new Matrix4;
         this._viewFromLocal = new Matrix4;
-        this._viewFromLayout = new Matrix4;
-        this._layoutFromView = new Matrix4;
+        this._viewFromSpatial = new Matrix4;
+        this._spatialFromView = new Matrix4;
         this._cachedNDCBounds = this._cache.memoize(() => {
             if (this.metrics.system.viewNode === this.metrics.node) {
                 this._ndcBounds.min.setScalar(-1);
@@ -423,44 +423,44 @@ export class NodeState {
         return this.outerState?.worldCenter ?? V_000;
         // return this._cachedWorldOrigin()
     }
-    get layoutMatrix() {
-        return this._cachedLayoutMatrix();
+    get spatialMatrix() {
+        return this._cachedSpatialMatrix();
     }
     /**
-     * Convert to layout space from world space
+     * Convert to spatial frame from world frame
      */
-    get layoutMatrixInverse() {
-        this.layoutMatrix;
-        return this._layoutMatrixInverse;
+    get spatialMatrixInverse() {
+        this.spatialMatrix;
+        return this._spatialMatrixInverse;
     }
     /**
-     * Convert to local space from layout space
+     * Convert to local frame from spatial frame
      */
-    get localFromLayout() {
-        this.layoutMatrix;
-        return this._localFromLayout;
+    get localFromSpatial() {
+        this.spatialMatrix;
+        return this._localFromSpatial;
     }
     /**
-     * Convert to layout space from local space
+     * Convert to spatial frame from local frame
      */
-    get layoutFromLocal() {
-        this.layoutMatrix;
-        return this._layoutFromLocal;
+    get spatialFromLocal() {
+        this.spatialMatrix;
+        return this._spatialFromLocal;
     }
-    get layoutBounds() { return this._cachedLayoutBounds(); }
+    get spatialBounds() { return this._cachedSpatialBounds(); }
     /**
-     * The layout size
+     * The spatial size
      */
-    get layoutSize() {
-        this.layoutBounds;
-        return this._layoutSize;
+    get spatialSize() {
+        this.spatialBounds;
+        return this._spatialSize;
     }
     /**
-     * The layout center
+     * The spatial center
      */
-    get layoutCenter() {
-        this.layoutBounds;
-        return this._layoutCenter;
+    get spatialCenter() {
+        this.spatialBounds;
+        return this._spatialCenter;
     }
     get outerBounds() { return this._cachedOuterBounds(); }
     /**
@@ -478,10 +478,10 @@ export class NodeState {
         return this._outerSize;
     }
     // /**
-    //  * The layout bounds in proportional units ( identity with parent layout is center=[0,0,0] size=[1,1,1] )
+    //  * The spatial bounds in proportional units ( identity with parent spatial is center=[0,0,0] size=[1,1,1] )
     //  */
     // @cached get proportionalBounds() {
-    //     const proportional = this._proportionalBounds.copy(this.layoutBounds)
+    //     const proportional = this._proportionalBounds.copy(this.spatialBounds)
     //     const outerSize = this.outerSize
     //     proportional.min.divide(outerSize)
     //     proportional.max.divide(outerSize)
@@ -493,7 +493,7 @@ export class NodeState {
     // private _proportionalCenter = new Vector3
     // private _proportionalSize = new Vector3
     // /**
-    //  * Proportional size ( identity with parent layout is size=[1,1,1] )
+    //  * Proportional size ( identity with parent spatial is size=[1,1,1] )
     //  */
     // get proportionalSize() {
     //     this.proportionalBounds
@@ -515,30 +515,30 @@ export class NodeState {
             viewMetrics[InternalTargetState]);
     }
     /**
-     * The view space from local space
+     * The view frame from local frame
      */
     get viewFromLocal() {
         return this._viewFromLocal.multiplyMatrices(this._viewState.worldMatrixInverse, this.worldMatrix);
     }
     /**
-     * The view space from layout space
+     * The view frame from spatial frame
      */
-    get viewFromLayout() {
-        return this._viewFromLayout.multiplyMatrices(this._viewState.worldMatrixInverse, this.layoutMatrix);
+    get viewFromSpatial() {
+        return this._viewFromSpatial.multiplyMatrices(this._viewState.worldMatrixInverse, this.spatialMatrix);
     }
     /**
-     * Convert to parent space from layout space
+     * Convert to parent frame from spatial frame
      */
-    get layoutFromView() {
-        return this._layoutFromView.getInverse(this.viewFromLayout);
+    get spatialFromView() {
+        return this._spatialFromView.getInverse(this.viewFromSpatial);
     }
     /**
-     * The view projection space from layout space
+     * The view projection frame from spatial frame
      */
     // @cached get viewProjectionFromLocal() {
-    //     return this._viewProjectionFromLayout.multiplyMatrices(this.viewFromLocal, perspective)
+    //     return this._viewProjectionFromSpatial.multiplyMatrices(this.viewFromLocal, perspective)
     // }
-    // private _viewProjectionFromLayout = new Matrix4
+    // private _viewProjectionFromSpatial = new Matrix4
     /**
      * Normalized Device Coordinates
      */
@@ -572,7 +572,7 @@ export class NodeState {
     }
     // /**
     //  * The visual bounds of the this node.
-    //  * X and Y coordinates are in degrees, with the origin being centered in the visual space
+    //  * X and Y coordinates are in degrees, with the origin being centered in the visual frame
     //  * Z coordinate are in meters
     //  */
     // get visualFrustum() {
@@ -585,7 +585,7 @@ export class NodeState {
     //     const projection = this.metrics.system.viewFrustum.perspectiveProjectionMatrix
     //     return this._visualFrustum.setFromPerspectiveProjectionMatrix(projection, this.ndcBounds)
     // }, this._viewState._cache)
-    // private _visualFrustum  = new LayoutFrustum
+    // private _visualFrustum  = new SpatialFrustum
     /**
      * The view position relative to this node state
      */
@@ -674,7 +674,7 @@ export class SpatialMetrics {
             return this._nodeState;
         });
         /**
-         * Compute spatial state from layout orientation & bounds
+         * Compute spatial state from spatial orientation & bounds
          */
         this._computeState = (() => {
             const localMatrix = new Matrix4;
@@ -685,9 +685,9 @@ export class SpatialMetrics {
             const worldPosition = new Vector3;
             const worldOrientation = new Quaternion;
             const worldScale = new Vector3;
-            const layoutCenter = new Vector3;
-            const layoutSize = new Vector3;
-            const layoutOffset = new Vector3;
+            const spatialCenter = new Vector3;
+            const spatialSize = new Vector3;
+            const spatialOffset = new Vector3;
             const innerOffset = new Vector3;
             return function computeState(state) {
                 const useCurrent = state.mode === 'current';
@@ -695,27 +695,27 @@ export class SpatialMetrics {
                 localOrientation.copy((useCurrent ?
                     adapter?.orientation.enabled && adapter?.orientation.current :
                     adapter?.orientation.enabled && adapter?.orientation.target) || this.nodeState.localOrientation);
-                const layoutBounds = (useCurrent ?
+                const spatialBounds = (useCurrent ?
                     adapter?.bounds.enabled && adapter?.bounds.current :
                     adapter?.bounds.enabled && adapter?.bounds.target);
                 const parentMetrics = this.parentMetrics;
                 state.parent = parentMetrics?.node ?? null;
-                if (layoutBounds) {
-                    layoutBounds.getCenter(layoutCenter);
-                    layoutBounds.getSize(layoutSize);
+                if (spatialBounds) {
+                    spatialBounds.getCenter(spatialCenter);
+                    spatialBounds.getSize(spatialSize);
                     const parentState = useCurrent ?
                         parentMetrics?.currentState :
                         parentMetrics?.targetState;
                     const innerCenter = this.innerCenter;
                     const innerSize = this.innerSize;
                     const sizeEpsillon = this.system.config.epsillonMeters;
-                    if (Math.abs(layoutSize.x) <= sizeEpsillon)
-                        layoutSize.x = (Math.sign(layoutSize.x) || 1) * sizeEpsillon * 10;
-                    if (Math.abs(layoutSize.y) <= sizeEpsillon)
-                        layoutSize.y = (Math.sign(layoutSize.y) || 1) * sizeEpsillon * 10;
-                    if (Math.abs(layoutSize.z) <= sizeEpsillon)
-                        layoutSize.z = (Math.sign(layoutSize.z) || 1) * sizeEpsillon * 10;
-                    worldScale.copy(layoutSize);
+                    if (Math.abs(spatialSize.x) <= sizeEpsillon)
+                        spatialSize.x = (Math.sign(spatialSize.x) || 1) * sizeEpsillon * 10;
+                    if (Math.abs(spatialSize.y) <= sizeEpsillon)
+                        spatialSize.y = (Math.sign(spatialSize.y) || 1) * sizeEpsillon * 10;
+                    if (Math.abs(spatialSize.z) <= sizeEpsillon)
+                        spatialSize.z = (Math.sign(spatialSize.z) || 1) * sizeEpsillon * 10;
+                    worldScale.copy(spatialSize);
                     if (Math.abs(innerSize.x) >= sizeEpsillon)
                         worldScale.x /= innerSize.x;
                     if (Math.abs(innerSize.y) >= sizeEpsillon)
@@ -725,9 +725,9 @@ export class SpatialMetrics {
                     parentState ?
                         worldOrientation.multiplyQuaternions(parentState.worldOrientation, localOrientation) :
                         worldOrientation.copy(localOrientation);
-                    layoutOffset.copy(layoutCenter).applyQuaternion(worldOrientation);
+                    spatialOffset.copy(spatialCenter).applyQuaternion(worldOrientation);
                     innerOffset.copy(innerCenter).multiply(worldScale).applyQuaternion(worldOrientation);
-                    worldPosition.copy(state.worldOrigin).add(layoutOffset).sub(innerOffset);
+                    worldPosition.copy(state.worldOrigin).add(spatialOffset).sub(innerOffset);
                     worldMatrix.compose(worldPosition, worldOrientation, worldScale);
                     parentState ?
                         localMatrix.multiplyMatrices(parentState.worldMatrixInverse, worldMatrix) :

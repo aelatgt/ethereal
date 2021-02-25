@@ -14,7 +14,7 @@ test('adapter w/ target bounds, no parent, default orientation, w/ empty inner s
     t.deepEqual(metrics.innerSize, V_000)
     t.deepEqual(state.localPosition, new Vector3(1,2,0))
     t.deepEqual(state.localScale, new Vector3(4,5,6))
-    t.deepEqual(state.layoutBounds, adapter.bounds.target)
+    t.deepEqual(state.spatialBounds, adapter.bounds.target)
 })
 
 
@@ -31,7 +31,7 @@ test('adapter w/ target bounds, parent w/ geometry, orientation, and custom inne
     t.deepEqual(parentState.localPosition,parentBox.position)
     t.deepEqual(parentState.localScale, new Vector3(1,2,2))
     t.deepEqual(parentState.worldScale, new Vector3(1,2,2))
-    t.deepEqual(parentState.layoutBounds.getSize(new Vector3), new Vector3(2,6,8))
+    t.deepEqual(parentState.spatialBounds.getSize(new Vector3), new Vector3(2,6,8))
     t.deepEqual(parentState.worldCenter, new Vector3(10,0,0))
     t.is(parentState.outerBounds.isEmpty(), true)
     t.deepEqual(parentState.outerBounds.getSize(new Vector3), V_000)
@@ -54,9 +54,9 @@ test('adapter w/ target bounds, parent w/ geometry, orientation, and custom inne
         t.deepEqual(state.worldOrientation, adapter.orientation.target)
         t.deepEqual(state.worldScale, new Vector3(0.5,0.5,0.5))
         t.assert(state.outerBounds.getSize(new Vector3).distanceToSquared(new Vector3(8,6,2)) < 1e-10)
-        t.assert(state.layoutBounds.max.distanceTo(adapter.bounds.target.max) < 1e-10)
-        t.assert(state.layoutBounds.min.distanceTo(adapter.bounds.target.min) < 1e-10)
-        t.assert(state.layoutBounds.getSize(new Vector3).distanceTo(V_111) < 1e-10)
+        t.assert(state.spatialBounds.max.distanceTo(adapter.bounds.target.max) < 1e-10)
+        t.assert(state.spatialBounds.min.distanceTo(adapter.bounds.target.min) < 1e-10)
+        t.assert(state.spatialBounds.getSize(new Vector3).distanceTo(V_111) < 1e-10)
     }
     
     setupContent()

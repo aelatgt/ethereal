@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import * as ethereal from 'ethereal'
-import {Q_IDENTITY, V_111} from 'ethereal'
+import {Q_IDENTITY, V_111, V_000} from 'ethereal'
 
 import {App} from '../main'
 import {UpdateEvent} from '../app'
@@ -11,7 +11,7 @@ import {createApp} from 'vue'
 import state from './state'
 
 export default class UI {
-
+                                                                                                                                                                                                                                                                                                                                                                                                        
     augmentations: {[name: string]: THREE.Object3D} = {}
 
     state = state
@@ -25,12 +25,12 @@ export default class UI {
             adapter.transition.duration = 1
             // adapter.transition.debounce = 0.5 // 0.4
             adapter.transition.maxWait = 10
-            adapter.onPreUpdate = () => {
-                layer.updateLayout()
+            adapter.onUpdate = () => {
+                layer.update()
             }
-            adapter.onPostUpdate = () => {
-                if (adapter.progress > 0.1) layer.updateContent()
-            }
+            // adapter.onPostUpdate = () => {
+            //     if (adapter.progress > 0.3) layer.updateContent()
+            // }
         }
     })
     procedure = this.pride.querySelector('#procedure')!
@@ -58,73 +58,135 @@ export default class UI {
             this.app.scene.add(this.immersiveAnchor)
             const adapter = this.app.system.getAdapter(this.immersiveAnchor)
             const center = new THREE.Vector3
-            adapter.onPreUpdate = () => {
+            adapter.onUpdate = () => {
                 center.set(0, this.app.xrPresenting ? 1.6 : 0, this.app.xrPresenting ? -0.7 : -1.4) // position away from camera
                 adapter.bounds.target.setFromCenterAndSize(center, ethereal.V_111)
             }
         }
 
         const setupPrideLayer = () => {
-            const adapter = this.app.system.getAdapter(this.pride)
+            const adapter = this.app.system.getAdapter(this.pride)            
+            // adapter.transition.delay = 5
             // adapter.transition.debounce = 0.5 // 0.1
 
             const immersiveLayout = adapter.createLayout()
-            immersiveLayout.parentNode = this.app.scene
-            immersiveLayout.position = {x:0,y:0,z:-1}
-            immersiveLayout.scale = V_111
-            immersiveLayout.orientation = Q_IDENTITY
+                .attachedTo(this.app.scene)
+                .localPosition({x:0,y:0,z:-1})
+                .localScale(V_111)
+                .localOrientation(Q_IDENTITY)
+            
+            // immersiveLayout.addPositionConstraint({})
+            // immersiveLayout.addVisualConstraint({})
+            // immersiveLayout.addObjectives({
+            //     position: {},
+            //     orientation: {
+            //     maximizeVisual: true
+            // })
+            // immersiveLayout.addConstraint(new Constraint.Visual({
 
-            const flatLayout = adapter.createLayout()
-            flatLayout.parentNode = this.app.camera // attach the UI to the camera
-            // flatLayout.visual.far = {meters:1}
-            flatLayout.visual.width = '100 vw'
-            flatLayout.visual.height = '100 vh'
-            flatLayout.visual.centerX = '0 vdeg'
-            flatLayout.visual.centerY = '0 vdeg'
-            flatLayout.scale = V_111
-            flatLayout.orientation = Q_IDENTITY
+            // }))
+            // immersiveLayout.addConstraint({
+            //     position: {x:0,y:0,z:-1},
+            //     threshold: 0.1
+            // })
 
-            this.app.camera.add(this.pride)
+                const flatLayout = adapter.createLayout()
+                    .attachedTo(this.app.camera) // attach the UI to the camera
+                    .localOrientation(Q_IDENTITY)
+                    .preserveAspect('visual')
+                    .visualBounds({
+                        size: {y: '100 vh'},
+                        center: {x: '0 vdeg', y:'0 vdeg'}
+                    })
+                // flatLayout.scale = V_111
+                // flatLayout.orientation = Q_IDENTITY
 
-            adapter.onPreUpdate = () => {
-                this.pride.options.autoRefresh = (this.app.timeSinceLastResize > 100)
-                this.pride.updateLayout()
-                this.pride.updateContent()
-                
-                if (this.state.immersiveMode) {
-                    adapter.layouts = [immersiveLayout]
-                } else {
-                    adapter.layouts = [flatLayout]
+                this.app.camera.add(this.pride)
+
+                adapter.onUpdate = () => {
+                    this.pride.options.autoRefresh = (this.app.timeSinceLastResize > 100)
+                    this.pride.update()
+                    if (this.state.immersiveMode) {
+                        adapter.layouts = [immersiveLayout]
+                    } else {
+                        adapter.layouts = [flatLayout]
+                    }
                 }
+
+                setTimeout(() => (this.video.element as HTMLVideoElement).play(), 5000)
             }
 
-            setTimeout(() => (this.video.element as HTMLVideoElement).play(), 5000)
-        }
+            const setupSnubberModel = () => { 
+                const snubberObject = this.treadmill.snubberObject
+                this.model.add(snubberObject)
+                const adapter = app.system.getAdapter(snubberObject)
+                adapter.transition.duration = 1
+                adapter.transition.maxWait = 10
+                
+                const flatLayout = adapter.createLayout()
+                flatLayout.attachedTo(this.model)
+                    .localOrientation(Q_IDENTITY)
+                    .preserveAspect('visual')
+                    .spatialBounds({back: '0.1m'})
+                    .visualBounds({
+                        left:       {gt: '10px'},
+                        right:      {lt: '-10px'},
+                        bottom:     {gt: '10px'},
+                        top:        {lt: '-10px'},
+                        size:       {diagonal:   {gt: '10vdeg'}}
+                    })
+                    .visualForce({})
+                    .visualMaximize()
 
-        const setupSnubberModel = () => {   ``  
-            const snubberObject = this.treadmill.snubberObject
-            this.model.add(snubberObject)
-            const adapter = app.system.getAdapter(snubberObject)
-            adapter.transition.duration = 1
-            // adapter.transition.debounce = 0 // 0.3
-            adapter.transition.maxWait = 10
+                // flatLayout.visual.left      = {gt: '10px'}
+                // flatLayout.visual.right     = {lt: '-10px'}
+                // flatLayout.visual.bottom    = {gt: '10px'}
+                // flatLayout.visual.top       = {lt: '-10px'}
+                // flatLayout.visual.size      = {diagonal: {gt: '10vdeg'}}
+                // flatLayout.pullCenter       = {position: {x:0,y:0}}
+                // flatLayout.attractors       = [{x:'0',y:'0'}, this.model]
+                // flatLayout.occluders        = [this.model]
+                // flatLayout.repellers        = []
+                // flatLayout.visual.pull = {position: {x:0,y:0}}
+
+                const immersiveFloating = adapter.createLayout()
+                    .attachedTo(this.app.scene)
+                    .localOrientation(Q_IDENTITY)
+                    .spatialBounds({size: {diagonal: '0.2m'}})
+                    .visualBounds({center: {x: '0', y: '0'}})
+
+
+            // const immersiveFloating = adapter.createLayout()
+            //     .attachedTo(this.app.scene)
+            //     .preserveAspect('spatial')
+            //     .localOrientation(Q_IDENTITY)
+            //     .spatialBounds({size:{diagonal: '0.2m'}})
+            //     .visualBounds({
+            //         absolute: {
+            //             center:{x: '0', y: '0'}
+            //         }
+            //     })
+            //     .visualMaximize()
+            //     .visualPhysics({
+            //         attractors: []
+            //         repellers: [],
+            //         colliders: [],
+            //     })
+            // immersiveFloating.parentNode = this.app.scene
+            // immersiveFloating.visual.center = {x: '0', y: '0'}
+            // immersiveFloating.local.size = {diagonal: '0.2m'}
+            // immersiveFloating.orientation = Q_IDENTITY  
             
-            const flatLayout = adapter.createLayout()
-            flatLayout.parentNode = this.model
-            flatLayout.orientation = Q_IDENTITY
-            flatLayout.local.back       = '0.1m'
-            flatLayout.visual.left      = {gt: '10px'}
-            flatLayout.visual.right     = {lt: '-10px'}
-            flatLayout.visual.bottom    = {gt: '10px'}
-            flatLayout.visual.top       = {lt: '-10px'}
-            flatLayout.visual.diagonal = {gt: '10vdeg'}
-            flatLayout.visual.pull      = {position: {x:0,y:0}}
-            // flatLayout.visual.pull = {position: {x:0,y:0}}
+            const immersiveAnchored = adapter.createLayout() 
+                .attachedTo(this.treadmill.treadmillAnchorObject)
+                .localPosition(V_000)
+                .localOrientation(Q_IDENTITY)
+                .localScale(V_111)
 
-            const IMMERSIVE = [] as any
+            const IMMERSIVE = [immersiveFloating, immersiveAnchored] as any
             const FLAT = [flatLayout]
 
-            adapter.onPreUpdate = () => {
+            adapter.onUpdate = () => {
                 if (this.state.immersiveMode) {
                     adapter.layouts = IMMERSIVE
                     adapter.parentNode = this.app.scene

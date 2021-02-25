@@ -32,6 +32,8 @@ export class SpatialAdapter {
     node) {
         this.system = system;
         this.node = node;
+        this.measureNumberCache = new Map();
+        this.measureBoundsCache = new Map();
         /**
          * Optimizer settings for this node
          */
@@ -40,37 +42,157 @@ export class SpatialAdapter {
          * Transition overrides for this node
          */
         this.transition = new TransitionConfig;
-        // /** 
-        //  * Behaviors get called every frame
-        //  */
-        // behaviors = Array<()=>void>()
-        /**
-         * All layouts associated with this adapter.
-         */
-        this.allLayouts = new Array();
+        this._parentAdapter = null;
         /**
          * List of presentable layout variants. If non-empty, the target
          * orientation, bounds, and opacity will be automatically updated.
-         * Layouts in this list will be optimized with higher priority.
          */
         this.layouts = new Array();
         this._prevLayout = null;
         this._activeLayout = null;
-        this.previousProgress = 1;
+        this._progress = 1;
+        this._hasValidLayoutContext = false;
         this.syncWithParentAdapter = true;
-        this._nodeOrientation = new Quaternion;
-        this._nodeBounds = new Box3;
+        this._prevNodeOrientation = new Quaternion;
+        this._prevNodeBounds = new Box3;
         this.metrics = this.system.getMetrics(this.node);
         this._orientation = new Transitionable(this.system, new Quaternion, undefined, this.transition);
         this._bounds = new Transitionable(this.system, new Box3().setFromCenterAndSize(V_000, V_111), undefined, this.transition);
         this._opacity = new Transitionable(this.system, 0, undefined, this.transition);
         this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set;
     }
+    measureNumber(measure, unit) {
+        if (typeof measure === 'number')
+            return measure;
+        if (this.measureNumberCache?.has(measure))
+            return this.measureNumberCache.get(measure);
+        const system = this.system;
+        if (!SpatialLayout.compiledExpressions.has(measure)) {
+            const node = system.math.parse(measure);
+            const code = node.compile();
+            SpatialLayout.compiledExpressions.set(measure, code);
+        }
+        const code = SpatialLayout.compiledExpressions.get(measure);
+        const result = code.evaluate(system.mathScope);
+        const value = typeof result === 'number' ? result :
+            system.math.number(code.evaluate(system.mathScope), unit);
+        this.measureNumberCache?.set(measure, value);
+        return value;
+    }
+    measureBounds(measure, type, subType) {
+        if (typeof measure === 'number')
+            return measure;
+        const cacheKey = type + '-' + subType + ' = ' + measure;
+        if (this.measureBoundsCache?.has(cacheKey))
+            return this.measureBoundsCache.get(cacheKey);
+        const system = this.system;
+        const scope = system.mathScope;
+        const math = system.math;
+        if (!SpatialLayout.compiledExpressions.has(measure)) {
+            const node = math.parse(measure.replace('%', 'percent'));
+            const code = node.compile();
+            SpatialLayout.compiledExpressions.set(measure, code);
+        }
+        const code = SpatialLayout.compiledExpressions.get(measure);
+        const state = this.metrics.targetState;
+        let referenceBounds;
+        let referenceCenter;
+        switch (type) {
+            case 'spatial':
+                referenceBounds = state.outerBounds;
+                referenceCenter = state.outerCenter;
+                break;
+            case 'visual':
+                referenceBounds = state.outerState.visualBounds;
+                referenceCenter = state.outerState.visualCenter;
+                break;
+            case 'view':
+                const viewState = state.metrics.system.viewMetrics.targetState;
+                referenceBounds = viewState.visualBounds;
+                referenceCenter = viewState.visualCenter;
+                break;
+            default:
+                throw new Error(`Unknown measure type "${type}.${subType}"`);
+        }
+        if (measure.includes('%')) {
+            const outerSize = type === 'spatial' ? state.outerSize : state.outerState.visualSize;
+            let percent = 0;
+            switch (subType) {
+                case 'left':
+                case 'centerx':
+                case 'right':
+                case 'sizex':
+                    percent = math.unit(outerSize.x / 100, 'm');
+                    break;
+                case 'bottom':
+                case 'centery':
+                case 'top':
+                case 'sizey':
+                    percent = math.unit(outerSize.y / 100, 'm');
+                    break;
+                case 'back':
+                case 'centerz':
+                case 'front':
+                case 'sizez':
+                    percent = math.unit(outerSize.z / 100, 'm');
+                    break;
+                case 'sizediagonal':
+                    percent = type === 'spatial' ?
+                        math.unit(outerSize.length() / 100, 'm') :
+                        math.unit(Math.sqrt(outerSize.x ** 2 + outerSize.y ** 2) / 100, 'px');
+                    break;
+                default:
+                    throw new Error(`Unknown measure subtype "${type}.${subType}"`);
+            }
+            scope.percent = percent;
+        }
+        let offset = 0;
+        switch (subType) {
+            case 'left':
+                offset = referenceBounds.min.x;
+                break;
+            case 'centerx':
+                offset = referenceCenter.x;
+                break;
+            case 'right':
+                offset = referenceBounds.max.x;
+                break;
+            case 'bottom':
+                offset = referenceBounds.min.y;
+                break;
+            case 'top':
+                offset = referenceBounds.max.y;
+                break;
+            case 'centery':
+                offset = referenceCenter.y;
+                break;
+            case 'front':
+                offset = referenceBounds.min.z;
+                break;
+            case 'back':
+                offset = referenceBounds.max.z;
+                break;
+            case 'centerz':
+                offset = referenceCenter.z;
+                break;
+        }
+        let unit = (type === 'spatial' ||
+            subType === 'front' ||
+            subType === 'back' ||
+            subType === 'centerz' ||
+            subType === 'sizez') ? scope.meter : scope.pixel;
+        const result = code.evaluate(system.mathScope);
+        const value = result === 0 ? 0 : math.number(code.evaluate(scope), unit) + offset;
+        scope.percent = undefined;
+        this.measureBoundsCache?.set(cacheKey, value);
+        return value;
+    }
     /**
-     * The target parent node
+     * The target parent node.
      *
-     * If `undefined`, target parent is the current parent
-     * if `null`, this node is considered as flagged to be removed
+     * If `undefined`, target parent is the current parent.
+     *
+     * if `null`, this node is considered as flagged to be removed.
      */
     set parentNode(p) {
         const currentParent = typeof this._parentNode !== 'undefined' ? this._parentNode : this.metrics.nodeState.parent;
@@ -135,7 +257,8 @@ export class SpatialAdapter {
     /**
      * The closest ancestor adapter
      */
-    get parentAdapter() {
+    get parentAdapter() { return this._parentAdapter; }
+    _computeParentAdapter() {
         let nodeMetrics = this.metrics;
         while (nodeMetrics = nodeMetrics.parentMetrics) {
             const adapter = this.system.nodeAdapters.get(nodeMetrics.node);
@@ -145,7 +268,7 @@ export class SpatialAdapter {
         return null;
     }
     /**
-     * Transitionable layout orientation
+     * Transitionable orientation
      */
     get orientation() {
         return this._orientation;
@@ -158,7 +281,7 @@ export class SpatialAdapter {
     // }
     // private _origin : Transitionable<Vector3>
     /**
-     * Transitionable layout bounds
+     * Transitionable spatial bounds
      */
     get bounds() {
         return this._bounds;
@@ -185,37 +308,50 @@ export class SpatialAdapter {
      * At 1, no transitions are active
      */
     get progress() {
+        return this._progress;
+    }
+    _computeProgress() {
         return Math.min(this.orientation.progress, this.bounds.progress, this.opacity.progress);
     }
     /**
      * Add a layout with an associated behavior.
      */
-    // layout = (update:(layout:SpatialLayout)=>void, active?:(layout:SpatialLayout)=>void) => {
-    //     const layout = new SpatialLayout(this.system, active)
-    //     this.layouts.push(layout)
-    //     this.behaviors.push(() => update(layout))
-    // }
     createLayout() {
         const layout = new SpatialLayout(this);
-        this.allLayouts.push(layout);
         this.layouts.push(layout);
         return layout;
     }
+    get hasValidLayoutContext() {
+        return this._hasValidLayoutContext;
+    }
+    _computeHasValidLayoutContext() {
+        const pAdapter = this.parentAdapter;
+        if (!pAdapter)
+            return true;
+        if (!pAdapter.hasValidLayoutContext)
+            return false;
+        if (pAdapter.layouts.length === 0)
+            return true;
+        if (pAdapter.activeLayout)
+            return true;
+        return false;
+    }
     _update() {
-        this.previousProgress = this.progress;
+        this._parentAdapter = this._computeParentAdapter();
+        this._hasValidLayoutContext = this._computeHasValidLayoutContext();
         const metrics = this.metrics;
-        if (this.onPreUpdate) {
+        if (this.onUpdate) {
             const nodeState = metrics.nodeState;
             const previousNodeParent = nodeState.parent;
-            const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation);
-            const previousNodeBounds = this._nodeBounds.copy(nodeState.layoutBounds);
-            this.onPreUpdate();
+            const previousNodeOrientation = this._prevNodeOrientation.copy(nodeState.localOrientation);
+            const previousNodeBounds = this._prevNodeBounds.copy(nodeState.spatialBounds);
+            this.onUpdate();
             metrics.invalidateIntrinsicBounds();
             metrics.invalidateInnerBounds();
             metrics.invalidateNodeStates();
             metrics.nodeState; // recompute
             const config = this.system.config;
-            const bounds = nodeState.layoutBounds;
+            const bounds = nodeState.spatialBounds;
             if (previousNodeParent !== nodeState.parent)
                 this.parentNode = nodeState.parent;
             if (previousNodeOrientation.angleTo(nodeState.localOrientation) > config.epsillonRadians)
@@ -235,6 +371,36 @@ export class SpatialAdapter {
             metrics.invalidateNodeStates();
             this.system.optimizer.update(this);
         }
+        // const previousNodeParent = nodeState.parent
+        // const previousNodeOrientation = this._nodeOrientation.copy(nodeState.localOrientation)
+        // const previousNodeBounds = this._nodeBounds.copy(nodeState.spatialBounds)
+        // if (this.onUpdate) {       
+        //     const nodeState = metrics.nodeState as NodeState<N>
+        //     this.onUpdate()
+        //     metrics.invalidateIntrinsicBounds()
+        //     metrics.invalidateInnerBounds()
+        //     metrics.invalidateNodeStates()
+        //     metrics.nodeState // recompute
+        //     const config = this.system.config
+        //     const bounds = nodeState.spatialBounds
+        //     if (previousNodeParent !== nodeState.parent) 
+        //         this.parentNode = nodeState.parent
+        //     if (previousNodeOrientation.angleTo(nodeState.localOrientation) > config.epsillonRadians) 
+        //         this.orientation.target = nodeState.localOrientation
+        //     if (previousNodeBounds.min.distanceTo(bounds.min) > config.epsillonMeters ||
+        //         previousNodeBounds.max.distanceTo(bounds.max) > config.epsillonMeters) 
+        //         this.bounds.target = bounds
+        //     if (!this.system.optimizer.update(this)) {
+        //         this.parentNode = previousNodeParent
+        //         this.orientation.target = previousNodeOrientation
+        //         this.bounds.target = previousNodeBounds
+        //     }
+        // } else {
+        //     metrics.invalidateIntrinsicBounds()
+        //     metrics.invalidateInnerBounds()
+        //     metrics.invalidateNodeStates()
+        //     this.system.optimizer.update(this)
+        // }
         if (this.syncWithParentAdapter && this.parentAdapter?.progress === 0) {
             this.opacity.forceCommit = true;
             this.orientation.forceCommit = true;
@@ -243,6 +409,7 @@ export class SpatialAdapter {
         this.opacity.update();
         this.orientation.update();
         this.bounds.update();
+        this._progress = this._computeProgress();
         metrics.invalidateNodeStates();
         this.system.bindings.apply(metrics, metrics.currentState);
         metrics.invalidateNodeStates();

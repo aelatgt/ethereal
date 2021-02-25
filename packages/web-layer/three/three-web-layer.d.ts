@@ -1,5 +1,5 @@
-import { Vector3, Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, Geometry, Camera, Intersection, Texture, Matrix4, WebGLRenderer } from 'three';
-import { WebLayer } from '../web-renderer';
+import { Vector3, Group, Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, Geometry, Camera, Intersection, Texture, Matrix4, WebGLRenderer } from 'three';
+import { WebLayer } from '../WebLayer';
 import { Bounds } from '../dom-utils';
 export interface WebLayer3DOptions {
     pixelRatio?: number;
@@ -9,7 +9,7 @@ export interface WebLayer3DOptions {
     onAfterRasterize?(layer: WebLayer3DBase): void;
 }
 export declare type WebLayerHit = ReturnType<typeof WebLayer3D.prototype.hitTest> & {};
-export declare class WebLayer3DBase extends Object3D {
+export declare class WebLayer3DBase extends Group {
     options: WebLayer3DOptions;
     element: Element;
     constructor(elementOrHTML: Element | string, options?: WebLayer3DOptions);
@@ -22,12 +22,15 @@ export declare class WebLayer3DBase extends Object3D {
     depthMaterial: MeshDepthMaterial;
     domLayout: Object3D;
     domSize: Vector3;
-    get needsRefresh(): boolean;
-    set needsRefresh(value: boolean);
     /**
      * Get the hover state
      */
-    get hover(): boolean;
+    get pseudoStates(): {
+        hover: boolean;
+        active: boolean;
+        focus: boolean;
+        target: boolean;
+    };
     /**
      * Get the layer depth (distance from this layer's element and the parent layer's element)
      */
@@ -36,6 +39,8 @@ export declare class WebLayer3DBase extends Object3D {
      *
      */
     get index(): number;
+    get needsRefresh(): boolean;
+    setNeedsRefresh(): void;
     /** If true, this layer needs to be removed from the scene */
     get needsRemoval(): boolean;
     get bounds(): Bounds;
@@ -58,13 +63,15 @@ export declare class WebLayer3DBase extends Object3D {
     /**
      * Refresh from DOM
      */
-    refresh(recurse?: boolean): void;
-    updateLayout(): void;
-    updateContent(): void;
+    protected refresh(recurse?: boolean): void;
+    private updateLayout;
+    private updateContent;
+    protected _doUpdate: () => void;
+    update(recurse?: boolean): void;
     querySelector(selector: string): WebLayer3DBase | undefined;
-    traverseParentWebLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): void;
-    traverseWebLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): void;
-    traverseChildWebLayers<T extends any[]>(each: (layer: WebLayer3DBase, ...params: T) => void, ...params: T): T;
+    traverseLayerAncestors(each: (layer: WebLayer3DBase) => void): void;
+    traverseLayersPreOrder(each: (layer: WebLayer3DBase) => boolean | void): boolean;
+    traverseLayersPostOrder(each: (layer: WebLayer3DBase) => boolean | void): boolean;
     dispose(): void;
     private _refreshVideoBounds;
     private _refreshDOMLayout;
@@ -108,19 +115,11 @@ export declare class WebLayer3D extends WebLayer3DBase {
     options: WebLayer3DOptions;
     static layersByElement: WeakMap<Element, WebLayer3DBase>;
     static layersByMesh: WeakMap<Mesh<Geometry | import("three").BufferGeometry, import("three").Material | import("three").Material[]>, WebLayer3DBase>;
-    static DEBUG_PERFORMANCE: boolean;
-    static LAYER_ATTRIBUTE: string;
-    static PIXEL_RATIO_ATTRIBUTE: string;
-    static STATES_ATTRIBUTE: string;
-    static HOVER_DEPTH_ATTRIBUTE: string;
     static DEFAULT_LAYER_SEPARATION: number;
     static DEFAULT_PIXELS_PER_UNIT: number;
     static GEOMETRY: Geometry;
     static computeNaturalDistance(projection: Matrix4 | Camera, renderer: WebGLRenderer): number;
     static shouldApplyDOMLayout(layer: WebLayer3DBase): boolean;
-    private _doRecursiveRefresh;
-    scheduleRefresh(): void;
-    private static _hideCursor;
     get parentWebLayer(): WebLayer3DBase;
     private _interactionRays;
     private _raycaster;
@@ -133,15 +132,12 @@ export declare class WebLayer3D extends WebLayer3DBase {
     get interactionRays(): Array<THREE.Ray | THREE.Object3D>;
     set interactionRays(rays: Array<THREE.Ray | THREE.Object3D>);
     /**
-     * Update the pose and opacity of this layer, handle interactions,
-     * and schedule DOM refreshes. This should be called each frame.
+     * Update this layer, optionally recursively
      */
-    updateLayout(): void;
-    updateContent(): void;
-    /**
-     * Update this layer and child layers, recursively
-     */
-    updateAll(): void;
+    update(recurse?: boolean): void;
+    private _previousHoverLayers;
+    private _contentMeshes;
+    private _prepareHitTest;
     private _updateInteractions;
     static getLayerForQuery(selector: string): WebLayer3DBase | undefined;
     static getClosestLayerForElement(element: Element): WebLayer3DBase | undefined;

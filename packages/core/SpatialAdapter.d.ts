@@ -1,5 +1,7 @@
+/// <reference types="mathjs" />
 import { EtherealSystem, Node3D } from './EtherealSystem';
 import { SpatialLayout } from './SpatialLayout';
+import { BoundsMeasureType, BoundsMeasureSubType } from './SpatialObjective';
 import { Transitionable, TransitionConfig } from './Transitionable';
 import { OptimizerConfig } from './SpatialOptimizer';
 import { Quaternion, Box3 } from './math-utils';
@@ -46,6 +48,10 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      * The wrapped third-party scenegraph nodes
      */
     node: N);
+    measureNumberCache: Map<string, number>;
+    measureNumber(measure: string | number, unit?: string | math.Unit): number;
+    measureBoundsCache: Map<string, number>;
+    measureBounds(measure: string | number, type: BoundsMeasureType, subType: BoundsMeasureSubType): number;
     /**
      *
      */
@@ -59,10 +65,11 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      */
     readonly transition: TransitionConfig;
     /**
-     * The target parent node
+     * The target parent node.
      *
-     * If `undefined`, target parent is the current parent
-     * if `null`, this node is considered as flagged to be removed
+     * If `undefined`, target parent is the current parent.
+     *
+     * if `null`, this node is considered as flagged to be removed.
      */
     set parentNode(p: N | null | undefined);
     get parentNode(): N | null | undefined;
@@ -71,8 +78,10 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      * The closest ancestor adapter
      */
     get parentAdapter(): SpatialAdapter<N> | null;
+    private _parentAdapter;
+    private _computeParentAdapter;
     /**
-     * Transitionable layout orientation
+     * Transitionable orientation
      */
     get orientation(): Transitionable<Quaternion>;
     private _orientation;
@@ -80,7 +89,7 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      * The relative point of attachment in the outer bounds
      */
     /**
-     * Transitionable layout bounds
+     * Transitionable spatial bounds
      */
     get bounds(): Transitionable<Box3>;
     private _bounds;
@@ -90,13 +99,8 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     get opacity(): Transitionable<number>;
     private _opacity;
     /**
-     * All layouts associated with this adapter.
-     */
-    allLayouts: SpatialLayout[];
-    /**
      * List of presentable layout variants. If non-empty, the target
      * orientation, bounds, and opacity will be automatically updated.
-     * Layouts in this list will be optimized with higher priority.
      */
     layouts: SpatialLayout[];
     get previousLayout(): SpatialLayout | null;
@@ -104,21 +108,26 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     set activeLayout(val: SpatialLayout | null);
     get activeLayout(): SpatialLayout | null;
     private _activeLayout;
-    previousProgress: number;
     /**
      * At 0, a new transition has started
      * Between 0 and 1 represents the transition progress
      * At 1, no transitions are active
      */
     get progress(): number;
+    private _progress;
+    private _computeProgress;
     /**
      * Add a layout with an associated behavior.
      */
     createLayout(): SpatialLayout;
-    onPreUpdate?: () => void;
+    get hasValidLayoutContext(): boolean;
+    private _hasValidLayoutContext;
+    onUpdate?: () => void;
     onPostUpdate?: () => void;
     syncWithParentAdapter: boolean;
-    private _nodeOrientation;
-    private _nodeBounds;
+    private _prevParent;
+    private _prevNodeOrientation;
+    private _prevNodeBounds;
+    _computeHasValidLayoutContext(): boolean;
     _update(): void;
 }

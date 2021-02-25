@@ -1,0 +1,54 @@
+import "fast-text-encoding";
+import { Bounds, Edges } from './dom-utils';
+export declare type EventCallback = (event: 'layerpainted' | 'layerresized' | 'layercreated' | 'layermoved' | 'removalrequired' | 'inputrequired', data: {
+    target: Element;
+}) => void;
+export declare class WebLayer {
+    element: Element;
+    eventCallback: EventCallback;
+    static DEFAULT_CACHE_SIZE: number;
+    private static blankRetryCounts;
+    private static canvasHashes;
+    private static cachedCanvases;
+    id: string;
+    constructor(element: Element, eventCallback: EventCallback);
+    needsRefresh: boolean;
+    needsRemoval: boolean;
+    psuedoStates: {
+        hover: boolean;
+        active: boolean;
+        focus: boolean;
+        target: boolean;
+    };
+    svgImage: HTMLImageElement;
+    bounds: Bounds;
+    private padding;
+    private margin;
+    private border;
+    parentLayer?: WebLayer;
+    childLayers: WebLayer[];
+    pixelRatio?: number;
+    cachedBounds: Map<string, Bounds>;
+    cachedMargin: Map<string, Edges>;
+    private _dynamicAttributes;
+    private _svgDocument;
+    private _rasterizingDocument;
+    private _svgSrc;
+    private _hashingCanvas;
+    _canvas: HTMLCanvasElement;
+    set canvas(val: HTMLCanvasElement);
+    get canvas(): HTMLCanvasElement;
+    get depth(): number;
+    get rootLayer(): WebLayer;
+    traverseParentLayers(each: (layer: WebLayer) => void): void;
+    traverseLayers(each: (layer: WebLayer) => void): void;
+    traverseChildLayers(each: (layer: WebLayer) => void): void;
+    refresh(): void;
+    private _updateParentAndChildLayers;
+    private _tryConvertElementToWebLayer;
+    private _generateSVGDocument;
+    serialize(): Promise<void>;
+    rasterize(): Promise<unknown>;
+    render(): void;
+    private _getParentsHTML;
+}

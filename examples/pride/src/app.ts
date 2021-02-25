@@ -52,6 +52,11 @@ export default class AppBase {
     constructor(private _config: AppConfig) {
         this.scene.add(this.camera)
 
+        // const box = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshNormalMaterial)
+        // box.position.set(0,0,-2)
+        // this.scene.add(box)
+
+
         const renderer = this.renderer
         document.documentElement.append(this.renderer.domElement)
         renderer.domElement.style.position = 'fixed'
@@ -335,6 +340,9 @@ export default class AppBase {
                 }
             }
         }
+
+        // update web layers
+        // for (const layer of this.webLayers) layer.updateAll()
 
         // emit update event
         this.raycaster.setFromCamera(this.pointer, this.camera)

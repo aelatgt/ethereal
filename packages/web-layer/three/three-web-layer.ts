@@ -1,5 +1,6 @@
 import {
   Vector3, 
+  Group,
   Object3D, 
   Mesh,
   MeshBasicMaterial,
@@ -19,7 +20,8 @@ import {
   WebGLRenderer
 } from 'three'
 
-import { WebRenderer, WebLayer } from '../web-renderer'
+import { WebLayer} from '../WebLayer'
+import { WebRenderer } from '../WebRenderer'
 
 import {Bounds, getBounds, getViewportBounds, traverseChildElements, DOM } from '../dom-utils'
 
@@ -38,7 +40,7 @@ const scratchVector2 = new Vector3()
 const scratchBounds = new Bounds()
 const scratchBounds2 = new Bounds()
 
-export class WebLayer3DBase extends Object3D {
+export class WebLayer3DBase extends Group {
   public element:Element
   constructor(elementOrHTML: Element|string, public options: WebLayer3DOptions = {}) {
     super()
@@ -47,7 +49,6 @@ export class WebLayer3DBase extends Object3D {
     this._webLayer = WebRenderer.getClosestLayer(element)!
 
     this.add(this.contentMesh)
-    this.add(this.cursor)
     this.cursor.visible = false
     this.contentMesh.visible = false
     this.contentMesh['customDepthMaterial'] = this.depthMaterial
@@ -107,24 +108,16 @@ export class WebLayer3DBase extends Object3D {
   depthMaterial = new MeshDepthMaterial({
     depthPacking: RGBADepthPacking,
     alphaTest: 0.01
-  } as any)
+  })
 
   domLayout = new Object3D()
   domSize = new Vector3(1,1,1)
 
-  get needsRefresh() {
-    return this._webLayer.needsRefresh
-  }
-
-  set needsRefresh(value) {
-    this._webLayer.needsRefresh = value
-  }
-
   /**
    * Get the hover state
    */
-  get hover() {
-    return WebRenderer.containsHover(this.element)
+  get pseudoStates() {
+    return this._webLayer.psuedoStates
   }
 
   /**
@@ -139,6 +132,14 @@ export class WebLayer3DBase extends Object3D {
    */
   get index() {
     return this.parentWebLayer ? this.parentWebLayer.childWebLayers.indexOf(this) : 0
+  }
+
+  get needsRefresh() {
+    return this._webLayer.needsRefresh
+  }
+
+  setNeedsRefresh() {
+    this._webLayer.traverseLayers(WebRenderer.setLayerNeedsRefresh)
   }
 
   /** If true, this layer needs to be removed from the scene */
@@ -177,28 +178,28 @@ export class WebLayer3DBase extends Object3D {
   /**
    * Refresh from DOM
    */
-  refresh(recurse=false) {
+  protected refresh(recurse=false) {
     this._webLayer.refresh()
     this.childWebLayers.length = 0
     for (const c of this._webLayer.childLayers) {
       const child = WebLayer3D.getClosestLayerForElement(c.element)
       if (!child) continue
       this.childWebLayers.push(child)
-      child.refresh(recurse)
+      if (recurse) child.refresh(recurse)
     }
     this._refreshVideoBounds()
     this._refreshDOMLayout()
   }
 
-  updateLayout() {
+  private updateLayout() {
     this.position.copy(this.domLayout.position)
     this.quaternion.copy(this.domLayout.quaternion)
     this.scale.copy(this.domLayout.scale)
     this.contentMesh.scale.copy(this.domSize)
     // handle layer visibiltiy or removal
     const mesh = this.contentMesh
-    const childMaterial = mesh.material as THREE.MeshBasicMaterial
-    const isHidden = childMaterial.opacity < 0.005
+    const mat = mesh.material as THREE.MeshBasicMaterial
+    const isHidden = mat.opacity < 0.005
     if (isHidden) mesh.visible = false
     else if (mesh.material.map) mesh.visible = true
     if (this.needsRemoval && isHidden) {
@@ -207,20 +208,47 @@ export class WebLayer3DBase extends Object3D {
     }
   }
 
-  updateContent() {
-    // update mesh properties
+  private updateContent() {
     const mesh = this.contentMesh
-    mesh.renderOrder = this.depth + this.index * 0.001
-
-    // update texture
     const texture = this.currentTexture
     const material = mesh.material as THREE.MeshBasicMaterial
     if (texture.image && material.map !== texture) {
       material.map = texture
-      material.needsUpdate = true
       this.depthMaterial['map'] = texture
       this.depthMaterial.needsUpdate = true
+      if (Math.abs(this.position.z) < 1e-9 && this.parent == this.parentWebLayer) {
+        material.depthWrite = false
+        this.renderOrder = this.depth + this.index * 0.001
+      }
+      else {
+        material.depthWrite = true
+        this.renderOrder = 0
+      }
+      material.needsUpdate = true
     }
+  }
+
+  // private _refreshPending = false
+  // private scheduleRefresh() {
+  //   if (this._refreshPending) return
+  //   this._refreshPending = true
+  //   WebRenderer.scheduleIdle(() => {
+  //     this._refreshPending = false
+  //     this.refresh()
+  //   })
+  // }
+
+  protected _doUpdate = () => {
+    this.updateLayout()
+    this.updateContent()
+    if (this.needsRefresh && this.options.autoRefresh) 
+      this.refresh()
+    WebRenderer.scheduleTasks()
+  }
+
+  update(recurse=false) {
+    if (recurse) this.traverseLayersPreOrder(this._doUpdate)
+    else this._doUpdate()
   }
 
   querySelector(selector: string): WebLayer3DBase | undefined {
@@ -231,33 +259,33 @@ export class WebLayer3DBase extends Object3D {
     return undefined
   }
 
-  traverseParentWebLayers<T extends any[]>(
-    each: (layer: WebLayer3DBase, ...params: T) => void,
-    ...params: T
+  traverseLayerAncestors(
+    each: (layer: WebLayer3DBase) => void
   ) {
     const parentLayer = this.parentWebLayer
     if (parentLayer) {
-      parentLayer.traverseParentWebLayers(each, ...params)
-      each(parentLayer, ...params)
+      parentLayer.traverseLayerAncestors(each)
+      each(parentLayer)
     }
   }
 
-  traverseWebLayers<T extends any[]>(
-    each: (layer: WebLayer3DBase, ...params: T) => void,
-    ...params: T
+  traverseLayersPreOrder(
+    each: (layer: WebLayer3DBase) => boolean|void
   ) {
-    each(this, ...params)
-    this.traverseChildWebLayers(each, ...params)
-  }
-
-  traverseChildWebLayers<T extends any[]>(
-    each: (layer: WebLayer3DBase, ...params: T) => void,
-    ...params: T
-  ) {
+    if (each(this) === false) return false
     for (const child of this.childWebLayers) {
-      child.traverseWebLayers(each, ...params)
+      if (child.traverseLayersPreOrder(each) === false) return false
     }
-    return params
+    return true
+  }
+
+  traverseLayersPostOrder(
+    each: (layer: WebLayer3DBase) => boolean|void
+  ) : boolean {
+    for (const child of this.childWebLayers) {
+      if (child.traverseLayersPostOrder(each) === false) return false
+    }
+    return each(this) || true
   }
 
   dispose() {
@@ -355,6 +383,7 @@ export class WebLayer3DBase extends Object3D {
     this.domLayout.position.set(
       pixelSize * (leftEdge + bounds.left),
       pixelSize * (topEdge - bounds.top),
+      // 0
       this.depth * sep +
         (this.parentWebLayer ? this.parentWebLayer.index * sep * 0.01 : 0) +
         this.index * sep * 0.001
@@ -402,12 +431,6 @@ export class WebLayer3D extends WebLayer3DBase {
   static layersByElement = new WeakMap<Element, WebLayer3DBase>()
   static layersByMesh = new WeakMap<Mesh, WebLayer3DBase>()
 
-  static DEBUG_PERFORMANCE = false
-  static LAYER_ATTRIBUTE = 'data-layer'
-  static PIXEL_RATIO_ATTRIBUTE = 'data-layer-pixel-ratio'
-  static STATES_ATTRIBUTE = 'data-layer-states'
-  static HOVER_DEPTH_ATTRIBUTE = 'data-layer-hover-depth'
-
   static DEFAULT_LAYER_SEPARATION = 0.001
   static DEFAULT_PIXELS_PER_UNIT = 1000
   static GEOMETRY = new PlaneGeometry(1, 1, 2, 2) as Geometry
@@ -434,18 +457,6 @@ export class WebLayer3D extends WebLayer3DBase {
     if ((should as any) === 'never' || should === false) return false
     if (should === 'auto' && layer.parentWebLayer && layer.parent === layer.parentWebLayer) return true
     return false
-  }
-
-  private _doRecursiveRefresh = () => {
-    this.refresh(true)
-  }
-
-  scheduleRefresh() {
-    WebRenderer.scheduleIdle(this._doRecursiveRefresh)
-  }
-
-  private static _hideCursor = function(layer: WebLayer3DBase) {
-    layer.cursor.visible = false
   }
 
   get parentWebLayer() {
@@ -490,57 +501,55 @@ export class WebLayer3D extends WebLayer3DBase {
   }
 
   /**
-   * Update the pose and opacity of this layer, handle interactions, 
-   * and schedule DOM refreshes. This should be called each frame.
+   * Update this layer, optionally recursively
    */
-  updateLayout() {
-    super.updateLayout()
-  }
-
-  updateContent() {
-    super.updateContent()
+  update(recurse=false) {
     this._updateInteractions()
-    if (this.options.autoRefresh && Math.random() > 0.5) this.scheduleRefresh()
+    super.update(recurse)
   }
 
-  /**
-   * Update this layer and child layers, recursively
-   */
-  updateAll() {
-    this.updateLayout()
-    this.updateContent()
-    for (const child of this.childWebLayers) {
-      child.updateLayout()
-      child.updateContent()
-    }
+  private _previousHoverLayers = new Set<WebLayer3DBase>()
+  private _contentMeshes = [] as Mesh[]
+
+  private _prepareHitTest = (layer:WebLayer3DBase) => {
+    if (layer.pseudoStates.hover) this._previousHoverLayers.add(layer)
+    layer.cursor.visible = false
+    layer.pseudoStates.hover = false
+    this._contentMeshes.push(layer.contentMesh)
   }
+
 
   private _updateInteractions() {
-    const rootLayer = this
-    rootLayer.updateWorldMatrix(true, true)
-    rootLayer.traverseWebLayers(WebLayer3D._hideCursor)
-    WebRenderer.hoverTargetElements.clear()
-    for (const ray of rootLayer._interactionRays) {
-      rootLayer._hitIntersections.length = 0
-      if (ray instanceof Ray) rootLayer._raycaster.ray.copy(ray)
+    // this.updateWorldMatrix(true, true)
+    
+    const prevHover = this._previousHoverLayers
+    prevHover.clear()
+    this._contentMeshes.length = 0
+    this.traverseLayersPreOrder(this._prepareHitTest)
+
+    for (const ray of this._interactionRays) {
+      if (ray instanceof Ray) this._raycaster.ray.copy(ray)
       else
-        rootLayer._raycaster.ray.set(
+        this._raycaster.ray.set(
           ray.getWorldPosition(scratchVector),
           ray.getWorldDirection(scratchVector2)
         )
-      rootLayer._raycaster.intersectObject(rootLayer, true, rootLayer._hitIntersections)
-      for (const intersection of rootLayer._hitIntersections) {
-        let layer = WebLayer3D.layersByMesh.get(intersection.object as any)
-        if (layer && !layer.needsRemoval) {
-          layer.cursor.position.copy(intersection.point)
-          layer.worldToLocal(layer.cursor.position)
-          layer.cursor.visible = true
-          while (layer instanceof WebLayer3DBase) {
-            WebRenderer.hoverTargetElements.add(layer.element)
-            layer = layer.parent as WebLayer3D
-          }
-          break
+      this._hitIntersections.length = 0
+      const intersection = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections)[0]
+      if (intersection) {
+        const layer = intersection.object.parent as WebLayer3DBase
+        layer.cursor.position.copy(intersection.point)
+        layer.cursor.visible = true
+        layer.pseudoStates.hover = true
+        if (!prevHover.has(layer)) {
+          layer.setNeedsRefresh()
         }
+      }
+    }
+
+    for (const layer of prevHover) {
+      if (!layer.pseudoStates.hover) {
+        layer.setNeedsRefresh()
       }
     }
   }
@@ -552,7 +561,7 @@ export class WebLayer3D extends WebLayer3DBase {
 
   static getClosestLayerForElement(element: Element): WebLayer3DBase | undefined {
     const closestLayerElement =
-      element && (element.closest(`[${WebLayer3D.LAYER_ATTRIBUTE}]`) as HTMLElement)
+      element && (element.closest(`[${WebRenderer.LAYER_ATTRIBUTE}]`) as HTMLElement)
     return WebLayer3D.layersByElement.get(closestLayerElement)
   }
 

@@ -5,6 +5,7 @@ import {
     SpatialLayout,
     MutationStrategy
 } from './SpatialLayout'
+import {SpatialObjective} from './SpatialObjective'
 import { SpatialAdapter } from './SpatialAdapter'
 
 export class OptimizerConfig {
@@ -95,10 +96,12 @@ export class SpatialOptimizer<N extends Node3D> {
      */
     update(adapter:SpatialAdapter<any>) {
 
-        if (adapter.allLayouts.length === 0 || adapter.metrics.innerBounds.isEmpty()) {
+        if (adapter.layouts.length === 0 || adapter.metrics.innerBounds.isEmpty()) {
             adapter.activeLayout = null
             return true
         }
+
+        if (!adapter.hasValidLayoutContext) return false
 
         const prevParent = adapter.parentNode
         const prevOrientation = this._prevOrientation.copy(adapter.orientation.target)
@@ -106,17 +109,8 @@ export class SpatialOptimizer<N extends Node3D> {
         const prevLayout = adapter.activeLayout
 
         this._setConfig(adapter)
-        for (const layout of adapter.allLayouts) {
+        for (const layout of adapter.layouts) {
             this._updateLayout(adapter, layout)
-        }
-
-        if (adapter.layouts.length === 0) {
-            adapter.parentNode = prevParent
-            adapter.orientation.target = prevOrientation
-            adapter.bounds.target = prevBounds
-            adapter.activeLayout = prevLayout
-            adapter.metrics.invalidateNodeStates()
-            return true
         }
 
         let bestLayout:SpatialLayout|undefined
@@ -131,7 +125,7 @@ export class SpatialOptimizer<N extends Node3D> {
         }
         
         if (bestLayout) {
-            this.applyLayoutSolution(adapter, bestLayout, bestSolution!, false)
+            bestSolution!.apply(false)
             adapter.activeLayout = bestLayout
             return true
         }
@@ -147,7 +141,7 @@ export class SpatialOptimizer<N extends Node3D> {
 
 
     private _updateLayout(adapter:SpatialAdapter<any>, layout:SpatialLayout) {
-        layout.measureCache.clear()
+        adapter.measureBoundsCache.clear()
 
         const solutions = layout.solutions
         const c = this._config
@@ -160,12 +154,15 @@ export class SpatialOptimizer<N extends Node3D> {
         // manage solution population (if necessary)
         this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart)
 
+        // rescore previous best solution (in case the score changed)
+        solutions[0].apply(true)
+        
         // // rescore and sort solutions
-        newSolution.copy(solutions[0])
-        for (let i=0; i < solutions.length; i++) {
-            this.applyLayoutSolution(adapter, layout, solutions[i], true)
-        }
-        layout.sortSolutions()
+        // newSolution.copy(solutions[0])
+        // for (let i=0; i < solutions.length; i++) {
+        //     this.applyLayoutSolution(solutions[i], true)
+        // }
+        // layout.sortSolutions()
 
         // optimize solutions
         for (let i=0; i< iterations; i++) {
@@ -201,7 +198,7 @@ export class SpatialOptimizer<N extends Node3D> {
 
                 // evaluate new solutions
                 // this.applyLayoutSolution(adapter, layout, solution, true)
-                this.applyLayoutSolution(adapter, layout, newSolution, true)
+                newSolution.apply(true)
                 
                 // better than previous ?
                 const success = layout.compareSolutions(newSolution, solution) < 0
@@ -227,7 +224,7 @@ export class SpatialOptimizer<N extends Node3D> {
                         }
                         if (solution !== solutionBest) {
                             solution.randomize(1)
-                            this.applyLayoutSolution(adapter, layout, solution, true)
+                            solution.apply(true)
                         }
                     }
                 }
@@ -251,28 +248,6 @@ export class SpatialOptimizer<N extends Node3D> {
         } else if (layout.solutions.length > swarmSize) {
             while (layout.solutions.length > swarmSize) {
                 layout.solutions.pop()
-            }
-        }
-    }
-
-    /**
-     * Set a specific layout solution on the adapter
-     * 
-     * @param adapter 
-     * @param layout 
-     * @param solution 
-     */
-    applyLayoutSolution(adapter:SpatialAdapter<any>, layout:SpatialLayout, solution:LayoutSolution, evaluate=false) {        
-        adapter.parentNode = layout.parentNode
-        adapter.orientation.target = solution.orientation
-        adapter.bounds.target = solution.bounds
-        adapter.metrics.invalidateNodeStates()
-        if (evaluate) {
-            for (let i=0; i < layout.constraints.length; i++) {
-                solution.constraintScores[i] = layout.constraints[i].evaluate()
-            } 
-            for (let i=0; i < layout.objectives.length; i++) {
-                solution.objectiveScores[i] = layout.objectives[i].evaluate()
             }
         }
     }

@@ -4,7 +4,18 @@ import { Box3, MathType, Vector2 } from './math-utils'
 import { SpatialOptimizer, OptimizerConfig } from './SpatialOptimizer'
 import { Transitionable, TransitionConfig, easing } from './Transitionable'
 import { LayoutFrustum } from './LayoutFrustum'
-import { create, all } from 'mathjs'
+import { 
+    create, 
+    evaluateDependencies, 
+    addDependencies, 
+    subtractDependencies,
+    multiplyDependencies,
+    divideDependencies,
+    numberDependencies,
+    modDependencies,
+    createUnitDependencies,
+    unitDependencies 
+} from 'mathjs'
 
 /**
  * A third-party scenegraph node instance (e.g., THREE.Object3D)
@@ -28,12 +39,21 @@ export class EtherealSystem<N extends Node3D = Node3D> {
 
     constructor(public viewNode:N, public bindings:NodeBindings<N>) {}
 
-    math = create(all, <any>{
+    math = create({ 
+        evaluateDependencies, 
+        addDependencies, 
+        subtractDependencies,
+        multiplyDependencies,
+        divideDependencies,
+        modDependencies,
+        numberDependencies,
+        createUnitDependencies,
+        unitDependencies }, <any>{
         predictable: true
     }) as math.MathJsStatic
 
-
     mathScope = {
+        degree: this.math.unit('degree'),
         meter: this.math.unit('meter'),
         pixel: this.math.createUnit('pixel',{aliases:['pixels','px']}),
         percent: undefined as math.Unit|undefined,
@@ -60,10 +80,10 @@ export class EtherealSystem<N extends Node3D = Node3D> {
             allowInvalidLayout: false,
             relativeTolerance: 0.2,
             iterationsPerFrame: 1, // iterations per frame per layout
-            swarmSize: 10, // solutions per layout
+            swarmSize: 20, // solutions per layout
             pulseFrequencyMin: 0, // minimal exploitation pulse
-            pulseFrequencyMax: 1.5, // maximal exploitation pulse
-            pulseRate: 0.3, // The ratio of directed exploitation vs random exploration,
+            pulseFrequencyMax: 1, // maximal exploitation pulse
+            pulseRate: 0.2, // The ratio of directed exploitation vs random exploration,
             stepSizeMin: 0.01, 
             stepSizeMax: 1.5,
             stepSizeStart: 0.8,
@@ -170,6 +190,10 @@ export class EtherealSystem<N extends Node3D = Node3D> {
         return t as any as Transitionable<T>
     }
 
+
+    private _prevResolution = new Vector2
+    private _prevSize = new Vector2
+
     /**
      * Call this each frame, after updating `viewNode`, `viewFrustum`, 
      * and `viewResolution`
@@ -181,9 +205,13 @@ export class EtherealSystem<N extends Node3D = Node3D> {
         this.deltaTime = Math.max(deltaTime, this.maxDeltaTime)
         this.time = time
         
-        this.mathScope.vdeg = this.math.unit(this.viewResolution.y/this.viewFrustum.sizeDegrees.y,'px')
-        this.mathScope.vw = this.math.unit(this.viewResolution.x/100,'px')
-        this.mathScope.vh = this.math.unit(this.viewResolution.y/100,'px')
+        if (!this._prevResolution.equals(this.viewResolution) || !this._prevSize.equals(this.viewFrustum.sizeDegrees)) {
+            this.mathScope.vdeg = this.math.unit(this.viewResolution.y/this.viewFrustum.sizeDegrees.y,'px')
+            this.mathScope.vw = this.math.unit(this.viewResolution.x/100,'px')
+            this.mathScope.vh = this.math.unit(this.viewResolution.y/100,'px')
+        }
+        this._prevResolution.copy(this.viewResolution)
+        this._prevSize.copy(this.viewFrustum.sizeDegrees)
 
         for (const metrics of this.nodeMetrics.values()) {
             metrics.needsUpdate = true

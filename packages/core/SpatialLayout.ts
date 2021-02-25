@@ -1,121 +1,24 @@
 import { Node3D } from './EtherealSystem'
-import { Vector3, Quaternion, Box3, MathUtils, Ray, randomSelect, randomQuaternion, gaussian, levy, Vector2} from './math-utils'
-import { TransitionConfig } from './Transitionable'
-import { NodeState } from './SpatialMetrics'
+import { Vector3, Quaternion, Box3, MathUtils, randomSelect, randomQuaternion, gaussian, levy} from './math-utils'
 import { SpatialAdapter } from './SpatialAdapter'
+import { 
+    ObjectiveOptions, 
+    Vector3Spec, LocalPositionConstraint, 
+    QuaternionSpec, LocalOrientationConstraint,
+    LocalScaleConstraint, AspectConstraint,
+    BoundsMeasureType, BoundsMeasureSubType,
+    SpatialBoundsSpec, SpatialBoundsConstraint,
+    VisualBoundsSpec, VisualBoundsConstraint, 
+    VisualMaximizeObjective, VisualForceObjective,
+    SpatialObjective, ConstraintSpec,
+    ContinuousSpec
+} from './SpatialObjective'
 
-export type OneOrMany<T> = T|T[]
-
-export type AtLeastOneProperty<T, U = {[K in keyof T]: Pick<T, K> }> = Partial<T> & U[keyof U]
-
-export type DiscreteOrContinuous<T> = T|{gt:T,lt:T}|{gt:T}|{lt:T}
-
-export type NumberSpec = OneOrMany<DiscreteOrContinuous<string|number>>
-
-export type QuaternionSpec = OneOrMany<
-    { x:number, y:number, z:number, w:number } |
-    { axis: OneOrMany<AtLeastOneProperty<{x:number, y:number, z:number}>>, degrees?:AngularMeasureSpec } |
-    { twistSwing: AtLeastOneProperty<{horizontal:AngularMeasureSpec, vertical:AngularMeasureSpec, twist:AngularMeasureSpec}> } |
-    { swingTwist: AtLeastOneProperty<{horizontal:AngularMeasureSpec, vertical:AngularMeasureSpec, twist:AngularMeasureSpec}> }
->
-
-export type Vector3Spec = OneOrMany<AtLeastOneProperty<{
-    x:NumberSpec, y:NumberSpec, z:NumberSpec,
-    magnitude:NumberSpec
-}>>
-
-/**
- * Specify a spatial measure with various units,
- * all of which are summed together as a single measure
- */
-// export type LinearMeasure = AtLeastOneProperty<{
-//     percent : number
-//     meters : number
-//     centimeters: number
+// export type PullSpec = AtLeastOneProperty<{
+//     direction: AtLeastOneProperty<{x:number, y:number, z:number}>,
+//     position: AtLeastOneProperty<{x:number|string, y:number|string, z:number|string}>
 // }>
 
-// /**
-//  * Specify a visual measure with various units,
-//  * all of which are summed together as a single measure
-//  */
-// export type VisualMeasure = string | MathNode
-
-/**
- * Generic measure spec, generally a unitless value. 
- */
-export type MeasureSpec = OneOrMany<DiscreteOrContinuous<string>>
-
-/**
- * Linear spec should be convertable to meters.
- * 
- * Units allowed: any standard length unit.
- * Additionally, percent (%) can be used,
- * which is based on the bounding context's size.
- */
-export type LinearMeasureSpec = MeasureSpec
-
-/**
- * Visual spec should be convertable to pixels.
- * Units allowed: px, vw, vh, %
- */
-export type VisualMeasureSpec = MeasureSpec
-
-/**
- * Angular spec should be convertable to rotations.
- * 
- * Units allowed: deg, rad, rot
- */
-export type AngularMeasureSpec = MeasureSpec
-
-export type LayoutMeasureType = 'local'|'visual'|'view'
-export type LayoutMeasureSubType = 'left'|'bottom'|'top'|'right'|'front'|'back'|'width'|'height'|'depth'|'diagonal'|'centerX'|'centerY'|'centerZ'
-
-export class BoundsSpec {
-    left? : LinearMeasureSpec   
-    bottom? : LinearMeasureSpec 
-    right? : LinearMeasureSpec  
-    top? : LinearMeasureSpec    
-    front? : LinearMeasureSpec  
-    back? : LinearMeasureSpec   
-    width? : LinearMeasureSpec
-    height? : LinearMeasureSpec
-    depth? : LinearMeasureSpec
-    diagonal? : LinearMeasureSpec
-    centerX? : LinearMeasureSpec
-    centerY? : LinearMeasureSpec
-    centerZ? : LinearMeasureSpec
-    pull?: PullSpec
-}
-
-export class VisualSpec {
-    left? : VisualMeasureSpec   
-    bottom? : VisualMeasureSpec 
-    right? : VisualMeasureSpec  
-    top? : VisualMeasureSpec    
-    front? : LinearMeasureSpec   
-    back? : LinearMeasureSpec    
-    width? : VisualMeasureSpec
-    height? : VisualMeasureSpec
-    diagonal? : VisualMeasureSpec
-    centerX? : VisualMeasureSpec
-    centerY? : VisualMeasureSpec
-    centerZ? : LinearMeasureSpec
-    pull?: PullSpec
-}
-
-export type PullSpec = AtLeastOneProperty<{
-    direction: AtLeastOneProperty<{x:number, y:number, z:number}>,
-    position: AtLeastOneProperty<{x:number, y:number, z:number}>
-}>
-
-export type ScoreFunction = () => number
-
-type DiscreteSpec<T> = Exclude<T,any[]|undefined|Partial<{gt:any,lt:any}>>
-type ContinuousSpec<T> = T extends any[] | undefined ? never : 
-    T extends {gt:any,lt:any} ? T : never
-
-// type K = UnionToIntersection<Exclude<LinearMeasureSpec, Array<any>|Exclude<LinearMeasureSpec,Partial<{gt:any,lt:any}>>>>
-// type X = Exclude<keyof UnionToIntersection<LinearMeasureSpec>,'gt'|'lt'>
 /**
  * Defines spatial layout constraints/goals
  */
@@ -123,338 +26,17 @@ export class SpatialLayout {
 
     public static compiledExpressions = new Map<string,math.EvalFunction>() 
 
-    public static isDiscreteSpec<T>(s:T) : s is DiscreteSpec<T> {
-        return s !== undefined && s instanceof Array === false && ('gt' in s || 'lt' in s) === false
-    }
+    constructor(public adapter:SpatialAdapter<any>) {}
 
-    public static isContinuousSpec<T>(s:T) : s is ContinuousSpec<T> {
-        return s !== undefined && s instanceof Array === false && ('gt' in s || 'lt' in s) === true
-    }
-
-    constructor(public adapter:SpatialAdapter<any>) {
-        // Object.seal(this) // seal to preserve call-site monomorphism
-    }
-
-    public getNumberPenalty(value:number, spec?:NumberSpec) {
-        if (spec === undefined) return 0
-        // penalty for compound spec is smallest penalty in the list
-        if (spec instanceof Array) {
-            let penalty = Infinity
-            for (const s of spec) {
-                penalty = Math.min(this._getNumberPenaltySingle(value, s), penalty)
-            }
-            return penalty
-        }
-        const penalty = this._getNumberPenaltySingle(value, spec)
-        return penalty
-    }
-
-    private _getNumberPenaltySingle(value:number, spec?:DiscreteOrContinuous<string|number>) {
-        if (spec === undefined) return 0
-        // penalty for single spec is distance from any valid value
-        if (typeof spec !== 'object') return Math.abs(value as number - this.measureNumber(spec))
-        const min = 'gt' in spec ? this.measureNumber(spec.gt) : undefined
-        const max = 'lt' in spec ? this.measureNumber(spec.lt) : undefined
-        if (min !== undefined && value < min) return min - value
-        if (max !== undefined && value > max) return value - max
-        return 0
-    }
-
-    public getVector3Penalty(value:Vector3, spec?:Vector3Spec, epsillon=0) {
-        if (spec === undefined) return 0
-        // penalty for compound spec is smallest penalty in the list
-        if (spec instanceof Array) {
-            let penalty = Infinity
-            for (const s of spec) {
-                penalty = Math.min(this._getVector3PenaltySingle(value, s), penalty)
-                if (penalty <= epsillon) {
-                    return 0
-                }
-            }
-            return penalty
-        }
-        const penalty = this._getVector3PenaltySingle(value, spec)
-        if (penalty <= epsillon) {
-            return 0
-        }
-        return penalty
-    }
-
-    private _getVector3PenaltySingle(value:Vector3, spec:Vector3Spec) {
-        // penalty for discrete spec is distance from the valid value
-        const xPenalty = ('x' in spec && typeof spec.x !== 'undefined') ? this.getNumberPenalty(value.x, spec.x) : 0
-        const yPenalty = ('y' in spec && typeof spec.y !== 'undefined') ? this.getNumberPenalty(value.y, spec.y) : 0
-        const zPenalty = ('z' in spec && typeof spec.z !== 'undefined') ? this.getNumberPenalty(value.z, spec.z) : 0
-        const magnitudePenalty = ('magnitude' in spec && typeof spec.magnitude !== 'undefined') ? this.getNumberPenalty(value.length(), spec.magnitude) : 0
-        const xyzPenalty = Math.sqrt(xPenalty**2 + yPenalty**2 + zPenalty**2)
-        return Math.max(xyzPenalty, magnitudePenalty)
-    }
-
-    public getQuaternionPenalty(value:Quaternion, spec?:QuaternionSpec, epsillon=0) {
-        if (spec === undefined) return 0
-        // penalty for compound spec is smallest penalty in the list
-        if (spec instanceof Array && spec.length) {
-            let penalty = Infinity
-            for (const s of spec) {
-                penalty = Math.min(this._getQuaternionPenaltySingle(value, s), penalty)
-                if (penalty <= epsillon) {
-                    return 0
-                }
-            }
-            return penalty
-        }
-        const penalty = this._getQuaternionPenaltySingle(value, spec)
-        if (penalty <= epsillon) {
-            return 0
-        }
-        return penalty
-    }
-
-    private _getQuaternionPenaltySingle(value:Quaternion, spec?:QuaternionSpec) {
-        if (spec === undefined) return 0
-        // penalty for discrete spec is distance from the valid value
-        if (spec instanceof Quaternion) return spec.angleTo(value) * MathUtils.RAD2DEG
-        // penalty for continous spec is distance from the valid range
-        // const axis = 'axis' in spec && spec.axis
-        // const xPenalty = ('x' in axis && typeof axis.x !== 'undefined') ? this._getNumberPenalty(value.x, axis.x) : 0
-        // const yPenalty = ('y' in axis && typeof axis.y !== 'undefined') ? this._getNumberPenalty(value.y, axis.y) : 0
-        // const zPenalty = ('z' in axis && typeof axis.z !== 'undefined') ? this._getNumberPenalty(value.z, axis.z) : 0
-        // const magnitudePenalty = ('magnitude' in spec && typeof spec.magnitude !== 'undefined') ? this._getNumberPenalty(value.length(), spec.magnitude) : 0
-        // const xyzPenalty = Math.sqrt(xPenalty**2 + yPenalty**2 + zPenalty**2)
-        // return Math.max(xyzPenalty, magnitudePenalty)
-        return 0
-    }
-
-    public getBoundsPenalty(spec:BoundsSpec|undefined, type:LayoutMeasureType) {
-        if (spec === undefined) return 0
-        let penalty = 0
-        for (const key in spec) {
-            let k = key as keyof BoundsSpec
-            if (k === 'pull') continue
-            penalty += this.getBoundsMeasurePenalty(spec[k], type, k)
-        }
-        return penalty
-    }
-    
-    public getNearFarPenalty(viewSpec:VisualSpec, visualSpec:VisualSpec) {
-        // if (!(  'near' in viewSpec || 'far' in viewSpec || 'centerZ' in viewSpec ||
-        //         'near' in visualSpec || 'far' in visualSpec || 'centerZ' in visualSpec)) 
-        //         return 0
-
-        const nearPenalty = 
-            this.getBoundsMeasurePenalty(viewSpec.front, 'visual', 'front') +
-            this.getBoundsMeasurePenalty(visualSpec.front, 'visual', 'front')
-        const farPenalty = 
-            this.getBoundsMeasurePenalty(viewSpec.back, 'visual', 'back') +
-            this.getBoundsMeasurePenalty(visualSpec.back, 'visual', 'back') 
-        const centerZPenalty = 
-            this.getBoundsMeasurePenalty(viewSpec.centerZ, 'visual', 'centerZ') +
-            this.getBoundsMeasurePenalty(visualSpec.centerZ, 'visual', 'centerZ')
-
-        const state = this.adapter.metrics.targetState
-        const bounds = state.visualBounds
-        const depth = bounds.max.z - bounds.min.z
-        const near = -state.metrics.system.viewFrustum.nearMeters
-        const negDepthPenalty = depth < 0 ? -depth : 0
-        const beyondNearPenalty = 
-            (bounds.min.z > near ? bounds.min.z-near : 0) + 
-            (bounds.max.z > near ? bounds.max.z-near : 0)
-
-        return  (nearPenalty + farPenalty + centerZPenalty + negDepthPenalty + beyondNearPenalty) * 
-            (1+negDepthPenalty) * (1+beyondNearPenalty)
-    }
-
-
-    public getBoundsMeasurePenalty(spec:MeasureSpec|undefined, type:LayoutMeasureType, subType:LayoutMeasureSubType) {
-        if (spec === undefined) return 0
-        const state = this.adapter.metrics.targetState
-        let bounds : Box3
-        let center : Vector3
-        let size : Vector3
-        switch (type) {
-            case 'local': 
-                bounds = state.layoutBounds
-                center = state.layoutCenter
-                size = state.layoutSize
-                break
-            case 'view': 
-                const viewState = state.metrics.system.viewMetrics.targetState
-                bounds = viewState.visualBounds
-                center = viewState.visualCenter
-                size = viewState.visualSize
-                break
-            case 'visual': 
-                bounds = state.visualBounds
-                center = state.visualCenter
-                size = state.visualSize
-                break
-            default: 
-                throw new Error(`Unknown measure type "${type}.${subType}" in spec "${spec}"`)
-        }
-        let value = 0
-        switch (subType) {
-            case 'left':    value = bounds.min.x; break
-            case 'right':   value = bounds.max.x; break
-            case 'bottom':  value = bounds.min.y; break
-            case 'top':     value = bounds.max.y; break
-            case 'back':    value = bounds.min.z; break
-            case 'front':   value = bounds.max.z; break
-            case 'centerX': value = center.x; break
-            case 'centerY': value = center.y; break
-            case 'centerZ': value = center.z; break
-            case 'width':   value = size.x; break
-            case 'height':  value = size.y; break
-            case 'depth':   value = size.z; break
-            case 'diagonal': value = type === 'local' ? 
-                size.length() : Math.sqrt(size.x**2 + size.y**2); break
-            default: 
-                throw new Error(`Unknown measure subtype ${type}.${subType} in spec "${spec}"`)
-        }
-        // penalty for compound spec is smallest penalty in the list
-        if (spec instanceof Array && spec.length) {
-            let penalty = Infinity
-            for (const s of spec) {
-                penalty = Math.min(this._getMeasurePenaltySingle(value, s, type, subType), penalty)
-            }
-            return penalty
-        }
-        return this._getMeasurePenaltySingle(value, spec, type, subType)
-    }
-
-    private _getMeasurePenaltySingle(value:number, spec:LinearMeasureSpec|undefined, type:LayoutMeasureType, subType:LayoutMeasureSubType) {
-        if (spec === undefined) return 0
-        // penalty for single spec is distance from any valid value
-        if (typeof spec === 'object') {
-            if ('gt' in spec) {
-                const min = this.measureLayout(spec.gt, type, subType)
-                if (value < min) return (min - value)
-            }
-            if ('lt' in spec) {
-                const max = this.measureLayout(spec.lt, type, subType)
-                if (value > max) return (value - max)
-            }  
-            return 0
-        }
-        return Math.abs(value - this.measureLayout(spec, type, subType))
-    }
-
-    measureNumber(measure:string|number) {
-        if (typeof measure === 'number') return measure
-        if (this.measureCache?.has(measure)) return this.measureCache.get(measure)!
-
-        const system = this.adapter.system
-        if (!SpatialLayout.compiledExpressions.has(measure)) {
-            const node = system.math.parse(measure)
-            const code = node.compile()
-            SpatialLayout.compiledExpressions.set(measure, code)
-        }
-        const code = SpatialLayout.compiledExpressions.get(measure)!
-        const value = code.evaluate(system.mathScope)
-        this.measureCache?.set(measure, value)
-        return system.math.number(value) as number
-    }
-
-    measureLayout(measure:string, type:LayoutMeasureType, sType:LayoutMeasureSubType) {
-        const cacheKey = type+sType+measure
-        if (this.measureCache?.has(cacheKey)) return this.measureCache.get(cacheKey)!
-
-        const system = this.adapter.system
-        const math = system.math
-        const scope = system.mathScope
-
-        if (!SpatialLayout.compiledExpressions.has(measure)) {
-            const node = math.parse(measure.replace('%', 'percent'))
-            const code = node.compile()
-            SpatialLayout.compiledExpressions.set(measure, code)
-        }
-        const code = SpatialLayout.compiledExpressions.get(measure)!
-
-        const state = this.adapter.metrics.targetState
-        let referenceBounds : Box3
-        let referenceCenter: Vector3
-        switch (type) {
-            case 'local': 
-                referenceBounds = state.outerBounds
-                referenceCenter = state.outerCenter
-                break
-            case 'visual': 
-                referenceBounds = state.outerState.visualBounds
-                referenceCenter = state.outerState.visualCenter
-                break
-            case 'view': 
-                const viewState = state.metrics.system.viewMetrics.targetState
-                referenceBounds = viewState.visualBounds
-                referenceCenter = viewState.visualCenter
-                break
-            default: 
-                throw new Error(`Unknown measure type "${type}.${sType}"`)
-        }
-
-        if (measure.includes('%')) {
-            const outerSize = type === 'local' ? state.outerSize : state.outerState.visualSize
-            let percent = 0 as number|math.Unit
-            switch (sType) {
-                case 'left': case 'centerX': case 'right': case 'width':
-                    percent = math.unit(outerSize.x / 100, 'm')
-                    break
-                case 'bottom': case 'centerY': case 'top': case 'height':
-                    percent = math.unit(outerSize.y / 100, 'm')
-                    break
-                case 'back': case 'centerZ': case 'front': case 'depth':
-                    percent = math.unit(outerSize.z / 100, 'm')
-                    break
-                case 'diagonal': 
-                    percent = type === 'local' ? 
-                        math.unit(outerSize.length() / 100, 'm') : 
-                        math.unit(Math.sqrt(outerSize.x ** 2 + outerSize.y ** 2) / 100, 'px')
-                    break
-                default:
-                    throw new Error(`Unknown measure subtype "${type}.${sType}"`)
-            }
-            scope.percent = percent
-        }
-
-        let offset = 0
-        switch (sType) {
-            case 'left': offset = referenceBounds.min.x; break;
-            case 'right': offset = referenceBounds.max.x; break;
-            case 'centerX': offset = referenceCenter.x; break;
-            case 'bottom': offset = referenceBounds.min.y; break;
-            case 'top': offset = referenceBounds.max.y; break;
-            case 'centerY': offset = referenceCenter.y; break;
-            case 'front': offset = referenceBounds.min.z; break;
-            case 'back': offset = referenceBounds.max.z; break;
-            case 'centerZ': offset = referenceCenter.z; break;
-        }
-
-        let unit = (type === 'local' || 
-                    sType === 'front' || 
-                    sType === 'back' || 
-                    sType === 'centerZ' || 
-                    sType === 'depth') ? scope.meter : scope.pixel
-                    
-        const value = math.number!(code.evaluate(scope), unit) + offset
-        scope.percent = undefined
-        this.measureCache?.set(cacheKey, value)
-        return value
-    }
-
-    measureCache = new Map<string, number>()
-
-    /**
-     * The constraints applied to this layout
-     */
-    constraints = new Array<LayoutConstraint>()
+    spatialAccuracy = '1mm'
+    visualAccuracy = '4px'
+    angularAccuracy = '0.1deg'
+    relativeAccuracy = 0.01
 
     /**
      * The objectives applied to this layout
      */
-    objectives = new Array<LayoutObjective>()
-
-
-    /**
-     * Clear all of the default constraints
-     */
+    objectives = new Array<SpatialObjective>()
     
     /**
      * The parent node 
@@ -463,290 +45,105 @@ export class SpatialLayout {
      */
     parentNode? : Node3D|null
 
-    /**
-     * 
-     */
-    // setFromNodeState(node:Node3D) {
-    //     const metrics = this.system.getMetrics(node)
-    //     metrics.invalidateNodeState()
-    //     const s = metrics.nodeState
-    //     this.position = { x: s.localPosition.x, y: s.localPosition.y, z: s.localPosition.z }
-    //     this.orientation = { x: s.localOrientation.x, y: s.localOrientation.y, z: s.localOrientation.z, w: s.localOrientation.w }
-    //     this.scale = { x: s.localScale.x, y: s.localScale.y, z: s.localScale.z }
-    // }
-
-
     
-    /**
-    * The aspect constraint specification
-    */
-   aspect? = 'preserve-3d' as 'preserve-3d'|'preserve-2d'|'any'
-   /**
-    * Measures distance from normalized world scale
-    * (1,1,1) or (1,1,any) 
-    */
-   aspectConstraint = this.addConstraint({
-       name:'aspect',
-       threshold: 0.1,
-       evaluate: () => {
-        const aspect = this.aspect
-        if (!aspect || aspect === 'any') return 0
-        const worldScale = this.adapter.metrics.targetState.worldScale
-        const s = this._aspect.copy(worldScale)
-        const largest = aspect === 'preserve-3d' ? 
-            Math.max(Math.abs(s.x), Math.abs(s.y), Math.abs(s.z)) : 
-            Math.max(Math.abs(s.x), Math.abs(s.y))
-        const aspectFill = s.divideScalar(largest)
-        return  this.getNumberPenalty(aspectFill.x, 1) +
-                this.getNumberPenalty(aspectFill.y, 1) +
-                (aspect === 'preserve-3d' ? 
-                    this.getNumberPenalty(aspectFill.z, 1):
-                    // prevent z from being scaled largest when doing preserved 2D aspect
-                    aspectFill.z > 1 ? aspectFill.z : 1) 
-        }
-    })
-   private _aspect = new Vector3
+    attachedTo(parentNode:Node3D|null|undefined) {
+        this.parentNode = parentNode
+        return this
+    }
 
     /**
-     * The local orientation constraint spec
-     */
-    orientation? : QuaternionSpec
-    /**
-     * Measures angle (in degrees) to orientation spec 
-     */
-    orientationConstraint = this.addConstraint({
-        name:'orientation',
-        threshold: 0.01,
-        evaluate: () => {
-            if (!this.orientation) return 0
-            const system = this.adapter.system
-            const state = this.adapter.metrics.targetState
-            return this.getQuaternionPenalty(state.localOrientation, this.orientation, system.config.epsillonRadians)
-        }
-    })
-
-    /**
-     * The local position constraint spec
+     * Add a local position objective
      * (local units are ambigious due to potential parent scaling).
      */
-    position?: Vector3Spec
-    /**
-     * Measures distance from position spec
-     */
-    positionConstraint = this.addConstraint({
-        name:'position',
-        threshold: 0.1,
-        evaluate: () => {
-            if (!this.position) return 0
-            const state = this.adapter.metrics.targetState
-            return this.getVector3Penalty(state.localPosition, this.position)
-        }
-    })
-
-    /**
-     * The local scale constraint spec
-     */
-    scale?: Vector3Spec = {
-        x:{ gt:1e-8, lt:1e8 },
-        y:{ gt:1e-8, lt:1e8 },
-        z:{ gt:1e-8, lt:1e8 }
+    localPosition(spec:Vector3Spec, opts?:ObjectiveOptions) {
+        const obj = this.localPositionConstraint = 
+            this.localPositionConstraint ?? new LocalPositionConstraint(this)
+        Object.assign(obj, {spec}, opts)
+        if (this.objectives.indexOf(obj) === -1) this.objectives.push(obj)
+        return this
     }
-    /**
-     * Measures distance from scale spec
-     */
-    scaleConstraint = this.addConstraint({
-        name:'scale',
-        threshold: 0.1,
-        evaluate: () => {
-            if (!this.scale) return -1
-            const state = this.adapter.metrics.targetState
-            return this.getVector3Penalty(state.localScale, this.scale)
-        }
-    })
+    localPositionConstraint?:LocalPositionConstraint
 
     /**
-     * The local bounds spec
+     * Add a local orientation constraint
      */
-    public local = new BoundsSpec
-    /**
-     * Measures distance from local bounds spec
-     */
-    public localConstraint = this.addConstraint({
-        name: 'local',
-        threshold: 0.01,
-        evaluate: () => {
-            if (!this.local) return 0
-            return this.getBoundsPenalty(this.local, 'local')
-        }
-    })
+    localOrientation(spec:QuaternionSpec, opts?:ObjectiveOptions) {
+        const obj = this.localOrientationConstraint = 
+            this.localOrientationConstraint ?? new LocalOrientationConstraint(this)
+        Object.assign(obj, {spec}, opts)
+        if (this.objectives.indexOf(obj) === -1) this.objectives.push(obj)
+        return this
+    }
+    localOrientationConstraint?:LocalOrientationConstraint
 
-    /** 
-     * The local visual bounds (specified relative to 
-     * the closest visual bounding context)
-     * */
-    public visual = new VisualSpec
+    /**
+     * Add a local scale constraint
+     */
+    localScale(spec:Vector3Spec, opts?:ObjectiveOptions) {
+        const obj = this.localScaleConstraint = 
+            this.localScaleConstraint ?? new LocalScaleConstraint(this)
+        Object.assign(obj, {spec}, opts)
+        if (this.objectives.indexOf(obj) === -1) this.objectives.push(obj)
+        return this
+    }
+    localScaleConstraint?:LocalScaleConstraint
+
+    /**
+    * Add an aspect-ratio constraint
+    * Constrain normalized world scale to preserve
+    * spatial or visual aspect ratios
+    */
+    preserveAspect(mode:'spatial'|'visual', opts?:ObjectiveOptions) {
+        const obj = this.preserveAspectConstraint = 
+            this.preserveAspectConstraint ?? new AspectConstraint(this)
+        Object.assign(obj, {mode}, opts)
+        if (this.objectives.indexOf(obj) === -1) this.objectives.push(obj)
+        return this
+    }
+    preserveAspectConstraint?:AspectConstraint
+
+
+    spatialBounds(spec:SpatialBoundsSpec, opts?:ObjectiveOptions) {
+        const obj = this.spatialBoundsConstraint = 
+            this.spatialBoundsConstraint ?? new SpatialBoundsConstraint(this)
+        Object.assign(obj, {spec}, opts)
+        if (this.objectives.indexOf(obj) === -1) this.objectives.push(obj)
+        return this
+    }
+    spatialBoundsConstraint?:SpatialBoundsConstraint
+
+    visualBounds(spec:VisualBoundsSpec, opts?:ObjectiveOptions) {
+        const obj = this.visualBoundsConstraint = 
+            this.visualBoundsConstraint ?? new VisualBoundsConstraint(this)
+        Object.assign(obj, {spec}, opts)
+        if (this.objectives.indexOf(obj) === -1) this.objectives.push(obj)
+        return this
+    }
+    visualBoundsConstraint?:VisualBoundsConstraint
+
+    visualMaximize(opts?:ObjectiveOptions) {
+        const obj = this.visualMaximizeObjective = 
+            this.visualMaximizeObjective ?? new VisualMaximizeObjective(this)
+        Object.assign(obj, opts)
+        if (this.objectives.indexOf(obj) === -1) this.objectives.push(obj)
+        return this
+    }
+    visualMaximizeObjective?:VisualMaximizeObjective
+
+    visualForce(opts?:ObjectiveOptions) {
+        // const obj = this.visualForceObjective = 
+        //     this.visualForceObjective ?? new VisualForceObjective(this)
+        // Object.assign(obj, opts)
+        // if (this.objectives.indexOf(obj) === -1) this.objectives.push(obj)
+        return this
+    }
+    visualForceObjective?:VisualForceObjective
     
-    /*
-    * The global visual bounds (specified relative to 
-    * the view)
-    */
-    public view = new VisualSpec
-
-    /**
-     * Measure near/far distance (in meter) from visual bounds spec
-     */
-    public nearFarConstraint = this.addConstraint({
-        name: 'near-far',
-        threshold: 0.01,
-        evaluate: () => {
-            return this.getNearFarPenalty(this.visual, this.view)
-        }
-    })
-
-    /**
-     * Computes pixel-based penalty from view bounds spec
-     */
-    public viewBoundsConstraint = this.addConstraint({
-        name: 'view-bounds',
-        threshold: 10,
-        evaluate: () => {
-            if (!this.view) return 0
-            return this.getBoundsPenalty(this.view, 'view')
-        }
-    })
-
-    /**
-     * Computes pixel-based penalty from visual bounds spec
-     */
-    public visualBoundsConstraint = this.addConstraint({
-        name: 'visual-bounds',
-        threshold: 10,
-        evaluate: () => {
-            if (!this.visual) return 0
-            return this.getBoundsPenalty(this.visual, 'visual')
-        }
-    })
-
-    private _pullCenter = new Vector3
-    private _pullRay = new Ray
-    private _pullClosestPoint = new Vector3
-    private _pullDirection = new Vector3
-
-    /** 
-     * Measures negative distance from pull position
-    */
-    public pullLocalObjective = this.addObjective({
-        name: 'pull-local',
-        evaluate: () => {
-            const ray = this._pullRay
-            const pullPosition = this.local.pull?.position
-            const pullDirection = this.local.pull?.direction
-            if (!pullPosition && !pullDirection) return 0
-            const state = this.adapter.metrics.targetState
-            const center = state.layoutCenter
-            let centerDist = 0
-            let directionDist = 0
-            if (pullPosition) {
-                const xDiff = typeof pullPosition.x === 'number' ? pullPosition.x - center.x : 0
-                const yDiff = typeof pullPosition.y === 'number' ? pullPosition.y - center.y : 0
-                const zDiff = typeof pullPosition.z === 'number' ? pullPosition.z - center.z : 0
-                centerDist = xDiff**2 + yDiff**2 + zDiff**2
-            }
-            if (pullDirection) {
-                ray.origin.set(0,0,0)
-                ray.direction.set(pullDirection.x || 0, pullDirection.y || 0, pullDirection.z || 0).normalize()
-                const closestPoint = ray.closestPointToPoint(center, center)
-                directionDist = ray.distanceToPoint(closestPoint)
-            }
-            return - centerDist + directionDist
-        }
-    })
-
-    public pullVisualObjective = this.addObjective({
-        name: 'pull-visual',
-        evaluate: () => {
-            const pullPosition = this.visual.pull?.position
-            const pullDirection = this.visual.pull?.direction
-            if (!pullPosition && !pullDirection) return 0
-            const state = this.adapter.metrics.targetState
-            const bounds = state.visualBounds
-            const center = state.visualCenter
-            const outerCenter = state.outerState.visualCenter
-            let dist = 0
-            let directionDist = 0
-            if (pullPosition) {
-                const closest = this._pullClosestPoint.set(
-                    typeof pullPosition.x === 'number' ? pullPosition.x : center.x,
-                    typeof pullPosition.y === 'number' ? pullPosition.y : center.y,
-                    typeof pullPosition.z === 'number' ? pullPosition.z : center.z
-                ).add(outerCenter).clamp(bounds.min, bounds.max)
-                const xDiff = typeof pullPosition.x === 'number' ? pullPosition.x + outerCenter.x - closest.x : 0
-                const yDiff = typeof pullPosition.y === 'number' ? pullPosition.y + outerCenter.y  - closest.y : 0
-                const zDiff = typeof pullPosition.z === 'number' ? pullPosition.z + outerCenter.z  - closest.z : 0
-                dist = xDiff**2 + yDiff**2 + zDiff**2
-            }
-            if (pullDirection) {
-                const direction = this._pullDirection.set(pullDirection.x || 0, pullDirection.y || 0, pullDirection.z || 0).normalize()
-                const ray = this._pullRay   
-                ray.origin.copy(outerCenter)
-                ray.direction.copy(direction)
-                const closestPoint = direction.multiplyScalar(10e8).clamp(bounds.min, bounds.max)
-                directionDist = ray.distanceToPoint(closestPoint)
-            }
-            return - dist + directionDist
-        }
-    })
-
-    /** */
-    public maximizeVisual = true
-    /** */
-    public maximizeVisualObjective = this.addObjective({
-        name: 'maximize-visual', 
-        evaluate: () => {
-            if (!this.maximizeVisual) return 0
-            const visualSize = this.adapter.metrics.targetState.visualSize
-            return visualSize.x * visualSize.y
-        }
-    })
-
-    /**
-     * Occluders to minimize visual overlap with
-     */
-    occluders?: Node3D[]
-
-
-    /**
-     * Add a new layout constraint
-     */
-   addConstraint( opts: {name:string, evaluate: ScoreFunction, threshold:number, relativeTolerance?:number} ) : LayoutConstraint {
-        const {name, evaluate, threshold, relativeTolerance} = opts || {}
-        const c = {name, sortBlame:0, evaluate, threshold, relativeTolerance, bestScore:0}
-        this.constraints.push(c)
-        return c
-    }
-
-    /**
-     * Add a new layout objective
-     */
-   addObjective( opts: {name:string, evaluate: ScoreFunction, relativeTolerance?:number} ) : LayoutObjective {
-    const {name, evaluate, relativeTolerance} = opts || {}
-    const o = {name, sortBlame:0, evaluate, relativeTolerance, bestScore:0}
-        this.objectives.push(o)
-        return o
-    }
 
     /**
      * The solutions being explored for this layout
      */
-    get solutions() {
-        return this.#solutions
-    }
-    #solutions = new Array<LayoutSolution>()
-
-    /**
-     * Transition overrides for this layout
-     */
-    transition = new TransitionConfig
+    solutions = new Array<LayoutSolution>()
 
     /**
      * The current optimization iteration
@@ -759,14 +156,6 @@ export class SpatialLayout {
      */
     sortSolutions() {
         let best = 0
-        for (let c = 0; c < this.constraints.length; c++) {
-            best = Infinity
-            for (let s = 0; s < this.solutions.length; s++) {
-                const score = this.solutions[s].constraintScores[c]
-                if (score < best) best = score
-            }
-            this.constraints[c].bestScore = best
-        }
         for (let o = 0; o < this.objectives.length; o++) {
             best = -Infinity
             for (let s = 0; s < this.solutions.length; s++) {
@@ -806,84 +195,36 @@ export class SpatialLayout {
         if (isNaN(aMin.x)||isNaN(aMin.y)||isNaN(aMin.z)||isNaN(aMax.x)||isNaN(aMax.y)||isNaN(aMax.z))
             return 1
 
-        const constraints = this.constraints
-        if (a.constraintScores.length < constraints.length) return 1
+        const objectives = this.objectives
+        if (a.objectiveScores.length < objectives.length) return 1
 
         const systemConfig = this.adapter.system.config.optimize
-        // const cThreshold = this.adapter.optimize.constraintThreshold ?? systemConfig.constraintThreshold
         const relTol = this.adapter.optimize.relativeTolerance ?? systemConfig.relativeTolerance
-        // const absTol = this.adapter.optimize.absoluteTolerance ?? systemConfig.absoluteTolerance
         
-        for (let i = 0; i < constraints.length; i++) {
-            const scoreA = a.constraintScores[i] 
-            const scoreB = b.constraintScores[i] 
-            // if (scoreA > cThreshold && scoreB > cThreshold) {
-            //     const relativeDiff = computeRelativeDifference(scoreA, scoreB)
-            //     const relativeTolerance = constraint.relativeTolerance || cRelativeTolerance
-            //     if (relativeDiff > relativeTolerance) {
-            //         return scoreA - scoreB // rank by lowest penalty
-            //     }
-            // } else if (scoreA > cThreshold || scoreB > cThreshold) {
-            //     return scoreA - scoreB
-            // }
-            const constraint = constraints[i]
-            if (scoreA > constraint.threshold || scoreB > constraint.threshold) {
-                constraint.sortBlame++
-                return scoreA - scoreB // rank by lowest penalty
-            }
-            const bestScore = constraint.bestScore!
-            const cRelTol = constraint.relativeTolerance ?? relTol
-            const tolerance = bestScore + (0.1 + Math.abs(bestScore)) * cRelTol
-            if (scoreA > tolerance || scoreB > tolerance) {
-                return scoreA - scoreB
-            }
-        }
+        let rank = 0
         
-        const objectives = this.objectives
         for (let i = 0; i < objectives.length; i++) {
             const scoreA = a.objectiveScores[i] 
             const scoreB = b.objectiveScores[i] 
-            // const relativeDiff = computeRelativeDifference(scoreA, scoreB)
-            // const relativeTolerance = objective.relativeTolerance || oRelativeTolerance
-            // if (relativeDiff > relativeTolerance) {
-            //     return scoreB - scoreA // rank by highest score
-            // }
-            // if (Math.abs(scoreA - scoreB) < 1e-4 || computeRelativeDifference(scoreA, scoreB) < 1e-4) 
-            //     continue // consider equal
             const objective = objectives[i]
+            if (scoreA < 0 || scoreB < 0) {
+                objective.sortBlame++
+                return scoreB - scoreA // rank by highest score
+            }
             const oRelTol = objective.relativeTolerance ?? relTol
             const bestScore = objective.bestScore!
-            const tolerance = bestScore - (1 + Math.abs(bestScore)) * oRelTol
-            // const tolerance = Math.min(
-            //     bestScore - relativeTolerance, 
-            //     bestScore - oAbsTol
-            // )
-            // const scoreDiff = Math.abs(scoreA - scoreB)
-            // if (scoreDiff < relativeTolerance * 0.1) continue // consider equal
-            // if (Math.abs(scoreA - scoreB) < oAbsTol || computeRelativeDifference(scoreA, scoreB) < oRelTol) 
-            //     continue
+            const tolerance = bestScore - Math.abs(bestScore) * oRelTol
             if (scoreA < tolerance || scoreB < tolerance) {
                 objective.sortBlame++
                 return scoreB - scoreA // rank by highest score
             }
+            if (scoreB - scoreA !== 0) rank = scoreB - scoreA
         }
 
-        // If all scores are within relative tolerance of one another, consider them equal
-        return 0
+        // If all scores are within relative tolerance of one another,
+        // sort by lowest priority score
+        return rank
     }
-}
-
-export interface LayoutObjective {
-    name?:string,
-    evaluate: ScoreFunction,
-    relativeTolerance?: number,
-    absoluteTolerance?: number,
-    bestScore?: number,
-    sortBlame:number
-}
-
-export interface LayoutConstraint extends LayoutObjective {
-    threshold: number
 }
 
 export interface MutationStrategy {type:string, stepSize: number, successRate:number}
@@ -911,23 +252,16 @@ export class LayoutSolution {
 
 
     get aspectPenalty() {
-        return this.constraintScores[this.layout.constraints.indexOf(this.layout.aspectConstraint)]||0
+        return this.objectiveScores[this.layout.objectives.indexOf(this.layout.preserveAspectConstraint!)]||0
     }
 
     get orientationPenalty() {
-        return this.constraintScores[this.layout.constraints.indexOf(this.layout.orientationConstraint)]||0
+        return this.objectiveScores[this.layout.objectives.indexOf(this.layout.localOrientationConstraint!)]||0
     }
 
-    get boundsPenalty() {
-        return this.constraintScores[this.layout.constraints.indexOf(this.layout.localConstraint)]||0
+    get spatialBoundsPenalty() {
+        return this.objectiveScores[this.layout.objectives.indexOf(this.layout.spatialBoundsConstraint!)]||0
     }
-
-
-    /**
-     * The constraint violation penalties for this solution
-     * (one for each constraint, lower is better)
-     */
-    constraintScores = [] as number[]
 
     /**
      * The objectives fitness scores for this solution
@@ -936,13 +270,12 @@ export class LayoutSolution {
     objectiveScores = [] as number[]
 
     /**
-     * All constraints scores are within threshold
+     * All constraints are satisfied
      */
     get isValid() {
-        for (let i=0; i < this.layout.constraints.length; i++) {
-            const c = this.layout.constraints[i]
-            const score = this.constraintScores[i]
-            if (score > c.threshold) return false
+        for (let i=0; i < this.objectiveScores.length; i++) {
+            const score = this.objectiveScores[i]
+            if (score < 0) return false
         }
         return true
     }
@@ -950,9 +283,9 @@ export class LayoutSolution {
 
     mutationStrategies = [
         {type:'rotate', stepSize: 0.1, successRate:0.2},
-        {type:'centerX', stepSize: 0.1, successRate:0.2},
-        {type:'centerY', stepSize: 0.1, successRate:0.2},
-        {type:'centerZ', stepSize: 0.1, successRate:0.2},
+        {type:'centerx', stepSize: 0.1, successRate:0.2},
+        {type:'centery', stepSize: 0.1, successRate:0.2},
+        {type:'centerz', stepSize: 0.1, successRate:0.2},
         {type:'sizeXYZ', stepSize: 0.1, successRate:0.2},
         {type:'sizeX', stepSize: 0.1, successRate:0.2},
         {type:'sizeY', stepSize: 0.1, successRate:0.2},
@@ -987,15 +320,15 @@ export class LayoutSolution {
             weights[i] = strategies[i].successRate
         }
         
-        if (this.aspectPenalty > this.layout.aspectConstraint.threshold) {
-            for (let i=0; i< weights.length; i++) {
-                weights[i] *= strategies[i].type.includes('size') ? 100 : 1
-            }
-        }
+        // if (this.aspectPenalty > this.layout.aspectConstraint.threshold) {
+        //     for (let i=0; i< weights.length; i++) {
+        //         weights[i] *= strategies[i].type.includes('size') ? 100 : 1
+        //     }
+        // }
 
-        if (this.orientationPenalty > this.layout.orientationConstraint.threshold) {
-            weights[0] *= 1000
-        }
+        // if (this.orientationPenalty > this.layout.orientationConstraint.threshold) {
+        //     weights[0] *= 1000
+        // }
 
         return randomSelect(strategies, weights)
     }
@@ -1005,10 +338,10 @@ export class LayoutSolution {
         this.layout = solution.layout
         this.orientation.copy( solution.orientation )
         this.bounds.copy( solution.bounds )
-        this.constraintScores.length = 0
-        for (let i = 0; i < solution.constraintScores.length; i++) {
-            this.constraintScores[i] = solution.constraintScores[i]
-        }
+        // this.constraintScores.length = 0
+        // for (let i = 0; i < solution.constraintScores.length; i++) {
+        //     this.constraintScores[i] = solution.constraintScores[i]
+        // }
         this.objectiveScores.length = 0
         for (let i = 0; i < solution.objectiveScores.length; i++) {
             this.objectiveScores[i] = solution.objectiveScores[i]
@@ -1098,8 +431,9 @@ export class LayoutSolution {
 
         // orientation mutation strategy
         if (strategyType === 'rotate') {
-            if (this.layout.orientation && (this.layout.orientation as Quaternion).isQuaternion) {
-                this.orientation.copy(this.layout.orientation as any)
+            const orientationSpec = this.layout.localOrientationConstraint?.spec as any
+            if (orientationSpec?.isQuaternion) {
+                this.orientation.copy(orientationSpec)
                 return strategy
             }
             stepSize = strategy.stepSize = Math.min(stepSize, 1)
@@ -1113,29 +447,36 @@ export class LayoutSolution {
         const size = bounds.getSize(LayoutSolution._size)
 
         // center mutation strategies
-        if (strategyType === 'centerX')  {
-            center.x = this._perturbFromLinearMeasureSpec(center.x, stepSize, this.layout.local.centerX, 'centerX')
-        } else if (strategyType === 'centerY')  {
-            center.y = this._perturbFromLinearMeasureSpec(center.y, stepSize, this.layout.local.centerY, 'centerY')
-        } else if (strategyType === 'centerZ')  {
-            center.z = this._perturbFromLinearMeasureSpec(center.z, stepSize, this.layout.local.centerZ, 'centerZ')
+        if (strategyType === 'centerz')  {
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            center.x = this._perturbFromSpatialBoundsSpec(center.x, stepSize, spatialBounds?.center?.x, 'centerx')
+        } else if (strategyType === 'centery')  {
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            center.y = this._perturbFromSpatialBoundsSpec(center.y, stepSize, spatialBounds?.center?.y, 'centery')
+        } else if (strategyType === 'centerz')  {
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            center.z = this._perturbFromSpatialBoundsSpec(center.z, stepSize, spatialBounds?.center?.z, 'centerz')
         }
 
         // size mutation strategies
         else if (strategyType === 'sizeXYZ') {
             const scale = 4 ** gaussian(stepSize)
-            if (this.layout.aspect === 'preserve-2d') {
+            const aspectMode = this.layout.preserveAspectConstraint?.mode
+            if (aspectMode === 'visual') {
                 size.x *= scale
                 size.y *= scale
             } else {
                 size.multiplyScalar(scale)
             }
         } else if (strategyType === 'sizeX') {
-            size.x = this._perturbFromLinearMeasureSpec(size.x, stepSize, this.layout.local.width, 'width')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            size.x = this._perturbFromSpatialBoundsSpec(size.x, stepSize, spatialBounds?.size?.x, 'sizex')
         } else if (strategyType === 'sizeY') {
-            size.y = this._perturbFromLinearMeasureSpec(size.y, stepSize, this.layout.local.height, 'height')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            size.y = this._perturbFromSpatialBoundsSpec(size.y, stepSize, spatialBounds?.size?.y, 'sizey')
         } else if (strategyType === 'sizeZ') {
-            size.z = this._perturbFromLinearMeasureSpec(size.z, stepSize, this.layout.local.depth, 'depth')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            size.z = this._perturbFromSpatialBoundsSpec(size.z, stepSize, spatialBounds?.size?.z, 'sizez')
         }
 
         size.x = Math.abs(size.x)
@@ -1145,17 +486,23 @@ export class LayoutSolution {
         bounds.setFromCenterAndSize(center, size)
 
         if (strategyType === 'minX')  {
-            bounds.min.x = this._perturbFromLinearMeasureSpec(bounds.min.x, stepSize, this.layout.local.left, 'left')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            bounds.min.x = this._perturbFromSpatialBoundsSpec(bounds.min.x, stepSize, spatialBounds?.left, 'left')
         } else if (strategyType === 'minY')  {
-            bounds.min.y = this._perturbFromLinearMeasureSpec(bounds.min.y, stepSize, this.layout.local.bottom, 'bottom')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            bounds.min.y = this._perturbFromSpatialBoundsSpec(bounds.min.y, stepSize, spatialBounds?.bottom, 'bottom')
         } else if (strategyType === 'minZ')  {
-            bounds.min.z = this._perturbFromLinearMeasureSpec(bounds.min.z, stepSize, this.layout.local.back, 'back')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            bounds.min.z = this._perturbFromSpatialBoundsSpec(bounds.min.z, stepSize, spatialBounds?.back, 'back')
         } else if (strategyType === 'maxX')  {
-            bounds.max.x = this._perturbFromLinearMeasureSpec(bounds.max.x, stepSize, this.layout.local.right, 'right')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            bounds.max.x = this._perturbFromSpatialBoundsSpec(bounds.max.x, stepSize, spatialBounds?.right, 'right')
         } else if (strategyType === 'maxY')  {
-            bounds.max.y = this._perturbFromLinearMeasureSpec(bounds.max.y, stepSize, this.layout.local.top, 'top')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            bounds.max.y = this._perturbFromSpatialBoundsSpec(bounds.max.y, stepSize, spatialBounds?.top, 'top')
         } else if (strategyType === 'maxZ')  {
-            bounds.max.z = this._perturbFromLinearMeasureSpec(bounds.max.z, stepSize, this.layout.local.front, 'front')
+            const spatialBounds = this.layout.spatialBoundsConstraint?.spec
+            bounds.max.z = this._perturbFromSpatialBoundsSpec(bounds.max.z, stepSize, spatialBounds?.front, 'front')
         } else if (strategyType === 'minXAspect')  {
             const opposite = bounds.max.x
             const scale = 4 ** gaussian(stepSize)
@@ -1219,15 +566,15 @@ export class LayoutSolution {
         return strategy
     }
 
-    private _perturbFromLinearMeasureSpec(value:number, stepSize:number, spec:LinearMeasureSpec|undefined, sType:LayoutMeasureSubType) {
+    private _perturbFromSpatialBoundsSpec(value:number, stepSize:number, spec:ConstraintSpec|undefined, sType:BoundsMeasureSubType) {
         if (spec === undefined) return value + gaussian(stepSize)
         if (spec instanceof Array) spec = randomSelect(spec)
-        if (SpatialLayout.isDiscreteSpec(spec)) {
-            return this.layout.measureLayout(spec, 'local', sType)
+        if (SpatialObjective.isDiscreteSpec(spec)) {
+            return this.layout.adapter.measureBounds(spec, 'spatial', sType)
         } 
-        const continuousSpec = spec as ContinuousSpec<LinearMeasureSpec>
-        const min = 'gt' in continuousSpec ? this.layout.measureLayout(continuousSpec.gt, 'local', sType) : undefined
-        const max = 'lt' in continuousSpec ? this.layout.measureLayout(continuousSpec.lt, 'local', sType) : undefined
+        const continuousSpec = spec as ContinuousSpec<ConstraintSpec>
+        const min = 'gt' in continuousSpec ? this.layout.adapter.measureBounds(continuousSpec.gt, 'spatial', sType) : undefined
+        const max = 'lt' in continuousSpec ? this.layout.adapter.measureBounds(continuousSpec.lt, 'spatial', sType) : undefined
         if (min !== undefined && max !== undefined && (value < min || value > max)) {
             return min + Math.random() * (max - min)
         } else if (min !== undefined && value < min) {
@@ -1250,5 +597,19 @@ export class LayoutSolution {
         bounds[sideX].x = diff.x + center.x
         bounds[sideY].y = diff.y + center.y
         bounds[sideZ].z = diff.z + center.z
+    }
+
+    apply(evaluate=false) {
+        const layout = this.layout
+        const adapter = layout.adapter   
+        adapter.parentNode = layout.parentNode
+        adapter.orientation.target = this.orientation
+        adapter.bounds.target = this.bounds
+        adapter.metrics.invalidateNodeStates()
+        if (evaluate) {
+            for (let i=0; i < layout.objectives.length; i++) {
+                this.objectiveScores[i] = layout.objectives[i].evaluate()
+            }
+        }
     }
 }

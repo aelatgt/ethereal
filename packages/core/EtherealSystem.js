@@ -4,7 +4,7 @@ import { Vector2 } from './math-utils';
 import { SpatialOptimizer, OptimizerConfig } from './SpatialOptimizer';
 import { Transitionable, TransitionConfig, easing } from './Transitionable';
 import { LayoutFrustum } from './LayoutFrustum';
-import { create, all } from 'mathjs';
+import { create, evaluateDependencies, addDependencies, subtractDependencies, multiplyDependencies, divideDependencies, numberDependencies, modDependencies, createUnitDependencies, unitDependencies } from 'mathjs';
 /**
  * Manages spatial adaptivity within an entire scene graph
  */
@@ -12,10 +12,21 @@ export class EtherealSystem {
     constructor(viewNode, bindings) {
         this.viewNode = viewNode;
         this.bindings = bindings;
-        this.math = create(all, {
+        this.math = create({
+            evaluateDependencies,
+            addDependencies,
+            subtractDependencies,
+            multiplyDependencies,
+            divideDependencies,
+            modDependencies,
+            numberDependencies,
+            createUnitDependencies,
+            unitDependencies
+        }, {
             predictable: true
         });
         this.mathScope = {
+            degree: this.math.unit('degree'),
             meter: this.math.unit('meter'),
             pixel: this.math.createUnit('pixel', { aliases: ['pixels', 'px'] }),
             percent: undefined,
@@ -41,10 +52,10 @@ export class EtherealSystem {
                 allowInvalidLayout: false,
                 relativeTolerance: 0.2,
                 iterationsPerFrame: 1,
-                swarmSize: 10,
+                swarmSize: 20,
                 pulseFrequencyMin: 0,
-                pulseFrequencyMax: 1.5,
-                pulseRate: 0.3,
+                pulseFrequencyMax: 1,
+                pulseRate: 0.2,
                 stepSizeMin: 0.01,
                 stepSizeMax: 1.5,
                 stepSizeStart: 0.8,
@@ -131,6 +142,8 @@ export class EtherealSystem {
             this.transitionables.push(t);
             return t;
         };
+        this._prevResolution = new Vector2;
+        this._prevSize = new Vector2;
     }
     /**
      *
@@ -149,9 +162,13 @@ export class EtherealSystem {
     update(deltaTime, time) {
         this.deltaTime = Math.max(deltaTime, this.maxDeltaTime);
         this.time = time;
-        this.mathScope.vdeg = this.math.unit(this.viewResolution.y / this.viewFrustum.sizeDegrees.y, 'px');
-        this.mathScope.vw = this.math.unit(this.viewResolution.x / 100, 'px');
-        this.mathScope.vh = this.math.unit(this.viewResolution.y / 100, 'px');
+        if (!this._prevResolution.equals(this.viewResolution) || !this._prevSize.equals(this.viewFrustum.sizeDegrees)) {
+            this.mathScope.vdeg = this.math.unit(this.viewResolution.y / this.viewFrustum.sizeDegrees.y, 'px');
+            this.mathScope.vw = this.math.unit(this.viewResolution.x / 100, 'px');
+            this.mathScope.vh = this.math.unit(this.viewResolution.y / 100, 'px');
+        }
+        this._prevResolution.copy(this.viewResolution);
+        this._prevSize.copy(this.viewFrustum.sizeDegrees);
         for (const metrics of this.nodeMetrics.values()) {
             metrics.needsUpdate = true;
             const adapter = this.nodeAdapters.get(metrics.node);

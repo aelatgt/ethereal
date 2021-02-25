@@ -11,8 +11,8 @@ export declare class NodeState<N extends Node3D = Node3D> {
     get parent(): N | null;
     set parent(val: N | null);
     private _parent;
-    get parentState(): Readonly<NodeState<N>> | undefined;
-    get outerState(): Readonly<NodeState<N>>;
+    get parentState(): NodeState<N> | undefined;
+    get outerState(): NodeState<N>;
     private _cachedLocalMatrix;
     get localMatrix(): Matrix4;
     set localMatrix(val: Matrix4);
@@ -74,42 +74,42 @@ export declare class NodeState<N extends Node3D = Node3D> {
      */
     get worldOrigin(): Vector3;
     /**
-     * The layout space (convert to world space from layout space)
+     * The spatial frame (convert to world frame from spatial frame)
      */
-    private _cachedLayoutMatrix;
-    get layoutMatrix(): Matrix4;
-    private _layoutMatrix;
-    private _layoutMatrixInverse;
-    private _localFromLayout;
-    private _layoutFromLocal;
+    private _cachedSpatialMatrix;
+    get spatialMatrix(): Matrix4;
+    private _spatialMatrix;
+    private _spatialMatrixInverse;
+    private _localFromSpatial;
+    private _spatialFromLocal;
     /**
-     * Convert to layout space from world space
+     * Convert to spatial frame from world frame
      */
-    get layoutMatrixInverse(): Matrix4;
+    get spatialMatrixInverse(): Matrix4;
     /**
-     * Convert to local space from layout space
+     * Convert to local frame from spatial frame
      */
-    get localFromLayout(): Matrix4;
+    get localFromSpatial(): Matrix4;
     /**
-     * Convert to layout space from local space
+     * Convert to spatial frame from local frame
      */
-    get layoutFromLocal(): Matrix4;
+    get spatialFromLocal(): Matrix4;
     /**
-     * The layout bounds
+     * The spatial bounds
      */
-    private _cachedLayoutBounds;
-    get layoutBounds(): Box3;
-    private _layoutBounds;
-    private _layoutSize;
-    private _layoutCenter;
+    private _cachedSpatialBounds;
+    get spatialBounds(): Box3;
+    private _spatialBounds;
+    private _spatialSize;
+    private _spatialCenter;
     /**
-     * The layout size
+     * The spatial size
      */
-    get layoutSize(): Vector3;
+    get spatialSize(): Vector3;
     /**
-     * The layout center
+     * The spatial center
      */
-    get layoutCenter(): Vector3;
+    get spatialCenter(): Vector3;
     /**
      * The first non-empty parent bounds, reoriented
      */
@@ -118,7 +118,7 @@ export declare class NodeState<N extends Node3D = Node3D> {
     private _outerBounds;
     private _outerCenter;
     private _outerSize;
-    private _layoutFromOuter;
+    private _spatialFromOuter;
     /**
      *
      */
@@ -126,22 +126,22 @@ export declare class NodeState<N extends Node3D = Node3D> {
     get outerSize(): Vector3;
     private get _viewState();
     /**
-     * The view space from local space
+     * The view frame from local frame
      */
     get viewFromLocal(): Matrix4;
     private _viewFromLocal;
     /**
-     * The view space from layout space
+     * The view frame from spatial frame
      */
-    get viewFromLayout(): Matrix4;
-    private _viewFromLayout;
+    get viewFromSpatial(): Matrix4;
+    private _viewFromSpatial;
     /**
-     * Convert to parent space from layout space
+     * Convert to parent frame from spatial frame
      */
-    get layoutFromView(): Matrix4;
-    private _layoutFromView;
+    get spatialFromView(): Matrix4;
+    private _spatialFromView;
     /**
-     * The view projection space from layout space
+     * The view projection frame from spatial frame
      */
     /**
      * Normalized Device Coordinates
@@ -265,20 +265,20 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     private _cachedNodeState;
     private _nodeState;
     /**
-     * Compute spatial state from layout orientation & bounds
+     * Compute spatial state from spatial orientation & bounds
      */
     private _computeState;
     invalidateNodeStates(): void;
     /**
      * The current state
      */
-    get currentState(): Readonly<NodeState<N>>;
+    get currentState(): NodeState<N>;
     private _cachedCurrentState;
     [InternalCurrentState]: NodeState<N>;
     /**
      * The target state
      */
-    get targetState(): Readonly<NodeState<N>>;
+    get targetState(): NodeState<N>;
     private _cachedTargetState;
     [InternalTargetState]: NodeState<N>;
     /**

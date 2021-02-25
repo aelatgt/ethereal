@@ -1,5 +1,4 @@
 import { EtherealSystem, Node3D } from './EtherealSystem';
-import { LayoutSolution, SpatialLayout } from './SpatialLayout';
 import { SpatialAdapter } from './SpatialAdapter';
 export declare class OptimizerConfig {
     constructor(config?: OptimizerConfig);
@@ -63,12 +62,4 @@ export declare class SpatialOptimizer<N extends Node3D> {
     update(adapter: SpatialAdapter<any>): boolean;
     private _updateLayout;
     private _manageSolutionPopulation;
-    /**
-     * Set a specific layout solution on the adapter
-     *
-     * @param adapter
-     * @param layout
-     * @param solution
-     */
-    applyLayoutSolution(adapter: SpatialAdapter<any>, layout: SpatialLayout, solution: LayoutSolution, evaluate?: boolean): void;
 }

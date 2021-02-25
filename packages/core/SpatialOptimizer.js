@@ -51,25 +51,19 @@ export class SpatialOptimizer {
      * Returrns false if layout is invalid
      */
     update(adapter) {
-        if (adapter.allLayouts.length === 0 || adapter.metrics.innerBounds.isEmpty()) {
+        if (adapter.layouts.length === 0 || adapter.metrics.innerBounds.isEmpty()) {
             adapter.activeLayout = null;
             return true;
         }
+        if (!adapter.hasValidLayoutContext)
+            return false;
         const prevParent = adapter.parentNode;
         const prevOrientation = this._prevOrientation.copy(adapter.orientation.target);
         const prevBounds = this._prevBounds.copy(adapter.bounds.target);
         const prevLayout = adapter.activeLayout;
         this._setConfig(adapter);
-        for (const layout of adapter.allLayouts) {
+        for (const layout of adapter.layouts) {
             this._updateLayout(adapter, layout);
-        }
-        if (adapter.layouts.length === 0) {
-            adapter.parentNode = prevParent;
-            adapter.orientation.target = prevOrientation;
-            adapter.bounds.target = prevBounds;
-            adapter.activeLayout = prevLayout;
-            adapter.metrics.invalidateNodeStates();
-            return true;
         }
         let bestLayout;
         let bestSolution;
@@ -82,7 +76,7 @@ export class SpatialOptimizer {
             }
         }
         if (bestLayout) {
-            this.applyLayoutSolution(adapter, bestLayout, bestSolution, false);
+            bestSolution.apply(false);
             adapter.activeLayout = bestLayout;
             return true;
         }
@@ -95,7 +89,7 @@ export class SpatialOptimizer {
     }
     #scratchSolution;
     _updateLayout(adapter, layout) {
-        layout.measureCache.clear();
+        adapter.measureBoundsCache.clear();
         const solutions = layout.solutions;
         const c = this._config;
         const newSolution = this.#scratchSolution;
@@ -105,12 +99,14 @@ export class SpatialOptimizer {
         const iterations = c.iterationsPerFrame;
         // manage solution population (if necessary)
         this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart);
+        // rescore previous best solution (in case the score changed)
+        solutions[0].apply(true);
         // // rescore and sort solutions
-        newSolution.copy(solutions[0]);
-        for (let i = 0; i < solutions.length; i++) {
-            this.applyLayoutSolution(adapter, layout, solutions[i], true);
-        }
-        layout.sortSolutions();
+        // newSolution.copy(solutions[0])
+        // for (let i=0; i < solutions.length; i++) {
+        //     this.applyLayoutSolution(solutions[i], true)
+        // }
+        // layout.sortSolutions()
         // optimize solutions
         for (let i = 0; i < iterations; i++) {
             layout.iteration++;
@@ -142,7 +138,7 @@ export class SpatialOptimizer {
                 }
                 // evaluate new solutions
                 // this.applyLayoutSolution(adapter, layout, solution, true)
-                this.applyLayoutSolution(adapter, layout, newSolution, true);
+                newSolution.apply(true);
                 // better than previous ?
                 const success = layout.compareSolutions(newSolution, solution) < 0;
                 if (success)
@@ -166,7 +162,7 @@ export class SpatialOptimizer {
                         }
                         if (solution !== solutionBest) {
                             solution.randomize(1);
-                            this.applyLayoutSolution(adapter, layout, solution, true);
+                            solution.apply(true);
                         }
                     }
                 }
@@ -190,27 +186,6 @@ export class SpatialOptimizer {
         else if (layout.solutions.length > swarmSize) {
             while (layout.solutions.length > swarmSize) {
                 layout.solutions.pop();
-            }
-        }
-    }
-    /**
-     * Set a specific layout solution on the adapter
-     *
-     * @param adapter
-     * @param layout
-     * @param solution
-     */
-    applyLayoutSolution(adapter, layout, solution, evaluate = false) {
-        adapter.parentNode = layout.parentNode;
-        adapter.orientation.target = solution.orientation;
-        adapter.bounds.target = solution.bounds;
-        adapter.metrics.invalidateNodeStates();
-        if (evaluate) {
-            for (let i = 0; i < layout.constraints.length; i++) {
-                solution.constraintScores[i] = layout.constraints[i].evaluate();
-            }
-            for (let i = 0; i < layout.objectives.length; i++) {
-                solution.objectiveScores[i] = layout.objectives[i].evaluate();
             }
         }
     }

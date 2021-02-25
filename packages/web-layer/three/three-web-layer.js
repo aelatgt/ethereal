@@ -1,11 +1,11 @@
-import { Vector3, Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, PlaneGeometry, Ray, Raycaster, Texture, VideoTexture, ClampToEdgeWrapping, RGBADepthPacking, LinearFilter, Matrix4 } from 'three';
-import { WebRenderer } from '../web-renderer';
+import { Vector3, Group, Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, PlaneGeometry, Ray, Raycaster, Texture, VideoTexture, ClampToEdgeWrapping, RGBADepthPacking, LinearFilter, Matrix4 } from 'three';
+import { WebRenderer } from '../WebRenderer';
 import { Bounds, getBounds, getViewportBounds, traverseChildElements, DOM } from '../dom-utils';
 const scratchVector = new Vector3();
 const scratchVector2 = new Vector3();
 const scratchBounds = new Bounds();
 const scratchBounds2 = new Bounds();
-export class WebLayer3DBase extends Object3D {
+export class WebLayer3DBase extends Group {
     constructor(elementOrHTML, options = {}) {
         super();
         this.options = options;
@@ -39,11 +39,26 @@ export class WebLayer3DBase extends Object3D {
          * Defaults to `auto`
          */
         this.shouldApplyDOMLayout = 'auto';
+        // private _refreshPending = false
+        // private scheduleRefresh() {
+        //   if (this._refreshPending) return
+        //   this._refreshPending = true
+        //   WebRenderer.scheduleIdle(() => {
+        //     this._refreshPending = false
+        //     this.refresh()
+        //   })
+        // }
+        this._doUpdate = () => {
+            this.updateLayout();
+            this.updateContent();
+            if (this.needsRefresh && this.options.autoRefresh)
+                this.refresh();
+            WebRenderer.scheduleTasks();
+        };
         const element = this.element = typeof elementOrHTML === 'string' ? DOM(elementOrHTML) : elementOrHTML;
         this.name = element.id;
         this._webLayer = WebRenderer.getClosestLayer(element);
         this.add(this.contentMesh);
-        this.add(this.cursor);
         this.cursor.visible = false;
         this.contentMesh.visible = false;
         this.contentMesh['customDepthMaterial'] = this.depthMaterial;
@@ -79,17 +94,11 @@ export class WebLayer3DBase extends Object3D {
         }
         return t;
     }
-    get needsRefresh() {
-        return this._webLayer.needsRefresh;
-    }
-    set needsRefresh(value) {
-        this._webLayer.needsRefresh = value;
-    }
     /**
      * Get the hover state
      */
-    get hover() {
-        return WebRenderer.containsHover(this.element);
+    get pseudoStates() {
+        return this._webLayer.psuedoStates;
     }
     /**
      * Get the layer depth (distance from this layer's element and the parent layer's element)
@@ -102,6 +111,12 @@ export class WebLayer3DBase extends Object3D {
      */
     get index() {
         return this.parentWebLayer ? this.parentWebLayer.childWebLayers.indexOf(this) : 0;
+    }
+    get needsRefresh() {
+        return this._webLayer.needsRefresh;
+    }
+    setNeedsRefresh() {
+        this._webLayer.traverseLayers(WebRenderer.setLayerNeedsRefresh);
     }
     /** If true, this layer needs to be removed from the scene */
     get needsRemoval() {
@@ -125,7 +140,8 @@ export class WebLayer3DBase extends Object3D {
             if (!child)
                 continue;
             this.childWebLayers.push(child);
-            child.refresh(recurse);
+            if (recurse)
+                child.refresh(recurse);
         }
         this._refreshVideoBounds();
         this._refreshDOMLayout();
@@ -137,8 +153,8 @@ export class WebLayer3DBase extends Object3D {
         this.contentMesh.scale.copy(this.domSize);
         // handle layer visibiltiy or removal
         const mesh = this.contentMesh;
-        const childMaterial = mesh.material;
-        const isHidden = childMaterial.opacity < 0.005;
+        const mat = mesh.material;
+        const isHidden = mat.opacity < 0.005;
         if (isHidden)
             mesh.visible = false;
         else if (mesh.material.map)
@@ -150,18 +166,29 @@ export class WebLayer3DBase extends Object3D {
         }
     }
     updateContent() {
-        // update mesh properties
         const mesh = this.contentMesh;
-        mesh.renderOrder = this.depth + this.index * 0.001;
-        // update texture
         const texture = this.currentTexture;
         const material = mesh.material;
         if (texture.image && material.map !== texture) {
             material.map = texture;
-            material.needsUpdate = true;
             this.depthMaterial['map'] = texture;
             this.depthMaterial.needsUpdate = true;
+            if (Math.abs(this.position.z) < 1e-9 && this.parent == this.parentWebLayer) {
+                material.depthWrite = false;
+                this.renderOrder = this.depth + this.index * 0.001;
+            }
+            else {
+                material.depthWrite = true;
+                this.renderOrder = 0;
+            }
+            material.needsUpdate = true;
         }
+    }
+    update(recurse = false) {
+        if (recurse)
+            this.traverseLayersPreOrder(this._doUpdate);
+        else
+            this._doUpdate();
     }
     querySelector(selector) {
         const element = this.element.querySelector(selector);
@@ -170,22 +197,28 @@ export class WebLayer3DBase extends Object3D {
         }
         return undefined;
     }
-    traverseParentWebLayers(each, ...params) {
+    traverseLayerAncestors(each) {
         const parentLayer = this.parentWebLayer;
         if (parentLayer) {
-            parentLayer.traverseParentWebLayers(each, ...params);
-            each(parentLayer, ...params);
+            parentLayer.traverseLayerAncestors(each);
+            each(parentLayer);
         }
     }
-    traverseWebLayers(each, ...params) {
-        each(this, ...params);
-        this.traverseChildWebLayers(each, ...params);
-    }
-    traverseChildWebLayers(each, ...params) {
+    traverseLayersPreOrder(each) {
+        if (each(this) === false)
+            return false;
         for (const child of this.childWebLayers) {
-            child.traverseWebLayers(each, ...params);
+            if (child.traverseLayersPreOrder(each) === false)
+                return false;
         }
-        return params;
+        return true;
+    }
+    traverseLayersPostOrder(each) {
+        for (const child of this.childWebLayers) {
+            if (child.traverseLayersPostOrder(each) === false)
+                return false;
+        }
+        return each(this) || true;
     }
     dispose() {
         for (const t of this.textures.values()) {
@@ -267,7 +300,9 @@ export class WebLayer3DBase extends Object3D {
         const leftEdge = -parentWidth / 2 + width / 2;
         const topEdge = parentHeight / 2 - height / 2;
         const sep = this.options.layerSeparation || WebLayer3D.DEFAULT_LAYER_SEPARATION;
-        this.domLayout.position.set(pixelSize * (leftEdge + bounds.left), pixelSize * (topEdge - bounds.top), this.depth * sep +
+        this.domLayout.position.set(pixelSize * (leftEdge + bounds.left), pixelSize * (topEdge - bounds.top), 
+        // 0
+        this.depth * sep +
             (this.parentWebLayer ? this.parentWebLayer.index * sep * 0.01 : 0) +
             this.index * sep * 0.001);
     }
@@ -311,12 +346,18 @@ export class WebLayer3D extends WebLayer3DBase {
     constructor(elementOrHTML, options = {}) {
         super(elementOrHTML, options);
         this.options = options;
-        this._doRecursiveRefresh = () => {
-            this.refresh(true);
-        };
         this._interactionRays = [];
         this._raycaster = new Raycaster();
         this._hitIntersections = [];
+        this._previousHoverLayers = new Set();
+        this._contentMeshes = [];
+        this._prepareHitTest = (layer) => {
+            if (layer.pseudoStates.hover)
+                this._previousHoverLayers.add(layer);
+            layer.cursor.visible = false;
+            layer.pseudoStates.hover = false;
+            this._contentMeshes.push(layer.contentMesh);
+        };
         this._webLayer = WebRenderer.createLayerTree(this.element, (event, { target }) => {
             if (event === 'layercreated') {
                 if (target === this.element)
@@ -362,9 +403,6 @@ export class WebLayer3D extends WebLayer3DBase {
             return true;
         return false;
     }
-    scheduleRefresh() {
-        WebRenderer.scheduleIdle(this._doRecursiveRefresh);
-    }
     get parentWebLayer() {
         return super.parentWebLayer;
     }
@@ -379,53 +417,38 @@ export class WebLayer3D extends WebLayer3DBase {
         this._interactionRays = rays;
     }
     /**
-     * Update the pose and opacity of this layer, handle interactions,
-     * and schedule DOM refreshes. This should be called each frame.
+     * Update this layer, optionally recursively
      */
-    updateLayout() {
-        super.updateLayout();
-    }
-    updateContent() {
-        super.updateContent();
+    update(recurse = false) {
         this._updateInteractions();
-        if (this.options.autoRefresh && Math.random() > 0.5)
-            this.scheduleRefresh();
-    }
-    /**
-     * Update this layer and child layers, recursively
-     */
-    updateAll() {
-        this.updateLayout();
-        this.updateContent();
-        for (const child of this.childWebLayers) {
-            child.updateLayout();
-            child.updateContent();
-        }
+        super.update(recurse);
     }
     _updateInteractions() {
-        const rootLayer = this;
-        rootLayer.updateWorldMatrix(true, true);
-        rootLayer.traverseWebLayers(WebLayer3D._hideCursor);
-        WebRenderer.hoverTargetElements.clear();
-        for (const ray of rootLayer._interactionRays) {
-            rootLayer._hitIntersections.length = 0;
+        // this.updateWorldMatrix(true, true)
+        const prevHover = this._previousHoverLayers;
+        prevHover.clear();
+        this._contentMeshes.length = 0;
+        this.traverseLayersPreOrder(this._prepareHitTest);
+        for (const ray of this._interactionRays) {
             if (ray instanceof Ray)
-                rootLayer._raycaster.ray.copy(ray);
+                this._raycaster.ray.copy(ray);
             else
-                rootLayer._raycaster.ray.set(ray.getWorldPosition(scratchVector), ray.getWorldDirection(scratchVector2));
-            rootLayer._raycaster.intersectObject(rootLayer, true, rootLayer._hitIntersections);
-            for (const intersection of rootLayer._hitIntersections) {
-                let layer = WebLayer3D.layersByMesh.get(intersection.object);
-                if (layer && !layer.needsRemoval) {
-                    layer.cursor.position.copy(intersection.point);
-                    layer.worldToLocal(layer.cursor.position);
-                    layer.cursor.visible = true;
-                    while (layer instanceof WebLayer3DBase) {
-                        WebRenderer.hoverTargetElements.add(layer.element);
-                        layer = layer.parent;
-                    }
-                    break;
+                this._raycaster.ray.set(ray.getWorldPosition(scratchVector), ray.getWorldDirection(scratchVector2));
+            this._hitIntersections.length = 0;
+            const intersection = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections)[0];
+            if (intersection) {
+                const layer = intersection.object.parent;
+                layer.cursor.position.copy(intersection.point);
+                layer.cursor.visible = true;
+                layer.pseudoStates.hover = true;
+                if (!prevHover.has(layer)) {
+                    layer.setNeedsRefresh();
                 }
+            }
+        }
+        for (const layer of prevHover) {
+            if (!layer.pseudoStates.hover) {
+                layer.setNeedsRefresh();
             }
         }
     }
@@ -434,7 +457,7 @@ export class WebLayer3D extends WebLayer3DBase {
         return WebLayer3D.layersByElement.get(element);
     }
     static getClosestLayerForElement(element) {
-        const closestLayerElement = element && element.closest(`[${WebLayer3D.LAYER_ATTRIBUTE}]`);
+        const closestLayerElement = element && element.closest(`[${WebRenderer.LAYER_ATTRIBUTE}]`);
         return WebLayer3D.layersByElement.get(closestLayerElement);
     }
     hitTest(ray) {
@@ -479,17 +502,9 @@ export class WebLayer3D extends WebLayer3DBase {
 }
 WebLayer3D.layersByElement = new WeakMap();
 WebLayer3D.layersByMesh = new WeakMap();
-WebLayer3D.DEBUG_PERFORMANCE = false;
-WebLayer3D.LAYER_ATTRIBUTE = 'data-layer';
-WebLayer3D.PIXEL_RATIO_ATTRIBUTE = 'data-layer-pixel-ratio';
-WebLayer3D.STATES_ATTRIBUTE = 'data-layer-states';
-WebLayer3D.HOVER_DEPTH_ATTRIBUTE = 'data-layer-hover-depth';
 WebLayer3D.DEFAULT_LAYER_SEPARATION = 0.001;
 WebLayer3D.DEFAULT_PIXELS_PER_UNIT = 1000;
 WebLayer3D.GEOMETRY = new PlaneGeometry(1, 1, 2, 2);
-WebLayer3D._hideCursor = function (layer) {
-    layer.cursor.visible = false;
-};
 class CameraFOVs {
     constructor() {
         this.top = 0;

@@ -1,24 +1,24 @@
 
 <template>
-    <div id="pride" data-layer-pixel-ratio="1" v-bind:class="{xr:immersiveMode}">
-        <div id="procedure" data-layer><img data-layer class="logo" :src="logo"/>Procedure: {{pride.procedure}}</div>
-        <div id="step" data-layer>Step: <span id="type">{{pride.elementSubType}}</span> {{pride.step}}</div>
-        <div data-layer id="content">
-            <div id="instruction" data-layer>{{pride.instruction}}</div>
-            <div data-layer data-layer-pixel-ratio="0.5" id="media">
-                <video id="video" loop webkit-playsinline playsinline="true" crossorigin="anonymous" muted data-layer v-show="pride.video" :src="pride.video"/>
-                <img id="image" crossorigin="anonymous" data-layer v-show="pride.image" :src="pride.image"/>
+    <div id="pride" xr-pixel-ratio="1" v-bind:class="{xr:immersiveMode}">
+        <div xr-layer id="procedure"><img xr-layer class="logo" :src="logo"/>Procedure: {{pride.procedure}}</div>
+        <div id="step" xr-layer>Step: <span id="type">{{pride.elementSubType}}</span> {{pride.step}}</div>
+        <div xr-layer id="content">
+            <div id="instruction" xr-layer>{{pride.instruction}}</div>
+            <div xr-layer xr-pixel-ratio="0.5" id="media">
+                <video xr-layer id="video" loop webkit-playsinline playsinline="true" crossorigin="anonymous" muted v-show="pride.video" :src="pride.video"/>
+                <img xr-layer id="image" crossorigin="anonymous" v-show="pride.image" :src="pride.image"/>
             </div>
-            <div id="model" data-layer data-layer-pixel-ratio="0.5">
+            <div xr-layer id="model" xr-pixel-ratio="0.5">
             </div>
         </div>
         <div id="controls">
-            <div data-layer data-layer-hover-depth="1" class="button" id="back">Back</div>
-            <div data-layer v-show="['ManualInstruction', 'ClarifyingInfo', 'VerifyInstruction'].indexOf(pride.elementSubType) > -1" data-layer-hover-depth="1" class="button" id="done">Done</div>
-            <div data-layer v-show="pride.elementSubType === 'Conditional'" data-layer-hover-depth="1" class="button" id="yes">Yes</div>
-            <div data-layer v-show="pride.elementSubType === 'Conditional'" data-layer-hover-depth="1" class="button" id="no">No</div>
-            <div data-layer v-show="pride.elementSubType === 'Bla'" data-layer-hover-depth="1" class="button" id="no">Record</div>
-            <div data-layer data-layer-hover-depth="1" id="immersive-toggle"><b>{{immersiveMode ? 'Flat' : 'Immersive'}}</b></div>
+            <div xr-layer class="button" id="back">Back</div>
+            <div xr-layer v-show="['ManualInstruction', 'ClarifyingInfo', 'VerifyInstruction'].indexOf(pride.elementSubType) > -1" class="button" id="done">Done</div>
+            <div xr-layer v-show="pride.elementSubType === 'Conditional'" class="button" id="yes">Yes</div>
+            <div xr-layer v-show="pride.elementSubType === 'Conditional'" class="button" id="no">No</div>
+            <div xr-layer v-show="pride.elementSubType === 'Bla'" class="button" id="no">Record</div>
+            <div xr-layer id="immersive-toggle"><b>{{immersiveMode ? 'Flat' : 'Immersive'}}</b></div>
         </div>
     </div>
 </template>

@@ -1,3 +1,4 @@
 export * from './three/three-web-layer'
-export * from './web-renderer'
+export * from './WebRenderer'
+export * from './WebLayer'
 export * from './dom-utils'

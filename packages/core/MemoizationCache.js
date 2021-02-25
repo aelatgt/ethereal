@@ -33,9 +33,9 @@ function memoize(cb) {
             wrapped.needsUpdate = false;
             value = cb();
         }
-        if (value === UNSET) {
-            throw new Error("Possible recursive memoization detected");
-        }
+        // if (value as any === UNSET) {
+        //     throw new Error("Possible recursive memoization detected")
+        // }
         return value;
     };
     wrapped.needsUpdate = true;

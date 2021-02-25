@@ -40,9 +40,9 @@ function memoize<R>(cb:()=>R) : MemoizedFunction<R> {
             wrapped.needsUpdate = false
             value = cb()
         }
-        if (value as any === UNSET) {
-            throw new Error("Possible recursive memoization detected")
-        }
+        // if (value as any === UNSET) {
+        //     throw new Error("Possible recursive memoization detected")
+        // }
         return value
     }
     wrapped.needsUpdate = true

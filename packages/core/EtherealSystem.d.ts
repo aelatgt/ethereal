@@ -29,6 +29,7 @@ export declare class EtherealSystem<N extends Node3D = Node3D> {
     constructor(viewNode: N, bindings: NodeBindings<N>);
     math: import("mathjs").MathJsStatic;
     mathScope: {
+        degree: import("mathjs").Unit;
         meter: import("mathjs").Unit;
         pixel: import("mathjs").Unit;
         percent: import("mathjs").Unit | undefined;
@@ -91,7 +92,7 @@ export declare class EtherealSystem<N extends Node3D = Node3D> {
     /**
      *
      */
-    getState: (node: N) => Readonly<NodeState<N>>;
+    getState: (node: N) => NodeState<N>;
     /**
      * Get or create a SpatialAdapter instance which wraps a third-party node instance (e.g., THREE.Object3D instance)
      * @param node
@@ -101,6 +102,8 @@ export declare class EtherealSystem<N extends Node3D = Node3D> {
      * Create a Transitionable instance
      */
     createTransitionable: <T extends MathType>(value: T, config?: TransitionConfig | undefined) => Transitionable<T>;
+    private _prevResolution;
+    private _prevSize;
     /**
      * Call this each frame, after updating `viewNode`, `viewFrustum`,
      * and `viewResolution`
