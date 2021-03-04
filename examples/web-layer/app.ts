@@ -169,12 +169,12 @@ function makeDefaultMaterial(layer: WebLayer3DBase) {
 // shadows
 function toggleShadows(enabled:boolean) {
   if (enabled) {
-    todoLayer.traverseWebLayers(layer => {
+    todoLayer.traverseLayersPreOrder(layer => {
       layer.contentMesh.material = makeShadowMaterial(layer)
     })
     // scene.add(shadowCameraHelper)
   } else {
-    todoLayer.traverseWebLayers(layer => {
+    todoLayer.traverseLayersPreOrder(layer => {
       layer.contentMesh.material = makeDefaultMaterial(layer)
     })
     // scene.remove(shadowCameraHelper)
@@ -191,11 +191,10 @@ function toggleDOM(enabled:boolean) {
     containerStyle.height = '100vh'
     containerStyle.transform = 'scale(0.5)'
     containerStyle.transformOrigin = 'bottom left'
-    todoLayer.needsRefresh = true
   } else {
     containerStyle.top = '-100000px'
-    todoLayer.needsRefresh = true
   }
+  todoLayer.setNeedsRefresh()
 }
 
 // enable hover-state rendering

@@ -20,31 +20,18 @@ export declare type Vector3Spec = AtLeastOneProperty<{
     z: NumberConstraintSpec;
     magnitude: NumberConstraintSpec;
 }>;
-export declare type QuaternionSpec = {
+export declare type QuaternionSpec = OneOrMany<{
     x: number;
     y: number;
     z: number;
     w: number;
-} | {
-    axis: OneOrMany<AtLeastOneProperty<{
-        x: number;
-        y: number;
-        z: number;
-    }>>;
-    degrees?: ConstraintSpec;
-} | {
-    twistSwing: AtLeastOneProperty<{
-        horizontal: ConstraintSpec;
-        vertical: ConstraintSpec;
-        twist: ConstraintSpec;
-    }>;
-} | {
-    swingTwist: AtLeastOneProperty<{
-        horizontal: ConstraintSpec;
-        vertical: ConstraintSpec;
-        twist: ConstraintSpec;
-    }>;
-};
+} | AtLeastOneProperty<{
+    swingRange: {
+        x: string;
+        y: string;
+    };
+    twistRange: string;
+}>>;
 export interface ObjectiveOptions {
     relativeTolerance?: number;
     absoluteTolerance?: number;
@@ -75,10 +62,12 @@ export declare abstract class SpatialObjective {
     private _getNumberScoreSingle;
     protected getVector3Score(value: Vector3, spec: OneOrMany<Vector3Spec> | undefined, mode: ConstraintMode, accuracy: number): number;
     private _getVector3ScoreSingle;
-    protected getQuaternionScore(value: Quaternion, spec: OneOrMany<QuaternionSpec> | undefined, mode: ConstraintMode, accuracy: number): number;
+    protected getQuaternionScore(value: Quaternion, spec: OneOrMany<QuaternionSpec> | undefined, accuracy: number): number;
+    private _quat;
+    private _euler;
     private _getQuaternionScoreSingle;
     protected getBoundsScore(spec: SpatialBoundsSpec | undefined, type: BoundsMeasureType): number;
-    protected getBoundsMeasureScore(spec: ConstraintSpec | undefined, type: BoundsMeasureType, subType: BoundsMeasureSubType): number;
+    protected getBoundsMeasureScore(spec: OneOrMany<ConstraintSpec> | undefined, type: BoundsMeasureType, subType: BoundsMeasureSubType): number;
     private _getMeasurePenaltySingle;
     /**  Attenuate visual score when out of view */
     protected attenuateVisualScore(score: number): number;
@@ -101,22 +90,22 @@ export declare class AspectConstraint extends SpatialObjective {
     evaluate(): number;
 }
 export interface SpatialBoundsSpec {
-    /** meters */ left?: ConstraintSpec;
-    /** meters */ bottom?: ConstraintSpec;
-    /** meters */ right?: ConstraintSpec;
-    /** meters */ top?: ConstraintSpec;
-    /** meters */ front?: ConstraintSpec;
-    /** meters */ back?: ConstraintSpec;
+    /** meters */ left?: OneOrMany<ConstraintSpec>;
+    /** meters */ bottom?: OneOrMany<ConstraintSpec>;
+    /** meters */ right?: OneOrMany<ConstraintSpec>;
+    /** meters */ top?: OneOrMany<ConstraintSpec>;
+    /** meters */ front?: OneOrMany<ConstraintSpec>;
+    /** meters */ back?: OneOrMany<ConstraintSpec>;
     size?: {
-        /** meters */ x?: ConstraintSpec;
-        /** meters */ y?: ConstraintSpec;
-        /** meters */ z?: ConstraintSpec;
-        /** meters */ diagonal?: ConstraintSpec;
+        /** meters */ x?: OneOrMany<ConstraintSpec>;
+        /** meters */ y?: OneOrMany<ConstraintSpec>;
+        /** meters */ z?: OneOrMany<ConstraintSpec>;
+        /** meters */ diagonal?: OneOrMany<ConstraintSpec>;
     };
     center?: {
-        /** meters */ x?: ConstraintSpec;
-        /** meters */ y?: ConstraintSpec;
-        /** meters */ z?: ConstraintSpec;
+        /** meters */ x?: OneOrMany<ConstraintSpec>;
+        /** meters */ y?: OneOrMany<ConstraintSpec>;
+        /** meters */ z?: OneOrMany<ConstraintSpec>;
     };
 }
 export declare class SpatialBoundsConstraint extends SpatialObjective {
@@ -125,34 +114,34 @@ export declare class SpatialBoundsConstraint extends SpatialObjective {
 }
 export interface VisualBoundsSpec {
     absolute?: {
-        /** pixels */ left?: ConstraintSpec;
-        /** pixels */ bottom?: ConstraintSpec;
-        /** pixels */ right?: ConstraintSpec;
-        /** pixels */ top?: ConstraintSpec;
-        /** meters */ front?: ConstraintSpec;
-        /** meters */ back?: ConstraintSpec;
+        /** pixels */ left?: OneOrMany<ConstraintSpec>;
+        /** pixels */ bottom?: OneOrMany<ConstraintSpec>;
+        /** pixels */ right?: OneOrMany<ConstraintSpec>;
+        /** pixels */ top?: OneOrMany<ConstraintSpec>;
+        /** meters */ front?: OneOrMany<ConstraintSpec>;
+        /** meters */ back?: OneOrMany<ConstraintSpec>;
         center?: {
-            /** pixels */ x?: ConstraintSpec;
-            /** pixels */ y?: ConstraintSpec;
-            /** meters */ z?: ConstraintSpec;
+            /** pixels */ x?: OneOrMany<ConstraintSpec>;
+            /** pixels */ y?: OneOrMany<ConstraintSpec>;
+            /** meters */ z?: OneOrMany<ConstraintSpec>;
         };
     };
-    /** pixels */ left?: ConstraintSpec;
-    /** pixels */ bottom?: ConstraintSpec;
-    /** pixels */ right?: ConstraintSpec;
-    /** pixels */ top?: ConstraintSpec;
-    /** meters */ front?: ConstraintSpec;
-    /** meters */ back?: ConstraintSpec;
+    /** pixels */ left?: OneOrMany<ConstraintSpec>;
+    /** pixels */ bottom?: OneOrMany<ConstraintSpec>;
+    /** pixels */ right?: OneOrMany<ConstraintSpec>;
+    /** pixels */ top?: OneOrMany<ConstraintSpec>;
+    /** meters */ front?: OneOrMany<ConstraintSpec>;
+    /** meters */ back?: OneOrMany<ConstraintSpec>;
     center?: {
-        /** pixels */ x?: ConstraintSpec;
-        /** pixels */ y?: ConstraintSpec;
-        /** meters */ z?: ConstraintSpec;
+        /** pixels */ x?: OneOrMany<ConstraintSpec>;
+        /** pixels */ y?: OneOrMany<ConstraintSpec>;
+        /** meters */ z?: OneOrMany<ConstraintSpec>;
     };
     size?: {
-        /** pixels */ x?: ConstraintSpec;
-        /** pixels */ y?: ConstraintSpec;
-        /** meters */ z?: ConstraintSpec;
-        /** pixels */ diagonal?: ConstraintSpec;
+        /** pixels */ x?: OneOrMany<ConstraintSpec>;
+        /** pixels */ y?: OneOrMany<ConstraintSpec>;
+        /** meters */ z?: OneOrMany<ConstraintSpec>;
+        /** pixels */ diagonal?: OneOrMany<ConstraintSpec>;
     };
 }
 export declare class VisualBoundsConstraint extends SpatialObjective {

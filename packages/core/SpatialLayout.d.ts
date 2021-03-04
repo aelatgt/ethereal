@@ -14,6 +14,8 @@ export declare class SpatialLayout {
     visualAccuracy: string;
     angularAccuracy: string;
     relativeAccuracy: number;
+    successRate: number;
+    restartRate: number;
     /**
      * The objectives applied to this layout
      */
@@ -48,8 +50,13 @@ export declare class SpatialLayout {
     */
     preserveAspect(mode: 'spatial' | 'visual', opts?: ObjectiveOptions): this;
     preserveAspectConstraint?: AspectConstraint;
+    /**
+     * Add a local orientation constraint (same as localOrientation)
+     */
+    spatialOrientation(spec: QuaternionSpec, opts?: ObjectiveOptions): this;
     spatialBounds(spec: SpatialBoundsSpec, opts?: ObjectiveOptions): this;
     spatialBoundsConstraint?: SpatialBoundsConstraint;
+    visualOrientation(spec: QuaternionSpec, opts?: ObjectiveOptions): void;
     visualBounds(spec: VisualBoundsSpec, opts?: ObjectiveOptions): this;
     visualBoundsConstraint?: VisualBoundsConstraint;
     visualMaximize(opts?: ObjectiveOptions): this;
@@ -64,6 +71,10 @@ export declare class SpatialLayout {
      * The current optimization iteration
      */
     iteration: number;
+    /**
+     * Return true if this layout has a valid solution
+     */
+    get hasValidSolution(): boolean;
     bestSolution: LayoutSolution;
     /**
      * Update best scores and sort solutions
@@ -117,7 +128,8 @@ export declare class LayoutSolution {
      * The objectives fitness scores for this solution
      * (one for each objective, higher is better)
      */
-    objectiveScores: number[];
+    scores: number[];
+    bestScores: number[];
     /**
      * All constraints are satisfied
      */

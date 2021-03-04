@@ -120,14 +120,14 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      * Add a layout with an associated behavior.
      */
     createLayout(): SpatialLayout;
-    get hasValidLayoutContext(): boolean;
-    private _hasValidLayoutContext;
+    get hasValidContext(): boolean;
+    private _hasValidContext;
     onUpdate?: () => void;
     onPostUpdate?: () => void;
     syncWithParentAdapter: boolean;
     private _prevParent;
     private _prevNodeOrientation;
     private _prevNodeBounds;
-    _computeHasValidLayoutContext(): boolean;
+    _computeHasValidContext(): boolean;
     _update(): void;
 }

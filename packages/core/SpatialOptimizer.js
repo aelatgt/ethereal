@@ -28,6 +28,7 @@ export class SpatialOptimizer {
         this._prevOrientation = new Quaternion;
         this._prevBounds = new Box3;
         this.#scratchSolution = new LayoutSolution();
+        this.#scratchBestSolution = new LayoutSolution();
     }
     _setConfig(adapter) {
         const defaultConfig = this.system.config.optimize;
@@ -55,7 +56,7 @@ export class SpatialOptimizer {
             adapter.activeLayout = null;
             return true;
         }
-        if (!adapter.hasValidLayoutContext)
+        if (!adapter.hasValidContext)
             return false;
         const prevParent = adapter.parentNode;
         const prevOrientation = this._prevOrientation.copy(adapter.orientation.target);
@@ -88,15 +89,19 @@ export class SpatialOptimizer {
         return false;
     }
     #scratchSolution;
+    #scratchBestSolution;
     _updateLayout(adapter, layout) {
         adapter.measureBoundsCache.clear();
         const solutions = layout.solutions;
         const c = this._config;
         const newSolution = this.#scratchSolution;
+        const bestSolution = this.#scratchBestSolution;
         const diversificationFactor = 1.5;
         const intensificationFactor = 1.5 ** (-1 / 4);
         const successAlpha = 2 / (c.successRateMovingAverage + 1); // N-sample exponential moving average
-        const iterations = c.iterationsPerFrame;
+        let iterations = c.iterationsPerFrame;
+        if (layout.successRate < 0.01 && layout.solutions[0]?.isValid)
+            iterations = 1;
         // manage solution population (if necessary)
         this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart);
         // rescore previous best solution (in case the score changed)
@@ -110,7 +115,7 @@ export class SpatialOptimizer {
         // optimize solutions
         for (let i = 0; i < iterations; i++) {
             layout.iteration++;
-            const solutionBest = solutions[0];
+            bestSolution.copy(solutions[0]);
             // update solutions
             for (let j = 0; j < solutions.length; j++) {
                 const solution = solutions[j];
@@ -120,7 +125,7 @@ export class SpatialOptimizer {
                 let mutationStrategy = undefined;
                 if (Math.random() < c.pulseRate) { // emit directional pulses! (global search / exploration)
                     // select best and random solution
-                    let bestSolution = solutionBest !== solution ? solutionBest : solutions[1];
+                    const best = bestSolution !== solution ? bestSolution : solutions[1];
                     let randomSolution;
                     if (solutions.length > 2) {
                         do {
@@ -128,7 +133,7 @@ export class SpatialOptimizer {
                         } while (randomSolution === solution);
                     }
                     // move towards best or both solutions
-                    newSolution.moveTowards(bestSolution, c.pulseFrequencyMin, c.pulseFrequencyMax);
+                    newSolution.moveTowards(best, c.pulseFrequencyMin, c.pulseFrequencyMax);
                     if (randomSolution && layout.compareSolutions(randomSolution, solution) <= 0) {
                         newSolution.moveTowards(randomSolution, c.pulseFrequencyMin, c.pulseFrequencyMax);
                     }
@@ -155,20 +160,33 @@ export class SpatialOptimizer {
                     }
                     if (mutationStrategy.successRate < c.successRateMin &&
                         Math.random() < c.staleRestartRate && !success) {
+                        layout.restartRate = 0.001 + (1 - 0.001) * layout.restartRate;
                         // random restart
                         for (const m of solution.mutationStrategies) {
                             m.stepSize = c.stepSizeStart;
                             m.successRate = 0.2;
                         }
-                        if (solution !== solutionBest) {
+                        if (solution !== solutions[0]) {
                             solution.randomize(1);
                             solution.apply(true);
+                            solution.bestScores.length = 0;
+                            for (const s of solution.scores)
+                                solution.bestScores.push(s);
                         }
+                    }
+                    else {
+                        layout.restartRate = (1 - 0.001) * layout.restartRate;
                     }
                 }
             }
             // best solution may have changed
             layout.sortSolutions();
+            if (layout.compareSolutions(bestSolution, solutions[0]) <= 0) {
+                layout.successRate = (1 - 0.001) * layout.successRate;
+            }
+            else {
+                layout.successRate = 0.001 + (1 - 0.001) * layout.successRate;
+            }
         }
     }
     _manageSolutionPopulation(adapter, layout, swarmSize, startStepSize) {

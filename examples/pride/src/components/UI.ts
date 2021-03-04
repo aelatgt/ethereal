@@ -21,6 +21,7 @@ export default class UI {
         layerSeparation: 0.002,
         onLayerCreate: (layer) => {
             const adapter = this.app.system.getAdapter(layer)
+            // adapter.optimize.allowInvalidLayout = true
             adapter.syncWithParentAdapter = false
             adapter.transition.duration = 1
             // adapter.transition.debounce = 0.5 // 0.4
@@ -93,11 +94,12 @@ export default class UI {
                 const flatLayout = adapter.createLayout()
                     .attachedTo(this.app.camera) // attach the UI to the camera
                     .localOrientation(Q_IDENTITY)
-                    .preserveAspect('visual')
                     .visualBounds({
+                        back: {lt:'-1m'},
                         size: {y: '100 vh'},
                         center: {x: '0 vdeg', y:'0 vdeg'}
                     })
+                    .preserveAspect('visual')
                 // flatLayout.scale = V_111
                 // flatLayout.orientation = Q_IDENTITY
 
@@ -126,9 +128,9 @@ export default class UI {
                 const flatLayout = adapter.createLayout()
                 flatLayout.attachedTo(this.model)
                     .localOrientation(Q_IDENTITY)
-                    .preserveAspect('visual')
-                    .spatialBounds({back: '0.1m'})
+                    // .spatialBounds({back: '0.1m'})
                     .visualBounds({
+                        back:       {gt: '0.1m'},
                         left:       {gt: '10px'},
                         right:      {lt: '-10px'},
                         bottom:     {gt: '10px'},
@@ -136,7 +138,8 @@ export default class UI {
                         size:       {diagonal:   {gt: '10vdeg'}}
                     })
                     .visualForce({})
-                    .visualMaximize()
+                    .preserveAspect('visual')
+                    .visualMaximize({relativeTolerance:0.5})
 
                 // flatLayout.visual.left      = {gt: '10px'}
                 // flatLayout.visual.right     = {lt: '-10px'}
@@ -151,9 +154,10 @@ export default class UI {
 
                 const immersiveFloating = adapter.createLayout()
                     .attachedTo(this.app.scene)
-                    .localOrientation(Q_IDENTITY)
+                    .spatialOrientation({swingRange:{x:'10deg',y:'10deg'}, twistRange:'10deg'})
                     .spatialBounds({size: {diagonal: '0.2m'}})
-                    .visualBounds({center: {x: '0', y: '0'}})
+                    .visualBounds({center: {x: '0', y: '0'}, size: {y: '50vh'}})
+                immersiveFloating.visualAccuracy = '30px'
 
 
             // const immersiveFloating = adapter.createLayout()
@@ -189,17 +193,24 @@ export default class UI {
             adapter.onUpdate = () => {
                 if (this.state.immersiveMode) {
                     adapter.layouts = IMMERSIVE
-                    adapter.parentNode = this.app.scene
-                    if (this.treadmill.treadmillAnchorObject && this.treadmill.treadmillAnchorObject.parent) {
-                        snubberObject.position.copy(this.treadmill.snubberTargetPosition)
-                        snubberObject.quaternion.setFromAxisAngle(ethereal.V_001, Math.PI)
-                    } else {
-                        snubberObject.scale.setScalar(4)
-                        snubberObject.position.set(0,this.app.xrPresenting ? 1.6 : 0,-1)
-                    }
+                    // adapter.parentNode = this.app.scene
+                    // if (this.treadmill.treadmillAnchorObject && this.treadmill.treadmillAnchorObject.parent) {
+                    //     snubberObject.position.copy(this.treadmill.snubberTargetPosition)
+                    //     snubberObject.quaternion.setFromAxisAngle(ethereal.V_001, Math.PI)
+                    // } else {
+                    //     snubberObject.scale.setScalar(4)
+                    //     snubberObject.position.set(0,this.app.xrPresenting ? 1.6 : 0,-1)
+                    // }
                 } else {
                     adapter.layouts = FLAT
                     // const modelBounds = this.app.system.getState(this.model).visualBounds
+                }
+            }
+
+            adapter.onPostUpdate = () => {
+                // stop updating layout after finding a solution
+                if (this.state.immersiveMode && adapter.hasValidContext) {
+                    adapter.layouts = [] 
                 }
             }
         }

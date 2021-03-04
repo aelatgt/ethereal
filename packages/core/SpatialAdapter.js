@@ -51,8 +51,8 @@ export class SpatialAdapter {
         this._prevLayout = null;
         this._activeLayout = null;
         this._progress = 1;
-        this._hasValidLayoutContext = false;
-        this.syncWithParentAdapter = true;
+        this._hasValidContext = false;
+        this.syncWithParentAdapter = false;
         this._prevNodeOrientation = new Quaternion;
         this._prevNodeBounds = new Box3;
         this.metrics = this.system.getMetrics(this.node);
@@ -321,24 +321,24 @@ export class SpatialAdapter {
         this.layouts.push(layout);
         return layout;
     }
-    get hasValidLayoutContext() {
-        return this._hasValidLayoutContext;
+    get hasValidContext() {
+        return this._hasValidContext;
     }
-    _computeHasValidLayoutContext() {
+    _computeHasValidContext() {
         const pAdapter = this.parentAdapter;
         if (!pAdapter)
             return true;
-        if (!pAdapter.hasValidLayoutContext)
+        if (!pAdapter.hasValidContext)
             return false;
         if (pAdapter.layouts.length === 0)
             return true;
-        if (pAdapter.activeLayout)
+        if (pAdapter.activeLayout?.hasValidSolution)
             return true;
         return false;
     }
     _update() {
         this._parentAdapter = this._computeParentAdapter();
-        this._hasValidLayoutContext = this._computeHasValidLayoutContext();
+        this._hasValidContext = this._computeHasValidContext();
         const metrics = this.metrics;
         if (this.onUpdate) {
             const nodeState = metrics.nodeState;

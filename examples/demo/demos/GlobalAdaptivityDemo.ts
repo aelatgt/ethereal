@@ -66,7 +66,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
             sphere.position.copy(spherePosition)
 
             const adapter = app.system.getAdapter(sphere)
-            adapter.onPreUpdate = () => {
+            adapter.onUpdate = () => {
                 t += adapter.system.deltaTime * tMultiplier
                 center.x = factorX * Math.sin(t)
                 center.y = factorY * Math.sin(t)
@@ -94,7 +94,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
             layout.local.centerX = {meters: 0}
             layout.local.centerZ = {meters: 0}
             layout.local.centerY = {percent: 50}
-            adapter.onPreUpdate = () => {
+            adapter.onUpdate = () => {
                 layout.orientation = app.system.getState(this.container).viewAlignedOrientation
             }
         }
@@ -135,7 +135,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
                 return 0 - (state.occludingPercent +  state.occludedPercent)  ** 4
             }})
 
-            adapter.onPreUpdate = () => {
+            adapter.onUpdate = () => {
                 // const relativeViewPosition = system.getState(this.orientedContainerTop).relativeViewPosition
                 // layout.bounds.back = {percent: (relativeViewPosition.y > 0) ? -50 : 50}
                 layout.orientation = app.system.getState(this.container).viewAlignedOrientation

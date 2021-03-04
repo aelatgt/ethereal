@@ -40,7 +40,7 @@ export declare class WebRenderer {
     static rasterizeTaskCount: number;
     private static _runTasks;
     static tasksPending: boolean;
-    static scheduleTasks(): void;
+    static scheduleTasksIfNeeded(): void;
     static scheduleIdle(cb: (deadline?: RequestIdleCallbackDeadline) => any): void;
     static setLayerNeedsRefresh(layer: WebLayer): void;
     static createLayerTree(element: Element, eventCallback: EventCallback): WebLayer;

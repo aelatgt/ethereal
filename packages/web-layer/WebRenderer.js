@@ -134,8 +134,11 @@ export class WebRenderer {
             renderQueue.shift().render();
         }
     }
-    static scheduleTasks() {
-        if (this.tasksPending)
+    static scheduleTasksIfNeeded() {
+        if (this.tasksPending ||
+            (WebRenderer.serializeQueue.length === 0 &&
+                WebRenderer.rasterizeQueue.length === 0 &&
+                WebRenderer.renderQueue.length === 0))
             return;
         this.tasksPending = true;
         WebRenderer.scheduleIdle(WebRenderer._runTasks);

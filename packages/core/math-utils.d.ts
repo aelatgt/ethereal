@@ -2,6 +2,7 @@ import { Vector2 } from 'three/src/math/Vector2';
 import { Vector3 } from 'three/src/math/Vector3';
 import { Vector4 } from 'three/src/math/Vector4';
 import { Quaternion } from 'three/src/math/Quaternion';
+import { Euler } from 'three/src/math/Euler';
 import { Color } from 'three/src/math/Color';
 import { Box2 } from 'three/src/math/Box2';
 import { Box3 } from 'three/src/math/Box3';
@@ -24,7 +25,7 @@ export declare const DIRECTION: {
     DOWN: Readonly<Vector3>;
     FAR: Readonly<Vector3>;
 };
-export { Vector2, Vector3, Vector4, Quaternion, Color, Box2, Box3, Ray, Line3, Plane, };
+export { Vector2, Vector3, Vector4, Quaternion, Euler, Color, Box2, Box3, Ray, Line3, Plane, };
 export * from 'three/src/math/Matrix3';
 export * from 'three/src/math/Matrix4';
 export * from 'three/src/math/MathUtils';
@@ -51,3 +52,12 @@ export declare const levy: (scale?: number) => number;
  */
 export declare const randomQuaternion: (twistScale?: number, swingScale?: number) => Quaternion;
 export declare function randomSelect<T>(arr: T[], weights?: number[]): T;
+/**
+ * Use the swing-twist decomposition to get the component of a rotation
+ * around the given axis.
+ *
+ * @param rotation  The rotation.
+ * @param direction The axis (should be normalized).
+ * @return The component of rotation about the axis.
+ */
+export declare const extractRotationAboutAxis: (rot: Quaternion, direction: Vector3, out: Quaternion) => Quaternion;

@@ -351,33 +351,33 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         return layout
     }
 
-    get hasValidLayoutContext() {
-        return this._hasValidLayoutContext
+    get hasValidContext() {
+        return this._hasValidContext
     }
-    private _hasValidLayoutContext = false
+    private _hasValidContext = false
 
     onUpdate? : () => void
 
     onPostUpdate? : () => void
 
-    syncWithParentAdapter = true
+    syncWithParentAdapter = false
 
     private _prevParent : N|undefined|null
     private _prevNodeOrientation = new Quaternion
     private _prevNodeBounds = new Box3
 
-    _computeHasValidLayoutContext() {
+    _computeHasValidContext() {
         const pAdapter = this.parentAdapter
         if (!pAdapter) return true
-        if (!pAdapter.hasValidLayoutContext) return false
+        if (!pAdapter.hasValidContext) return false
         if (pAdapter.layouts.length === 0) return true
-        if (pAdapter.activeLayout) return true
+        if (pAdapter.activeLayout?.hasValidSolution) return true
         return false
     }
 
     _update() {
         this._parentAdapter = this._computeParentAdapter()
-        this._hasValidLayoutContext = this._computeHasValidLayoutContext()
+        this._hasValidContext = this._computeHasValidContext()
 
         const metrics = this.metrics
 

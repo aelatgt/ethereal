@@ -78,18 +78,18 @@ export class EtherealSystem<N extends Node3D = Node3D> {
         }) as Required<TransitionConfig>,
         optimize: new OptimizerConfig({
             allowInvalidLayout: false,
-            relativeTolerance: 0.2,
-            iterationsPerFrame: 1, // iterations per frame per layout
-            swarmSize: 20, // solutions per layout
+            relativeTolerance: 0.0001,
+            iterationsPerFrame: 8, // iterations per frame per layout
+            swarmSize: 5, // solutions per layout
             pulseFrequencyMin: 0, // minimal exploitation pulse
-            pulseFrequencyMax: 1, // maximal exploitation pulse
-            pulseRate: 0.2, // The ratio of directed exploitation vs random exploration,
-            stepSizeMin: 0.01, 
-            stepSizeMax: 1.5,
+            pulseFrequencyMax: 1.5, // maximal exploitation pulse
+            pulseRate: 0.3, // The ratio of directed exploitation vs random exploration,
+            stepSizeMin: 0.000001, 
+            stepSizeMax: 10,
             stepSizeStart: 0.8,
-            staleRestartRate: 0.01,
+            staleRestartRate: 0.5,
             successRateMovingAverage: 200,
-            successRateMin: 0.15
+            successRateMin: 0.05
         }) as Required<OptimizerConfig>
     }
 

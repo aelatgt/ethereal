@@ -50,18 +50,18 @@ export class EtherealSystem {
             }),
             optimize: new OptimizerConfig({
                 allowInvalidLayout: false,
-                relativeTolerance: 0.2,
-                iterationsPerFrame: 1,
-                swarmSize: 20,
+                relativeTolerance: 0.0001,
+                iterationsPerFrame: 8,
+                swarmSize: 5,
                 pulseFrequencyMin: 0,
-                pulseFrequencyMax: 1,
-                pulseRate: 0.2,
-                stepSizeMin: 0.01,
-                stepSizeMax: 1.5,
+                pulseFrequencyMax: 1.5,
+                pulseRate: 0.3,
+                stepSizeMin: 0.000001,
+                stepSizeMax: 10,
                 stepSizeStart: 0.8,
-                staleRestartRate: 0.01,
+                staleRestartRate: 0.5,
                 successRateMovingAverage: 200,
-                successRateMin: 0.15
+                successRateMin: 0.05
             })
         };
         /**

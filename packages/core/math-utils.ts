@@ -2,6 +2,7 @@ import {Vector2} from 'three/src/math/Vector2'
 import {Vector3} from 'three/src/math/Vector3'
 import {Vector4} from 'three/src/math/Vector4'
 import {Quaternion} from 'three/src/math/Quaternion'
+import {Euler} from 'three/src/math/Euler'
 import {Color} from 'three/src/math/Color'
 import {Box2} from 'three/src/math/Box2'
 import {Box3} from 'three/src/math/Box3'
@@ -144,6 +145,7 @@ export {
     Vector3,
     Vector4,
     Quaternion,
+    Euler,
     Color,
     Box2,
     Box3,
@@ -308,7 +310,6 @@ export const randomQuaternion = (() => {
     }
 })()
 
-
 export function randomSelect<T>(arr:T[], weights?:number[]) : T {
     let total = 0
     for (let i=0; i< arr.length; i++) { total += weights?.[i]||1 }
@@ -320,3 +321,30 @@ export function randomSelect<T>(arr:T[], weights?:number[]) : T {
     }
     return arr[0] // make tsc happy
 }
+
+/**
+ * Use the swing-twist decomposition to get the component of a rotation
+ * around the given axis.
+ * 
+ * @param rotation  The rotation.
+ * @param direction The axis (should be normalized).
+ * @return The component of rotation about the axis.
+ */
+export const extractRotationAboutAxis = (() => {
+    const vec = new Vector3
+    return function extractRotationAboutAxis(rot:Quaternion, direction:Vector3, out:Quaternion) {
+        const rotAxis = vec.set(rot.x, rot.y, rot.z)
+        const dotProd = direction.dot(rotAxis)      
+        // Shortcut calculation of `projection` requires `direction` to be normalized
+        const projection = vec.copy(direction).multiplyScalar(dotProd)
+        const twist = out.set(projection.x, projection.y, projection.z, rot.w).normalize()
+        if (dotProd < 0.0) {
+            // Ensure `twist` points towards `direction`
+            twist.x = -twist.x
+            twist.y = -twist.y
+            twist.z = -twist.z
+            twist.w = -twist.w
+        }
+        return twist
+    }
+})()

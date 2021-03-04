@@ -76,7 +76,7 @@ export class DemoApp extends AppBase {
             layout.local.height = '6 m'
             layout.aspect = 'preserve-3d'
 
-            adapter.onPreUpdate = () => {
+            adapter.onUpdate = () => {
 
             }
 
@@ -89,7 +89,7 @@ export class DemoApp extends AppBase {
             const adapter = this.system.getAdapter(this.dolly)
             this.dolly.position.set(0,-10,0)
             adapter.transition.duration = 1.5
-            adapter.onPreUpdate = () => {
+            adapter.onUpdate = () => {
                 adapter.bounds.target.setFromCenterAndSize(this.dollyPosition, V_111)
                 adapter.orientation.target.copy(this.dollyOrientation)
             }
@@ -100,7 +100,7 @@ export class DemoApp extends AppBase {
             const adapter = this.system.getAdapter(this.camera)
             const spherical = new SphericalCoordinate
             adapter.transition.duration = 0.2
-            adapter.onPreUpdate = () => {
+            adapter.onUpdate = () => {
                 if (!this.xrPresenting) {
                     const dollyState = this.system.getState(this.dolly)
                     spherical.setWithDegrees(
@@ -211,7 +211,7 @@ export class DemoApp extends AppBase {
             this.room.add(gltf.scene)
 
             const roomLinesAdapter = this.system.getAdapter(roomLines)
-            roomLinesAdapter.onPreUpdate = () => {
+            roomLinesAdapter.onUpdate = () => {
                 lineMaterial.resolution = this.resolution
             }
             

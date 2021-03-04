@@ -10,10 +10,12 @@ import { LocalPositionConstraint, LocalOrientationConstraint, LocalScaleConstrai
 export class SpatialLayout {
     constructor(adapter) {
         this.adapter = adapter;
-        this.spatialAccuracy = '1mm';
-        this.visualAccuracy = '4px';
+        this.spatialAccuracy = '10mm';
+        this.visualAccuracy = '1px';
         this.angularAccuracy = '0.1deg';
-        this.relativeAccuracy = 0.01;
+        this.relativeAccuracy = 0.02;
+        this.successRate = 0;
+        this.restartRate = 0;
         /**
          * The objectives applied to this layout
          */
@@ -52,14 +54,14 @@ export class SpatialLayout {
             if (isNaN(aMin.x) || isNaN(aMin.y) || isNaN(aMin.z) || isNaN(aMax.x) || isNaN(aMax.y) || isNaN(aMax.z))
                 return 1;
             const objectives = this.objectives;
-            if (a.objectiveScores.length < objectives.length)
+            if (a.scores.length < objectives.length)
                 return 1;
             const systemConfig = this.adapter.system.config.optimize;
             const relTol = this.adapter.optimize.relativeTolerance ?? systemConfig.relativeTolerance;
             let rank = 0;
             for (let i = 0; i < objectives.length; i++) {
-                const scoreA = a.objectiveScores[i];
-                const scoreB = b.objectiveScores[i];
+                const scoreA = a.scores[i];
+                const scoreB = b.scores[i];
                 const objective = objectives[i];
                 if (scoreA < 0 || scoreB < 0) {
                     objective.sortBlame++;
@@ -131,6 +133,12 @@ export class SpatialLayout {
             this.objectives.push(obj);
         return this;
     }
+    /**
+     * Add a local orientation constraint (same as localOrientation)
+     */
+    spatialOrientation(spec, opts) {
+        return this.localOrientation(spec, opts);
+    }
     spatialBounds(spec, opts) {
         const obj = this.spatialBoundsConstraint =
             this.spatialBoundsConstraint ?? new SpatialBoundsConstraint(this);
@@ -138,6 +146,8 @@ export class SpatialLayout {
         if (this.objectives.indexOf(obj) === -1)
             this.objectives.push(obj);
         return this;
+    }
+    visualOrientation(spec, opts) {
     }
     visualBounds(spec, opts) {
         const obj = this.visualBoundsConstraint =
@@ -150,7 +160,8 @@ export class SpatialLayout {
     visualMaximize(opts) {
         const obj = this.visualMaximizeObjective =
             this.visualMaximizeObjective ?? new VisualMaximizeObjective(this);
-        Object.assign(obj, opts);
+        // this objective is not a hard constraint, so give it large relative tolerance
+        Object.assign(obj, { relativeTolerance: 0.9 }, opts);
         if (this.objectives.indexOf(obj) === -1)
             this.objectives.push(obj);
         return this;
@@ -163,6 +174,12 @@ export class SpatialLayout {
         return this;
     }
     /**
+     * Return true if this layout has a valid solution
+     */
+    get hasValidSolution() {
+        return this.solutions[0]?.isValid === true;
+    }
+    /**
      * Update best scores and sort solutions
      */
     sortSolutions() {
@@ -170,11 +187,11 @@ export class SpatialLayout {
         for (let o = 0; o < this.objectives.length; o++) {
             best = -Infinity;
             for (let s = 0; s < this.solutions.length; s++) {
-                const score = this.solutions[s].objectiveScores[o];
+                const score = this.solutions[s].bestScores[o] ?? this.solutions[s].scores[o];
                 if (score > best)
                     best = score;
             }
-            this.objectives[o].bestScore = best;
+            this.objectives[o].bestScore = best * 0.0001 + (1 - 0.0001) * this.objectives[o].bestScore;
         }
         this.solutions.sort(this.compareSolutions);
         this.bestSolution = this.solutions[0];
@@ -199,7 +216,8 @@ export class LayoutSolution {
          * The objectives fitness scores for this solution
          * (one for each objective, higher is better)
          */
-        this.objectiveScores = [];
+        this.scores = [];
+        this.bestScores = [];
         this.mutationStrategies = [
             { type: 'rotate', stepSize: 0.1, successRate: 0.2 },
             { type: 'centerx', stepSize: 0.1, successRate: 0.2 },
@@ -209,38 +227,46 @@ export class LayoutSolution {
             { type: 'sizeX', stepSize: 0.1, successRate: 0.2 },
             { type: 'sizeY', stepSize: 0.1, successRate: 0.2 },
             { type: 'sizeZ', stepSize: 0.1, successRate: 0.2 },
-            // {type:'minX', stepSize: 0.1, successRate:0.2},
-            // {type:'minY', stepSize: 0.1, successRate:0.2},
-            // {type:'minZ', stepSize: 0.1, successRate:0.2},
-            // {type:'maxX', stepSize: 0.1, successRate:0.2},
-            // {type:'maxY', stepSize: 0.1, successRate:0.2},
-            // {type:'maxZ', stepSize: 0.1, successRate:0.2},
+            { type: 'minX', stepSize: 0.1, successRate: 0.2 },
+            { type: 'minY', stepSize: 0.1, successRate: 0.2 },
+            { type: 'minZ', stepSize: 0.1, successRate: 0.2 },
+            { type: 'maxX', stepSize: 0.1, successRate: 0.2 },
+            { type: 'maxY', stepSize: 0.1, successRate: 0.2 },
+            { type: 'maxZ', stepSize: 0.1, successRate: 0.2 },
             { type: 'minXAspect', stepSize: 0.1, successRate: 0.2 },
             { type: 'minYAspect', stepSize: 0.1, successRate: 0.2 },
             { type: 'minZAspect', stepSize: 0.1, successRate: 0.2 },
             { type: 'maxXAspect', stepSize: 0.1, successRate: 0.2 },
             { type: 'maxYAspect', stepSize: 0.1, successRate: 0.2 },
             { type: 'maxZAspect', stepSize: 0.1, successRate: 0.2 },
+            { type: 'corner000', stepSize: 0.1, successRate: 0.2 },
+            { type: 'corner001', stepSize: 0.1, successRate: 0.2 },
+            { type: 'corner010', stepSize: 0.1, successRate: 0.2 },
+            { type: 'corner011', stepSize: 0.1, successRate: 0.2 },
+            { type: 'corner100', stepSize: 0.1, successRate: 0.2 },
+            { type: 'corner101', stepSize: 0.1, successRate: 0.2 },
+            { type: 'corner110', stepSize: 0.1, successRate: 0.2 },
+            { type: 'corner111', stepSize: 0.1, successRate: 0.2 },
         ];
         this._mutationWeights = [];
         if (layout)
             this.layout = layout;
     }
     get aspectPenalty() {
-        return this.objectiveScores[this.layout.objectives.indexOf(this.layout.preserveAspectConstraint)] || 0;
+        return this.scores[this.layout.objectives.indexOf(this.layout.preserveAspectConstraint)] || 0;
     }
     get orientationPenalty() {
-        return this.objectiveScores[this.layout.objectives.indexOf(this.layout.localOrientationConstraint)] || 0;
+        return this.scores[this.layout.objectives.indexOf(this.layout.localOrientationConstraint)] || 0;
     }
     get spatialBoundsPenalty() {
-        return this.objectiveScores[this.layout.objectives.indexOf(this.layout.spatialBoundsConstraint)] || 0;
+        return this.scores[this.layout.objectives.indexOf(this.layout.spatialBoundsConstraint)] || 0;
     }
     /**
      * All constraints are satisfied
      */
     get isValid() {
-        for (let i = 0; i < this.objectiveScores.length; i++) {
-            const score = this.objectiveScores[i];
+        for (let i = 0; i < this.scores.length; i++) {
+            const score = this.scores[i];
             if (score < 0)
                 return false;
         }
@@ -250,7 +276,7 @@ export class LayoutSolution {
         const strategies = this.mutationStrategies;
         const weights = this._mutationWeights;
         for (let i = 0; i < strategies.length; i++) {
-            weights[i] = strategies[i].successRate;
+            weights[i] = strategies[i].stepSize * strategies[i].successRate;
         }
         // if (this.aspectPenalty > this.layout.aspectConstraint.threshold) {
         //     for (let i=0; i< weights.length; i++) {
@@ -270,9 +296,9 @@ export class LayoutSolution {
         // for (let i = 0; i < solution.constraintScores.length; i++) {
         //     this.constraintScores[i] = solution.constraintScores[i]
         // }
-        this.objectiveScores.length = 0;
-        for (let i = 0; i < solution.objectiveScores.length; i++) {
-            this.objectiveScores[i] = solution.objectiveScores[i];
+        this.scores.length = 0;
+        for (let i = 0; i < solution.scores.length; i++) {
+            this.scores[i] = solution.scores[i];
         }
         return this;
     }
@@ -353,15 +379,15 @@ export class LayoutSolution {
         // center mutation strategies
         if (strategyType === 'centerz') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            center.x = this._perturbFromSpatialBoundsSpec(center.x, stepSize, spatialBounds?.center?.x, 'centerx');
+            center.x = this._perturbFromSpatialBoundsSpec(center.x, stepSize * size.x, spatialBounds?.center?.x, 'centerx');
         }
         else if (strategyType === 'centery') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            center.y = this._perturbFromSpatialBoundsSpec(center.y, stepSize, spatialBounds?.center?.y, 'centery');
+            center.y = this._perturbFromSpatialBoundsSpec(center.y, stepSize * size.y, spatialBounds?.center?.y, 'centery');
         }
         else if (strategyType === 'centerz') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            center.z = this._perturbFromSpatialBoundsSpec(center.z, stepSize, spatialBounds?.center?.z, 'centerz');
+            center.z = this._perturbFromSpatialBoundsSpec(center.z, stepSize * size.z, spatialBounds?.center?.z, 'centerz');
         }
         // size mutation strategies
         else if (strategyType === 'sizeXYZ') {
@@ -394,27 +420,27 @@ export class LayoutSolution {
         bounds.setFromCenterAndSize(center, size);
         if (strategyType === 'minX') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            bounds.min.x = this._perturbFromSpatialBoundsSpec(bounds.min.x, stepSize, spatialBounds?.left, 'left');
+            bounds.min.x = this._perturbFromSpatialBoundsSpec(bounds.min.x, stepSize * size.x, spatialBounds?.left, 'left');
         }
         else if (strategyType === 'minY') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            bounds.min.y = this._perturbFromSpatialBoundsSpec(bounds.min.y, stepSize, spatialBounds?.bottom, 'bottom');
+            bounds.min.y = this._perturbFromSpatialBoundsSpec(bounds.min.y, stepSize * size.y, spatialBounds?.bottom, 'bottom');
         }
         else if (strategyType === 'minZ') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            bounds.min.z = this._perturbFromSpatialBoundsSpec(bounds.min.z, stepSize, spatialBounds?.back, 'back');
+            bounds.min.z = this._perturbFromSpatialBoundsSpec(bounds.min.z, stepSize * size.z, spatialBounds?.back, 'back');
         }
         else if (strategyType === 'maxX') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            bounds.max.x = this._perturbFromSpatialBoundsSpec(bounds.max.x, stepSize, spatialBounds?.right, 'right');
+            bounds.max.x = this._perturbFromSpatialBoundsSpec(bounds.max.x, stepSize * size.x, spatialBounds?.right, 'right');
         }
         else if (strategyType === 'maxY') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            bounds.max.y = this._perturbFromSpatialBoundsSpec(bounds.max.y, stepSize, spatialBounds?.top, 'top');
+            bounds.max.y = this._perturbFromSpatialBoundsSpec(bounds.max.y, stepSize * size.y, spatialBounds?.top, 'top');
         }
         else if (strategyType === 'maxZ') {
             const spatialBounds = this.layout.spatialBoundsConstraint?.spec;
-            bounds.max.z = this._perturbFromSpatialBoundsSpec(bounds.max.z, stepSize, spatialBounds?.front, 'front');
+            bounds.max.z = this._perturbFromSpatialBoundsSpec(bounds.max.z, stepSize * size.z, spatialBounds?.front, 'front');
         }
         else if (strategyType === 'minXAspect') {
             const opposite = bounds.max.x;
@@ -533,7 +559,10 @@ export class LayoutSolution {
         adapter.metrics.invalidateNodeStates();
         if (evaluate) {
             for (let i = 0; i < layout.objectives.length; i++) {
-                this.objectiveScores[i] = layout.objectives[i].evaluate();
+                const score = this.scores[i] = layout.objectives[i].evaluate();
+                if (!isFinite(score))
+                    throw new Error();
+                this.bestScores[i] = Math.max(this.bestScores[i], score);
             }
         }
     }

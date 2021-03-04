@@ -101,7 +101,7 @@ export class SpatialOptimizer<N extends Node3D> {
             return true
         }
 
-        if (!adapter.hasValidLayoutContext) return false
+        if (!adapter.hasValidContext) return false
 
         const prevParent = adapter.parentNode
         const prevOrientation = this._prevOrientation.copy(adapter.orientation.target)
@@ -137,8 +137,10 @@ export class SpatialOptimizer<N extends Node3D> {
         adapter.metrics.invalidateNodeStates()
         return false
     }
-    #scratchSolution = new LayoutSolution()
 
+
+    #scratchSolution = new LayoutSolution()
+    #scratchBestSolution = new LayoutSolution()
 
     private _updateLayout(adapter:SpatialAdapter<any>, layout:SpatialLayout) {
         adapter.measureBoundsCache.clear()
@@ -146,10 +148,13 @@ export class SpatialOptimizer<N extends Node3D> {
         const solutions = layout.solutions
         const c = this._config
         const newSolution = this.#scratchSolution
+        const bestSolution = this.#scratchBestSolution
         const diversificationFactor = 1.5 
         const intensificationFactor = 1.5 ** (-1/4)
         const successAlpha = 2 / (c.successRateMovingAverage + 1) // N-sample exponential moving average
-        const iterations = c.iterationsPerFrame
+        let iterations = c.iterationsPerFrame
+
+        if (layout.successRate < 0.01 && layout.solutions[0]?.isValid) iterations = 1
 
         // manage solution population (if necessary)
         this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart)
@@ -167,7 +172,7 @@ export class SpatialOptimizer<N extends Node3D> {
         // optimize solutions
         for (let i=0; i< iterations; i++) {
             layout.iteration++
-            const solutionBest = solutions[0]
+            bestSolution.copy(solutions[0])
 
             // update solutions
             for (let j=0; j < solutions.length; j++) {
@@ -180,14 +185,14 @@ export class SpatialOptimizer<N extends Node3D> {
 
                 if (Math.random() < c.pulseRate) { // emit directional pulses! (global search / exploration)
                     // select best and random solution
-                    let bestSolution = solutionBest !== solution ? solutionBest : solutions[1] 
+                    const best = bestSolution !== solution ? bestSolution : solutions[1] 
                     let randomSolution:LayoutSolution|undefined
                     if (solutions.length > 2) {
                         do { randomSolution = solutions[Math.floor(Math.random()*solutions.length)] } 
                         while (randomSolution === solution) 
                     }
                     // move towards best or both solutions
-                    newSolution.moveTowards(bestSolution, c.pulseFrequencyMin, c.pulseFrequencyMax)
+                    newSolution.moveTowards(best, c.pulseFrequencyMin, c.pulseFrequencyMax)
                     if (randomSolution && layout.compareSolutions(randomSolution, solution) <= 0) {
                         newSolution.moveTowards(randomSolution, c.pulseFrequencyMin, c.pulseFrequencyMax)
                     }
@@ -217,15 +222,20 @@ export class SpatialOptimizer<N extends Node3D> {
 
                     if (mutationStrategy.successRate < c.successRateMin &&
                         Math.random() < c.staleRestartRate && !success) {
-                        // random restart
-                        for (const m of solution.mutationStrategies) {
-                            m.stepSize = c.stepSizeStart
-                            m.successRate = 0.2
-                        }
-                        if (solution !== solutionBest) {
-                            solution.randomize(1)
-                            solution.apply(true)
-                        }
+                            layout.restartRate = 0.001 + (1-0.001) * layout.restartRate
+                            // random restart
+                            for (const m of solution.mutationStrategies) {
+                                m.stepSize = c.stepSizeStart
+                                m.successRate = 0.2
+                            }
+                            if (solution !== solutions[0]) {
+                                solution.randomize(1)
+                                solution.apply(true)
+                                solution.bestScores.length = 0
+                                for (const s of solution.scores) solution.bestScores.push(s)
+                            }
+                    } else {
+                        layout.restartRate = (1-0.001) * layout.restartRate
                     }
                 }
 
@@ -233,6 +243,11 @@ export class SpatialOptimizer<N extends Node3D> {
 
             // best solution may have changed
             layout.sortSolutions()
+            if (layout.compareSolutions(bestSolution, solutions[0]) <= 0) {
+                layout.successRate = (1-0.001) * layout.successRate
+            } else {
+                layout.successRate = 0.001 + (1-0.001) * layout.successRate
+            }
         }
     }
 

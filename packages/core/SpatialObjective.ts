@@ -1,5 +1,6 @@
-import { MathUtils, Vector3, Quaternion, Box3 } from './math-utils'
+import { MathUtils, Vector3, Quaternion, Box3, Euler } from './math-utils'
 import { SpatialLayout } from './SpatialLayout'
+import { Q_IDENTITY } from 'packages/core/mod'
 
 export type OneOrMany<T> = T|T[]
 
@@ -17,10 +18,10 @@ export type Vector3Spec = AtLeastOneProperty<{
 }>
 
 export type QuaternionSpec = 
-    { x:number, y:number, z:number, w:number } |
-    { axis: OneOrMany<AtLeastOneProperty<{x:number, y:number, z:number}>>, degrees?:ConstraintSpec } |
-    { twistSwing: AtLeastOneProperty<{horizontal:ConstraintSpec, vertical:ConstraintSpec, twist:ConstraintSpec}> } |
-    { swingTwist: AtLeastOneProperty<{horizontal:ConstraintSpec, vertical:ConstraintSpec, twist:ConstraintSpec}> }
+    OneOrMany<
+        { x:number, y:number, z:number, w:number } |
+        AtLeastOneProperty<{ swingRange:{x:string, y:string}, twistRange:string }>
+    >
 
 export interface ObjectiveOptions {
     relativeTolerance?:number, 
@@ -40,16 +41,17 @@ export type ContinuousSpec<T> = T extends any[] | undefined ? never :
 export abstract class SpatialObjective {
 
     static isDiscreteSpec<T>(s:T) : s is DiscreteSpec<T> {
-        return s !== undefined && s instanceof Array === false && ('gt' in s || 'lt' in s) === false
+        const type = typeof s
+        return type === 'string' || type === 'number'
     }
 
     static isContinuousSpec<T>(s:T) : s is ContinuousSpec<T> {
-        return s !== undefined && s instanceof Array === false && ('gt' in s || 'lt' in s) === true
+        return s !== undefined && s instanceof Array === false && typeof s === 'object' && ('gt' in s || 'lt' in s) === true
     }
 
 
-    relativeTolerance?:number;
-    absoluteTolerance?:number;
+    relativeTolerance?:number = undefined
+    absoluteTolerance?:number = undefined
 
     bestScore = -Infinity
     sortBlame = 0
@@ -121,30 +123,39 @@ export abstract class SpatialObjective {
         return xScore + yScore + zScore + magnitudeScore
     }
 
-    protected getQuaternionScore(value:Quaternion, spec:OneOrMany<QuaternionSpec>|undefined, mode:ConstraintMode, accuracy:number) {
-        return this.reduceFromOneOrManySpec(value, spec, mode, accuracy, this._getQuaternionScoreSingle)
+    protected getQuaternionScore(value:Quaternion, spec:OneOrMany<QuaternionSpec>|undefined, accuracy:number) {
+        return this.reduceFromOneOrManySpec(value, spec, 'absolute', accuracy, this._getQuaternionScoreSingle)
     }
 
+    private _quat = new Quaternion
+    private _euler = new Euler
+
     private _getQuaternionScoreSingle = (value:Quaternion, spec:QuaternionSpec|undefined, mode:ConstraintMode, accuracy:number) => {
+        if (spec === undefined) return 0
         // absolute score = - angle from target + accuracy 
         // relative score = (- angle from target / max magnitude) + accuracy
 
-        const isRelative = mode === 'relative'
-
-        if (spec instanceof Quaternion) {
-            if (isRelative) {
-                return - (spec.angleTo(value) / Math.PI) + accuracy
-            }
-            return - spec.angleTo(value) * MathUtils.RAD2DEG + accuracy
+        if ('x' in spec) {
+            const s = this._quat.copy(spec as any)
+            return - s.angleTo(value) * MathUtils.RAD2DEG + accuracy
+        } else if ('swingRange' in spec) {
+            const euler = this._euler.setFromQuaternion(value)
+            const swingX = euler.x * MathUtils.RAD2DEG
+            const swingY = euler.y * MathUtils.RAD2DEG
+            const twistZ = euler.z * MathUtils.RAD2DEG
+            const deg = this.layout.adapter.system.mathScope.degree
+            const swingRangeX = spec.swingRange?.x ? this.layout.adapter.measureNumber(spec.swingRange.x, deg) : 0
+            const swingRangeY = spec.swingRange?.y ? this.layout.adapter.measureNumber(spec.swingRange.y, deg) : 0
+            const twistRange = spec.twistRange ? this.layout.adapter.measureNumber(spec.twistRange, deg) : 0
+            const swingRange = Math.acos( 
+                Math.cos( swingRangeX * MathUtils.DEG2RAD ) * 
+                Math.cos( swingRangeY * MathUtils.DEG2RAD )
+            ) * MathUtils.RAD2DEG
+            const swingScore = (1 - (swingX / swingRangeX) ** 2 - (swingY / swingRangeY) ** 2) * swingRange
+            const twistScore = twistRange - Math.abs(twistZ)
+            return swingScore + twistScore + accuracy
         }
-        // penalty for continous spec is distance from the valid range
-        // const axis = 'axis' in spec && spec.axis
-        // const xScore = ('x' in axis && typeof axis.x !== 'undefined') ? this._getNumberScore(value.x, axis.x) : 0
-        // const yScore = ('y' in axis && typeof axis.y !== 'undefined') ? this._getNumberScore(value.y, axis.y) : 0
-        // const zScore = ('z' in axis && typeof axis.z !== 'undefined') ? this._getNumberScore(value.z, axis.z) : 0
-        // const magnitudeScore = ('magnitude' in spec && typeof spec.magnitude !== 'undefined') ? this._getNumberScore(value.length(), spec.magnitude) : 0
-        // const xyzScore = Math.sqrt(xScore**2 + yScore**2 + zScore**2)
-        // return Math.max(xyzScore, magnitudeScore)
+
         return 0
     }
 
@@ -166,7 +177,7 @@ export abstract class SpatialObjective {
         return score
     }
 
-    protected getBoundsMeasureScore(spec:ConstraintSpec|undefined, type:BoundsMeasureType, subType:BoundsMeasureSubType) {
+    protected getBoundsMeasureScore(spec:OneOrMany<ConstraintSpec>|undefined, type:BoundsMeasureType, subType:BoundsMeasureSubType) {
         if (spec === undefined) return 0
         const state = this.layout.adapter.metrics.targetState
         const system = this.layout.adapter.system
@@ -223,7 +234,7 @@ export abstract class SpatialObjective {
         const accuracy = this.layout.adapter.measureNumber(accuracyMeasure, unit)
 
         // score for compound spec is best score in the list
-        if (spec instanceof Array && spec.length) {
+        if (spec instanceof Array) {
             let score = -Infinity
             for (const s of spec) {
                 score = Math.max(this._getMeasurePenaltySingle(value, s, type, subType, accuracy), score)
@@ -257,6 +268,7 @@ export abstract class SpatialObjective {
             this.layout.visualAccuracy, this.layout.adapter.system.mathScope.pixel)
         const adapter = this.layout.adapter
         const viewResolution = adapter.system.viewResolution
+        const viewFrustum = adapter.system.viewFrustum
         const vw = viewResolution.x
         const vh = viewResolution.y
         const visualBounds = adapter.metrics.targetState.visualBounds
@@ -264,10 +276,12 @@ export abstract class SpatialObjective {
         const rightOffset = visualBounds.max.x - vw/2 - acc
         const bottomOffset = visualBounds.min.y - -vh/2 + acc
         const topOffset = visualBounds.max.y - vh/2 - acc
+        const nearOffset = visualBounds.max.z + viewFrustum.nearMeters
         if (leftOffset < 0) penalty += Math.abs(leftOffset / vw) * 10
         if (rightOffset > 0) penalty += Math.abs(rightOffset / vw) * 10 
         if (bottomOffset < 0) penalty += Math.abs(bottomOffset / vh) * 10
         if (topOffset > 0) penalty += Math.abs(topOffset / vh) * 10
+        if (nearOffset > 0) penalty += nearOffset
         return score - Math.abs(score)*(penalty**2)
     }
 }
@@ -290,7 +304,7 @@ export class LocalOrientationConstraint extends SpatialObjective {
         const mathScope = this.layout.adapter.system.mathScope
         const state = this.layout.adapter.metrics.targetState
         const accuracy = this.layout.adapter.measureNumber( this.layout.angularAccuracy, mathScope.degree )
-        return this.getQuaternionScore(state.localOrientation, this.spec, 'absolute', accuracy)
+        return this.getQuaternionScore(state.localOrientation, this.spec, accuracy)
     }
 }
 
@@ -301,7 +315,7 @@ export class LocalScaleConstraint extends SpatialObjective {
     evaluate() {
         const state = this.layout.adapter.metrics.targetState
         const accuracy = this.layout.adapter.measureNumber( this.layout.relativeAccuracy )
-        return this.getVector3Score(state.localScale, this.spec, 'relative', accuracy)
+        return this.getVector3Score(state.localScale, this.spec, 'absolute', accuracy)
     }
 }
 
@@ -321,32 +335,32 @@ export class AspectConstraint extends SpatialObjective {
             Math.max(Math.abs(s.x), Math.abs(s.y), Math.abs(s.z)) : 
             Math.max(Math.abs(s.x), Math.abs(s.y))
         const aspectFill = s.divideScalar(largest)
-        return  this.getNumberScore(aspectFill.x, 1, 'relative', accuracy) +
-                this.getNumberScore(aspectFill.y, 1, 'relative', accuracy) +
+        return  this.getNumberScore(aspectFill.x, 1, 'absolute', accuracy) +
+                this.getNumberScore(aspectFill.y, 1, 'absolute', accuracy) +
                 (mode === 'spatial' ? 
-                    this.getNumberScore(aspectFill.z, 1, 'relative', accuracy):
+                    this.getNumberScore(aspectFill.z, 1, 'absolute', accuracy):
                     // prevent z from being scaled largest when doing preserved 2D aspect
-                    aspectFill.z > 1 ? -1-aspectFill.z : 0)
+                    aspectFill.z > 1 ? 1-aspectFill.z : 0)
     }
 }
 
 export interface SpatialBoundsSpec {
-    /** meters */ left? : ConstraintSpec   
-    /** meters */ bottom? : ConstraintSpec 
-    /** meters */ right? :  ConstraintSpec  
-    /** meters */ top? :  ConstraintSpec    
-    /** meters */ front? :  ConstraintSpec  
-    /** meters */ back? :  ConstraintSpec
+    /** meters */ left? : OneOrMany<ConstraintSpec>   
+    /** meters */ bottom? : OneOrMany<ConstraintSpec> 
+    /** meters */ right? :  OneOrMany<ConstraintSpec>  
+    /** meters */ top? :  OneOrMany<ConstraintSpec>    
+    /** meters */ front? :  OneOrMany<ConstraintSpec>  
+    /** meters */ back? :  OneOrMany<ConstraintSpec>
     size? : {
-    /** meters */ x?: ConstraintSpec,
-    /** meters */ y?: ConstraintSpec, 
-    /** meters */ z?: ConstraintSpec, 
-    /** meters */ diagonal?: ConstraintSpec
+    /** meters */ x?: OneOrMany<ConstraintSpec>,
+    /** meters */ y?: OneOrMany<ConstraintSpec>, 
+    /** meters */ z?: OneOrMany<ConstraintSpec>, 
+    /** meters */ diagonal?: OneOrMany<ConstraintSpec>
     },
     center? : {
-    /** meters */ x?: ConstraintSpec,
-    /** meters */ y?: ConstraintSpec, 
-    /** meters */ z?: ConstraintSpec,
+    /** meters */ x?: OneOrMany<ConstraintSpec>,
+    /** meters */ y?: OneOrMany<ConstraintSpec>, 
+    /** meters */ z?: OneOrMany<ConstraintSpec>,
     }
 }
 
@@ -360,34 +374,34 @@ export class SpatialBoundsConstraint extends SpatialObjective {
 
 export interface VisualBoundsSpec {
     absolute?: {
-        /** pixels */ left? : ConstraintSpec   
-        /** pixels */ bottom? : ConstraintSpec 
-        /** pixels */ right? : ConstraintSpec  
-        /** pixels */ top? : ConstraintSpec    
-        /** meters */ front? : ConstraintSpec   
-        /** meters */ back? : ConstraintSpec,
+        /** pixels */ left? : OneOrMany<ConstraintSpec>   
+        /** pixels */ bottom? : OneOrMany<ConstraintSpec> 
+        /** pixels */ right? : OneOrMany<ConstraintSpec>  
+        /** pixels */ top? : OneOrMany<ConstraintSpec>    
+        /** meters */ front? : OneOrMany<ConstraintSpec>   
+        /** meters */ back? : OneOrMany<ConstraintSpec>,
         center? : {
-            /** pixels */ x?:ConstraintSpec,
-            /** pixels */ y?:ConstraintSpec, 
-            /** meters */ z?:ConstraintSpec,
+            /** pixels */ x?:OneOrMany<ConstraintSpec>,
+            /** pixels */ y?:OneOrMany<ConstraintSpec>, 
+            /** meters */ z?:OneOrMany<ConstraintSpec>,
         }
     },
-    /** pixels */ left? : ConstraintSpec   
-    /** pixels */ bottom? : ConstraintSpec 
-    /** pixels */ right? : ConstraintSpec  
-    /** pixels */ top? : ConstraintSpec    
-    /** meters */ front? : ConstraintSpec   
-    /** meters */ back? : ConstraintSpec,
+    /** pixels */ left? : OneOrMany<ConstraintSpec>   
+    /** pixels */ bottom? : OneOrMany<ConstraintSpec> 
+    /** pixels */ right? : OneOrMany<ConstraintSpec>  
+    /** pixels */ top? : OneOrMany<ConstraintSpec>    
+    /** meters */ front? : OneOrMany<ConstraintSpec>   
+    /** meters */ back? : OneOrMany<ConstraintSpec>,
     center? : {
-        /** pixels */ x?:ConstraintSpec,
-        /** pixels */ y?:ConstraintSpec, 
-        /** meters */ z?:ConstraintSpec,
+        /** pixels */ x?:OneOrMany<ConstraintSpec>,
+        /** pixels */ y?:OneOrMany<ConstraintSpec>, 
+        /** meters */ z?:OneOrMany<ConstraintSpec>,
     }
     size? : {
-    /** pixels */ x?:ConstraintSpec,
-    /** pixels */ y?:ConstraintSpec, 
-    /** meters */ z?:ConstraintSpec, 
-    /** pixels */ diagonal?:ConstraintSpec
+    /** pixels */ x?:OneOrMany<ConstraintSpec>,
+    /** pixels */ y?:OneOrMany<ConstraintSpec>, 
+    /** meters */ z?:OneOrMany<ConstraintSpec>, 
+    /** pixels */ diagonal?:OneOrMany<ConstraintSpec>
     }
 }
 
@@ -407,7 +421,8 @@ export class VisualMaximizeObjective extends SpatialObjective {
 
     evaluate() {
         const visualSize = this.layout.adapter.metrics.targetState.visualSize
-        let visualArea = Math.min(visualSize.x * visualSize.y, visualSize.x * visualSize.y) ** 20
+        const viewSize = this.layout.adapter.system.viewResolution
+        let visualArea = Math.min(visualSize.x * visualSize.y, viewSize.x * viewSize.y)
         return this.attenuateVisualScore(visualArea)
     }
 }

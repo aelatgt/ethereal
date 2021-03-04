@@ -213,8 +213,11 @@ export class WebRenderer {
 
   static tasksPending = false
   
-  static scheduleTasks() {
-    if (this.tasksPending) return
+  static scheduleTasksIfNeeded() {
+    if (this.tasksPending ||
+        (WebRenderer.serializeQueue.length === 0 &&
+        WebRenderer.rasterizeQueue.length === 0  &&
+        WebRenderer.renderQueue.length === 0)) return
     this.tasksPending = true
     WebRenderer.scheduleIdle(WebRenderer._runTasks)
   }
