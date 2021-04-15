@@ -2,7 +2,6 @@ import { EtherealSystem, Node3D } from './EtherealSystem'
 import { SpatialLayout } from './SpatialLayout'
 import { BoundsMeasureType, BoundsMeasureSubType } from './SpatialObjective'
 import { Transitionable, TransitionConfig } from './Transitionable'
-import { OptimizerConfig } from './SpatialOptimizer'
 import { Quaternion, Box3, V_000, V_111, Vector3 } from './math-utils'
 import { SpatialMetrics, NodeState } from './SpatialMetrics'
 
@@ -61,36 +60,16 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         public node:N
     ) {
         this.metrics = this.system.getMetrics(this.node)
-        this._orientation = new Transitionable(this.system, new Quaternion, undefined, this.transition)
-        this._bounds = new Transitionable(this.system, new Box3().setFromCenterAndSize(V_000,V_111), undefined, this.transition)
+        this._orientation = new Transitionable(this.system, this.metrics.raw.localOrientation, undefined, this.transition)
+        this._bounds = new Transitionable(this.system, this.metrics.raw.spatialBounds, undefined, this.transition)
         this._opacity = new Transitionable(this.system, 0, undefined, this.transition)
         this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set
-    }
-
-    measureNumberCache = new Map<string, number>()
-
-    measureNumber(measure:string|number, unit?:string|math.Unit) {
-        if (typeof measure === 'number') return measure
-        if (this.measureNumberCache?.has(measure)) return this.measureNumberCache.get(measure)!
-
-        const system = this.system
-        if (!SpatialLayout.compiledExpressions.has(measure)) {
-            const node = system.math.parse(measure)
-            const code = node.compile()
-            SpatialLayout.compiledExpressions.set(measure, code)
-        }
-        const code = SpatialLayout.compiledExpressions.get(measure)!
-        const result = code.evaluate(system.mathScope)
-        const value = typeof result === 'number' ? result :
-            system.math.number(code.evaluate(system.mathScope), unit!)
-        this.measureNumberCache?.set(measure, value)
-        return value
     }
 
     measureBoundsCache = new Map<string, number>()
 
     measureBounds(measure:string|number, type:BoundsMeasureType, subType:BoundsMeasureSubType) {
-        if (typeof measure === 'number') return measure
+        if (typeof measure === 'number') measure = '' + measure
         const cacheKey = type + '-' + subType + ' = ' + measure
         if (this.measureBoundsCache?.has(cacheKey)) return this.measureBoundsCache.get(cacheKey)!
 
@@ -98,14 +77,15 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         const scope = system.mathScope
         const math = system.math
 
-        if (!SpatialLayout.compiledExpressions.has(measure)) {
+        if (!system.mathCompiledExpressions.has(measure)) {
             const node = math.parse(measure.replace('%', 'percent'))
             const code = node.compile()
-            SpatialLayout.compiledExpressions.set(measure, code)
+            system.mathCompiledExpressions.set(measure, code)
         }
-        const code = SpatialLayout.compiledExpressions.get(measure)!
-
-        const state = this.metrics.targetState
+        const code = system.mathCompiledExpressions.get(measure)!
+        
+        const viewState = system.viewMetrics.target
+        const state = this.metrics.target
         let referenceBounds : Box3
         let referenceCenter: Vector3
         switch (type) {
@@ -114,11 +94,10 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
                 referenceCenter = state.outerCenter
                 break
             case 'visual': 
-                referenceBounds = state.outerState.visualBounds
-                referenceCenter = state.outerState.visualCenter
+                referenceBounds = state.outerState?.visualBounds ?? viewState.visualBounds
+                referenceCenter = state.outerState?.visualCenter ?? viewState.visualCenter
                 break
             case 'view': 
-                const viewState = state.metrics.system.viewMetrics.targetState
                 referenceBounds = viewState.visualBounds
                 referenceCenter = viewState.visualCenter
                 break
@@ -126,15 +105,23 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
                 throw new Error(`Unknown measure type "${type}.${subType}"`)
         }
 
+        const unit = (type === 'spatial' || 
+                    subType === 'front' || 
+                    subType === 'back' || 
+                    subType === 'centerz' || 
+                    subType === 'sizez') ? scope.meter : scope.pixel
+
         if (measure.includes('%')) {
-            const outerSize = type === 'spatial' ? state.outerSize : state.outerState.visualSize
+            const outerSize = type === 'spatial' ? state.outerSize : 
+                (state.outerState?.visualSize ?? viewState.visualSize)
             let percent = 0 as number|math.Unit
+            let uXY = unit === scope.meter ? 'm' : 'px'
             switch (subType) {
                 case 'left': case 'centerx': case 'right': case 'sizex':
-                    percent = math.unit(outerSize.x / 100, 'm')
+                    percent = math.unit(outerSize.x / 100, uXY)
                     break
                 case 'bottom': case 'centery': case 'top': case 'sizey':
-                    percent = math.unit(outerSize.y / 100, 'm')
+                    percent = math.unit(outerSize.y / 100, uXY)
                     break
                 case 'back': case 'centerz': case 'front': case 'sizez':
                     percent = math.unit(outerSize.z / 100, 'm')
@@ -162,15 +149,9 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             case 'back': offset = referenceBounds.max.z; break;
             case 'centerz': offset = referenceCenter.z; break;
         }
-
-        let unit = (type === 'spatial' || 
-                    subType === 'front' || 
-                    subType === 'back' || 
-                    subType === 'centerz' || 
-                    subType === 'sizez') ? scope.meter : scope.pixel
         
-        const result = code.evaluate(system.mathScope)
-        const value = result === 0 ? 0 : math.number!(code.evaluate(scope), unit) + offset
+        const result = code.evaluate(scope)
+        const value = result === 0 ? offset : math.number!(result, unit) + offset
         scope.percent = undefined
         this.measureBoundsCache?.set(cacheKey, value)
 
@@ -181,11 +162,6 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
      * 
      */
     readonly metrics : SpatialMetrics<N>
-
-    /**
-     * Optimizer settings for this node
-     */
-    readonly optimize = new OptimizerConfig
     
     /**
      * Transition overrides for this node
@@ -199,14 +175,14 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
      * 
      * if `null`, this node is considered as flagged to be removed.
      */
-    set parentNode(p: N|null|undefined) {
-        const currentParent = typeof this._parentNode !== 'undefined' ? this._parentNode : this.metrics.nodeState.parent
-        const newParent = typeof p !== 'undefined' ? p : this.metrics.nodeState.parent
-        if (newParent === currentParent) return
+    set referenceNode(p: N|null|undefined) {
+        const currentReference = typeof this._referenceNode !== 'undefined' ? this._referenceNode : this.metrics.raw.parent
+        const newReference = typeof p !== 'undefined' ? p : this.metrics.raw.parent
+        if (newReference === currentReference) return
         const currentOuterMetrics = this.metrics.outerMetrics
         if (currentOuterMetrics) {
-            const outerWorldOrientation = currentOuterMetrics.currentState.worldOrientation
-            const outerWorldCenter = currentOuterMetrics.currentState.worldCenter
+            const outerWorldOrientation = currentOuterMetrics.current.worldOrientation
+            const outerWorldCenter = currentOuterMetrics.current.worldCenter
             this.orientation.start.premultiply(outerWorldOrientation)
             this.orientation.target.premultiply(outerWorldOrientation)
             this.orientation.reference?.premultiply(outerWorldOrientation)
@@ -227,13 +203,13 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
                 t.target.max.add(outerWorldCenter)
             }
         }
-        this._parentNode = p
+        this._referenceNode = p
         const newOuterMetrics = this.metrics.outerMetrics
         if (this.metrics.parentNode && this.metrics.containsNode(this.metrics.parentNode)) {
             throw new Error(`Node cannot become it's own descendent`)
         }
         if (newOuterMetrics) {
-            const outerState = newOuterMetrics.currentState
+            const outerState = newOuterMetrics.current
             const outerWorldOrientationInverse = outerState.worldOrientationInverse
             const outerWorldCenter = outerState.worldCenter
             this.orientation.start.premultiply(outerWorldOrientationInverse)
@@ -255,8 +231,8 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             }
         }
     }
-    get parentNode() { return this._parentNode }
-    private _parentNode? : N | null
+    get referenceNode() { return this._referenceNode }
+    private _referenceNode? : N | null
 
     /**
      * The closest ancestor adapter
@@ -310,6 +286,11 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
      */
     layouts = new Array<SpatialLayout>()
 
+    /**
+     * Time spent waiting for feasible layout solution
+     */
+    layoutWaitTime = 0
+
     get previousLayout() {
         return this._prevLayout
     }
@@ -362,7 +343,6 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
 
     syncWithParentAdapter = false
 
-    private _prevParent : N|undefined|null
     private _prevNodeOrientation = new Quaternion
     private _prevNodeBounds = new Box3
 
@@ -382,33 +362,34 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         const metrics = this.metrics
 
         if (this.onUpdate) {       
-            const nodeState = metrics.nodeState as NodeState<N>
+            const nodeState = metrics.raw as NodeState<N>
             const previousNodeParent = nodeState.parent
             const previousNodeOrientation = this._prevNodeOrientation.copy(nodeState.localOrientation)
             const previousNodeBounds = this._prevNodeBounds.copy(nodeState.spatialBounds)
             this.onUpdate()
             metrics.invalidateIntrinsicBounds()
             metrics.invalidateInnerBounds()
-            metrics.invalidateNodeStates()
-            metrics.nodeState // recompute
-            const config = this.system.config
-            const bounds = nodeState.spatialBounds
-            if (previousNodeParent !== nodeState.parent) 
-                this.parentNode = nodeState.parent
-            if (previousNodeOrientation.angleTo(nodeState.localOrientation) > config.epsillonRadians) 
-                this.orientation.target = nodeState.localOrientation
-            if (previousNodeBounds.min.distanceTo(bounds.min) > config.epsillonMeters ||
-                previousNodeBounds.max.distanceTo(bounds.max) > config.epsillonMeters) 
-                this.bounds.target = bounds
+            metrics.invalidateStates()
+            metrics.raw // recompute
             if (!this.system.optimizer.update(this)) {
-                this.parentNode = previousNodeParent
-                this.orientation.target = previousNodeOrientation
-                this.bounds.target = previousNodeBounds
+                // this.referenceNode = previousNodeParent
+                // this.orientation.target = previousNodeOrientation
+                // this.bounds.target = previousNodeBounds
+                const config = this.system.config
+                const bounds = nodeState.spatialBounds
+                if (previousNodeParent !== nodeState.parent ||
+                    previousNodeOrientation.angleTo(nodeState.localOrientation) > config.epsillonRadians ||
+                    previousNodeBounds.min.distanceTo(bounds.min) > config.epsillonMeters ||
+                    previousNodeBounds.max.distanceTo(bounds.max) > config.epsillonMeters) {
+                    this.referenceNode = undefined
+                    this.orientation.target = nodeState.localOrientation
+                    this.bounds.target = bounds
+                }
             }
         } else {
             metrics.invalidateIntrinsicBounds()
             metrics.invalidateInnerBounds()
-            metrics.invalidateNodeStates()
+            metrics.invalidateStates()
             this.system.optimizer.update(this)
         }
 
@@ -456,9 +437,9 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         this.bounds.update()
         this._progress = this._computeProgress()
 
-        metrics.invalidateNodeStates()
-        this.system.bindings.apply(metrics, metrics.currentState)
-        metrics.invalidateNodeStates()
+        metrics.invalidateStates()
+        this.system.bindings.apply(metrics, metrics.current)
+        metrics.invalidateStates()
         this.onPostUpdate?.()
     }
 

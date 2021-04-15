@@ -1,8 +1,9 @@
 {
     "typescript.tsdk": "node_modules/typescript/lib",
     "files.exclude": {
-        "**/*.d.ts": {"when": "$(basename).ts"},
+        "packages/**/*.d.ts": {"when": "$(basename).ts"},
         "**/*.js": {"when": "$(basename).ts"},
         "**/*.js.map": {"when": "$(basename).ts"}
-    }
+    },
+    "vetur.experimental.templateInterpolationService": true
 }

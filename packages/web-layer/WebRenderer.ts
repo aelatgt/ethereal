@@ -5,6 +5,23 @@ import { ResizeObserver as Polyfill } from '@juggle/resize-observer'
 const ResizeObserver:typeof Polyfill = (self as any).ResizeObserver || Polyfill
 
 
+type RequestIdleCallbackHandle = any
+type RequestIdleCallbackOptions = {
+  timeout: number
+}
+export type RequestIdleCallbackDeadline = {
+  readonly didTimeout: boolean
+  timeRemaining: () => number
+}
+
+declare function requestIdleCallback (
+  callback: (deadline: RequestIdleCallbackDeadline) => void,
+  opts?: RequestIdleCallbackOptions
+) : RequestIdleCallbackHandle
+
+declare function cancelIdleCallback(handle: RequestIdleCallbackHandle) : void
+
+
 function ensureElementIsInDocument(element: Element): Element {
   const document = element.ownerDocument!
   if (document.contains(element)) {
@@ -78,7 +95,7 @@ export class WebRenderer {
     )
   }
 
-
+  static documentObserver : MutationObserver
   static _didInit = false
   static _init() {
     if (this._didInit) return
@@ -159,6 +176,39 @@ export class WebRenderer {
       // @ts-ignore
       this.focusElement = null
     }, false)
+
+    const setNeedsRefreshOnAllLayers = () => {
+      for (const [e,l] of this.layers) l.needsRefresh = true
+    }
+    
+    window.addEventListener('load', (event) => {
+      setNeedsRefreshOnAllLayers()
+    })
+
+    const setNeedsRefreshOnStyleLoad = (node:Node) => {
+      var nodeName = node.nodeName.toUpperCase()
+      if (STYLE_NODES.indexOf(nodeName) !== -1)
+        node.addEventListener("load", setNeedsRefreshOnAllLayers)
+    }
+
+    const STYLE_NODES = ["STYLE", "LINK"];
+    this.documentObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (STYLE_NODES.indexOf(m.target.nodeName.toUpperCase()) !== -1) {
+          setNeedsRefreshOnAllLayers()
+          this.embeddedPageCSS.delete(m.target as Element)
+        }
+        for (const node of m.addedNodes) setNeedsRefreshOnStyleLoad(node)
+      }
+    })
+    this.documentObserver.observe(document, {
+      childList: true,
+      attributes: true,
+      characterData: true,
+      subtree: true,
+      attributeOldValue: true,
+      characterDataOldValue: true
+    })
   }
 
   static addToSerializeQueue(layer: WebLayer) {
@@ -173,29 +223,26 @@ export class WebRenderer {
     if (this.renderQueue.indexOf(layer) === -1) this.renderQueue.push(layer)
   }
 
-  static TASK_SERIALIZE_MAX_TIME = 200 // serialization is synchronous
-  static TASK_RASTERIZE_MAX_TIME = 200 // processing of data:svg is async
-  static TASK_RASTERIZE_MAX_SIMULTANEOUS = 2 // since rasterization is async, limit simultaneous rasterizations
-  static TASK_RENDER_MAX_TIME = 300 // rendering to canvas is synchronous
+  static TASK_ASYNC_MAX_COUNT = 2 // since rasterization is async, limit simultaneous rasterizations
+  static TASK_SYNC_MAX_TIME = 200
   static rasterizeTaskCount = 0
   private static _runTasks() {
     WebRenderer.tasksPending = false
     const serializeQueue = WebRenderer.serializeQueue
     const rasterizeQueue = WebRenderer.rasterizeQueue
     const renderQueue = WebRenderer.renderQueue
+    const maxSyncTime = WebRenderer.TASK_SYNC_MAX_TIME / 2
     let startTime = performance.now()
-    // while (renderQueue.length && performance.now() - startTime < WebRenderer.TASK_RENDER_MAX_TIME/2) {
-    //     renderQueue.shift()!.render()
-    // }
-    // startTime = performance.now()
-    while (serializeQueue.length && performance.now() - startTime < WebRenderer.TASK_SERIALIZE_MAX_TIME) {
-      serializeQueue.shift()!.serialize()
+    while (renderQueue.length && performance.now() - startTime < maxSyncTime) {
+      renderQueue.shift()!.render()
     }
     startTime = performance.now()
-    while (
+    while (serializeQueue.length && performance.now() - startTime < maxSyncTime) {
+      serializeQueue.shift()!.serialize()
+    }
+    if (
       rasterizeQueue.length &&
-      performance.now() - startTime < WebRenderer.TASK_RASTERIZE_MAX_TIME &&
-      WebRenderer.rasterizeTaskCount < WebRenderer.TASK_RASTERIZE_MAX_SIMULTANEOUS
+      WebRenderer.rasterizeTaskCount < WebRenderer.TASK_ASYNC_MAX_COUNT
     ) {
       WebRenderer.rasterizeTaskCount++
       rasterizeQueue
@@ -205,10 +252,6 @@ export class WebRenderer {
           WebRenderer.rasterizeTaskCount--
         })
     }
-    startTime = performance.now()
-    while (renderQueue.length && performance.now() - startTime < WebRenderer.TASK_RENDER_MAX_TIME / 2) {
-      renderQueue.shift()!.render()
-    }
   }
 
   static tasksPending = false
@@ -216,18 +259,19 @@ export class WebRenderer {
   static scheduleTasksIfNeeded() {
     if (this.tasksPending ||
         (WebRenderer.serializeQueue.length === 0 &&
-        WebRenderer.rasterizeQueue.length === 0  &&
-        WebRenderer.renderQueue.length === 0)) return
+        WebRenderer.renderQueue.length === 0 && 
+        (WebRenderer.rasterizeQueue.length === 0 || 
+        WebRenderer.rasterizeTaskCount === WebRenderer.TASK_ASYNC_MAX_COUNT))) return
     this.tasksPending = true
     WebRenderer.scheduleIdle(WebRenderer._runTasks)
   }
 
   static scheduleIdle(cb:(deadline?:RequestIdleCallbackDeadline)=>any) {
-    if ("requestIdleCallback" in self) {
-      requestIdleCallback(cb)
-    } else {
+    // if ("requestIdleCallback" in self) {
+    //   requestIdleCallback(cb)
+    // } else {
       setTimeout(cb,1)
-    }
+    // }
   }
 
   static setLayerNeedsRefresh(layer: WebLayer) {
@@ -541,10 +585,10 @@ export class WebRenderer {
     })
   }
 
-  private static _embeddedPageCSS = new Map<Element, Promise<string>>()
+  private static embeddedPageCSS = new Map<Element, Promise<string>>()
 
   static async getEmbeddedPageCSS() {
-    const embedded = this._embeddedPageCSS
+    const embedded = this.embeddedPageCSS
     const styleElements = Array.from(
       document.querySelectorAll("style, link[type='text/css'], link[rel='stylesheet']")
     )

@@ -5,7 +5,6 @@ import {
     SpatialLayout,
     MutationStrategy
 } from './SpatialLayout'
-import {SpatialObjective} from './SpatialObjective'
 import { SpatialAdapter } from './SpatialAdapter'
 
 export class OptimizerConfig {
@@ -17,14 +16,11 @@ export class OptimizerConfig {
     stepSizeMin?: number
     stepSizeMax?: number
     stepSizeStart?: number
-    staleRestartRate?: number
-    successRateMin?: number
-    allowInvalidLayout?: boolean
+    
+    /** Max number of seconds to wait for a feasible layout */
+    maxWait?: number
 
-    /** The number of samples to use for computing success rate */
-    successRateMovingAverage?: number
-
-    iterationsPerFrame? : number
+    maxIterationsPerFrame? : number
 
     /**
      * The solution swarm size for each layout
@@ -69,20 +65,17 @@ export class SpatialOptimizer<N extends Node3D> {
 
     private _config = new OptimizerConfig as Required<OptimizerConfig>
 
-    private _setConfig(adapter:SpatialAdapter<any>) {
+    private _setConfig(config:OptimizerConfig) {
         const defaultConfig = this.system.config.optimize
-        this._config.allowInvalidLayout = defaultConfig.allowInvalidLayout
-        this._config.pulseRate = defaultConfig.pulseRate
-        this._config.iterationsPerFrame = adapter.optimize.iterationsPerFrame ?? defaultConfig.iterationsPerFrame
-        this._config.swarmSize = adapter.optimize.swarmSize ?? defaultConfig.swarmSize
-        this._config.pulseFrequencyMin = adapter.optimize.pulseFrequencyMin ?? defaultConfig.pulseFrequencyMin
-        this._config.pulseFrequencyMax = adapter.optimize.pulseFrequencyMax ?? defaultConfig.pulseFrequencyMax
-        this._config.stepSizeMax = adapter.optimize.stepSizeMax ?? defaultConfig.stepSizeMax
-        this._config.stepSizeMin = adapter.optimize.stepSizeMin ?? defaultConfig.stepSizeMin
-        this._config.successRateMin = adapter.optimize.successRateMin ?? defaultConfig.successRateMin
-        this._config.stepSizeStart = adapter.optimize.stepSizeStart ?? defaultConfig.stepSizeStart
-        this._config.staleRestartRate = adapter.optimize.staleRestartRate ?? defaultConfig.staleRestartRate
-        this._config.successRateMovingAverage = adapter.optimize.successRateMovingAverage ?? defaultConfig.successRateMovingAverage
+        this._config.maxWait = config.maxWait ?? defaultConfig.maxWait
+        this._config.pulseRate = config.pulseRate ?? defaultConfig.pulseRate
+        this._config.maxIterationsPerFrame = config.maxIterationsPerFrame ?? defaultConfig.maxIterationsPerFrame
+        this._config.swarmSize = config.swarmSize ?? defaultConfig.swarmSize
+        this._config.pulseFrequencyMin = config.pulseFrequencyMin ?? defaultConfig.pulseFrequencyMin
+        this._config.pulseFrequencyMax = config.pulseFrequencyMax ?? defaultConfig.pulseFrequencyMax
+        this._config.stepSizeMax = config.stepSizeMax ?? defaultConfig.stepSizeMax
+        this._config.stepSizeMin = config.stepSizeMin ?? defaultConfig.stepSizeMin
+        this._config.stepSizeStart = config.stepSizeStart ?? defaultConfig.stepSizeStart
     }
 
     private _prevOrientation = new Quaternion
@@ -90,26 +83,21 @@ export class SpatialOptimizer<N extends Node3D> {
 
     /**
      * Optimize the layouts defined on this adapter
-     * 
-     * Returns true if layout is valid (no constraints are violated)
-     * Returrns false if layout is invalid
      */
     update(adapter:SpatialAdapter<any>) {
 
         if (adapter.layouts.length === 0 || adapter.metrics.innerBounds.isEmpty()) {
             adapter.activeLayout = null
-            return true
+            return false
         }
 
-        if (!adapter.hasValidContext) return false
-
-        const prevParent = adapter.parentNode
+        const prevReference = adapter.referenceNode
         const prevOrientation = this._prevOrientation.copy(adapter.orientation.target)
         const prevBounds = this._prevBounds.copy(adapter.bounds.target)
         const prevLayout = adapter.activeLayout
 
-        this._setConfig(adapter)
         for (const layout of adapter.layouts) {
+            this._setConfig(layout)
             this._updateLayout(adapter, layout)
         }
 
@@ -117,57 +105,51 @@ export class SpatialOptimizer<N extends Node3D> {
         let bestSolution:LayoutSolution|undefined
         for (const layout of adapter.layouts) {
             const solution = layout.solutions[0]
-            if ((this._config.allowInvalidLayout || solution.isValid) && 
-                (!bestSolution || layout.compareSolutions(solution, bestSolution) < 0)) {
+            if (!bestSolution || layout.compareSolutions(solution, bestSolution) < 0) {
                 bestLayout = layout
                 bestSolution = solution
             }
         }
         
-        if (bestLayout) {
+        adapter.layoutWaitTime += adapter.system.deltaTime
+        if (bestSolution && (bestSolution.isFeasible || adapter.layoutWaitTime > this._config.maxWait)) {
+            adapter.layoutWaitTime = 0
             bestSolution!.apply(false)
-            adapter.activeLayout = bestLayout
-            return true
+            adapter.activeLayout = bestLayout!
+        } else {
+            adapter.referenceNode = prevReference
+            adapter.orientation.target = prevOrientation
+            adapter.bounds.target = prevBounds
+            adapter.activeLayout = prevLayout
+            adapter.metrics.invalidateStates()
         }
-
-        adapter.parentNode = prevParent
-        adapter.orientation.target = prevOrientation
-        adapter.bounds.target = prevBounds
-        adapter.activeLayout = prevLayout
-        adapter.metrics.invalidateNodeStates()
-        return false
+        return true
     }
 
 
-    #scratchSolution = new LayoutSolution()
-    #scratchBestSolution = new LayoutSolution()
+    private _scratchSolution = new LayoutSolution()
+    private _scratchBestSolution = new LayoutSolution()
 
     private _updateLayout(adapter:SpatialAdapter<any>, layout:SpatialLayout) {
         adapter.measureBoundsCache.clear()
 
         const solutions = layout.solutions
         const c = this._config
-        const newSolution = this.#scratchSolution
-        const bestSolution = this.#scratchBestSolution
+        const newSolution = this._scratchSolution
+        const bestSolution = this._scratchBestSolution
         const diversificationFactor = 1.5 
         const intensificationFactor = 1.5 ** (-1/4)
-        const successAlpha = 2 / (c.successRateMovingAverage + 1) // N-sample exponential moving average
-        let iterations = c.iterationsPerFrame
+        let iterations = c.maxIterationsPerFrame
 
-        if (layout.successRate < 0.01 && layout.solutions[0]?.isValid) iterations = 1
+        // if (!adapter.hasValidContext || layout.solutions[0]?.isFeasible)
+        if (layout.solutions[0]?.isFeasible) 
+            iterations = 1
 
         // manage solution population (if necessary)
         this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart)
 
         // rescore previous best solution (in case the score changed)
-        solutions[0].apply(true)
-        
-        // // rescore and sort solutions
-        // newSolution.copy(solutions[0])
-        // for (let i=0; i < solutions.length; i++) {
-        //     this.applyLayoutSolution(solutions[i], true)
-        // }
-        // layout.sortSolutions()
+        solutions[0].apply()
 
         // optimize solutions
         for (let i=0; i< iterations; i++) {
@@ -202,8 +184,7 @@ export class SpatialOptimizer<N extends Node3D> {
                 }
 
                 // evaluate new solutions
-                // this.applyLayoutSolution(adapter, layout, solution, true)
-                newSolution.apply(true)
+                newSolution.apply()
                 
                 // better than previous ?
                 const success = layout.compareSolutions(newSolution, solution) < 0
@@ -211,31 +192,23 @@ export class SpatialOptimizer<N extends Node3D> {
 
                 // adapt step size
                 if (mutationStrategy) {
-                    mutationStrategy.successRate = successAlpha * (success ? 1 : 0) + (1-successAlpha) * mutationStrategy.successRate
                     mutationStrategy.stepSize *= success ? diversificationFactor : intensificationFactor
-                    
-                    if (mutationStrategy.stepSize > c.stepSizeMax) {
-                        mutationStrategy.stepSize = c.stepSizeMax
-                    } else if (mutationStrategy.stepSize < c.stepSizeMin) {
-                        mutationStrategy.stepSize = c.stepSizeMin
-                    }
-
-                    if (mutationStrategy.successRate < c.successRateMin &&
-                        Math.random() < c.staleRestartRate && !success) {
-                            layout.restartRate = 0.001 + (1-0.001) * layout.restartRate
-                            // random restart
-                            for (const m of solution.mutationStrategies) {
-                                m.stepSize = c.stepSizeStart
-                                m.successRate = 0.2
-                            }
-                            if (solution !== solutions[0]) {
-                                solution.randomize(1)
-                                solution.apply(true)
-                                solution.bestScores.length = 0
-                                for (const s of solution.scores) solution.bestScores.push(s)
-                            }
+                    if (!success && mutationStrategy.stepSize < c.stepSizeMin || mutationStrategy.stepSize > c.stepSizeMax) {
+                        // random restart
+                        layout.restartRate = 0.001 + (1-0.001) * layout.restartRate
+                        for (const m of solution.mutationStrategies) {
+                            m.stepSize = c.stepSizeStart
+                        }
+                        if (solution !== solutions[0]) {
+                            solution.randomize(1)
+                            solution.apply()
+                        }
+                        // solution.bestScores.length = 0
+                        // for (const s of solution.scores) solution.bestScores.push(s)
                     } else {
                         layout.restartRate = (1-0.001) * layout.restartRate
+                        // if (!success && solution !== solutions[0] && Math.random() < 2 ** (50 * mutationStrategy.stepSize / c.stepSizeStart - 50))
+                        //     solution.copy(newSolution)
                     }
                 }
 

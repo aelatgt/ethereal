@@ -1,5 +1,9 @@
 import { EventCallback, WebLayer } from './WebLayer';
 import { Matrix4 } from 'three';
+export declare type RequestIdleCallbackDeadline = {
+    readonly didTimeout: boolean;
+    timeRemaining: () => number;
+};
 export declare class WebRenderer {
     static ATTRIBUTE_PREFIX: string;
     static get ELEMENT_UID_ATTRIBUTE(): string;

@@ -1,4 +1,3 @@
-/// <reference types="mathjs" />
 import { SpatialMetrics, NodeState } from './SpatialMetrics';
 import { SpatialAdapter } from './SpatialAdapter';
 import { Box3, MathType, Vector2 } from './math-utils';

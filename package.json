@@ -7,53 +7,42 @@
     ]
   },
   "dependencies": {
-    "@babel/plugin-proposal-class-properties": "^7.10.4",
-    "@parcel/transformer-typescript-tsc": "^2.0.0-beta.1",
-    "@parcel/validator-typescript": "^2.0.0-beta.1",
-    "@types/mathjs": "^6.0.9",
-    "ava": "^3.8.1",
-    "lerna": "^3.19.0",
-    "mathjs": "^8.1.1",
-    "parcel": "^2.0.0-nightly.444",
-    "rimraf": "^3.0.0",
-    "syncpack": "^5.6.7",
     "three": "^0.122.0",
     "three-mesh-bvh": "^0.2.0",
-    "typescript": "^3.9.3"
+    "vue": "^3.0.7",
+    "ethereal": "link:packages/ethereal",
+    "@etherealjs/core": "link:packages/core",
+    "@etherealjs/web-layer": "link:packages/web-layer"
+  },
+  "devDependencies": {
+    "@types/node": "^14.14.33",
+    "@vitejs/plugin-vue": "^1.1.5",
+    "ava": "^3.15.0",
+    "link-into": "^3.0.1",
+    "rimraf": "^3.0.0",
+    "syncpack": "^5.6.7",
+    "typescript": "^3.9.3",
+    "ultra-runner": "^3.10.5",
+    "vite": "^2.0.5"
   },
   "engines": {
-    "npm": ">=7"
+    "npm": ">=7.6"
   },
   "license": "MIT",
   "private": true,
   "scripts": {
-    "install": "npm run build",
-    "clean": "rimraf ./.parcel-cache examples/**/.parcel-cache examples/**/dist examples/**/package-lock.json examples/**/node_modules",
-    "build": "tsc -p tsconfig.build.json",
-    "watch": "npm run syncpack && tsc -p tsconfig.build.json -w",
-    "bundle-demo": "cd examples/demo && npm run bundle",
-    "bundle-pride": "cd examples/pride && npm run bundle",
-    "bundle-web-layer": "cd examples/web-layer && npm run bundle",
-    "start-demo": "cd examples/demo && npm run start",
-    "start-pride": "cd examples/pride && npm run start",
-    "start-web-layer": "cd examples/web-layer && npm run start",
-    "syncpack": "syncpack fix-mismatches && syncpack format && syncpack set-semver-ranges --prod --dev --semver-range '^' && syncpack set-semver-ranges --peer --semver-range '>='",
-    "link": "ln -sf ../examples/demo/dist ./docs/demo && ln -sf ../examples/web-layer/dist ./docs/web-layer && ln -sf ../examples/pride/dist ./docs/pride",
-    "bundle": "npm run build && npm run bundle-pride && npm run link",
+    "build": "npx ultra ultrabuild",
+    "build:apps": "vite build && link-into docs/ 'apps/**/public'",
+    "build:packages": "tsc -p tsconfig.build.json",
+    "build:syncpack": "syncpack fix-mismatches && syncpack format && syncpack set-semver-ranges --prod --dev --semver-range '^' && syncpack set-semver-ranges --peer --semver-range '>='",
+    "clean": "rimraf apps/**/dist packages/**/dist docs/apps",
+    "dev": "vite --https",
+    "serve": "vite --https preview",
     "test": "ava",
-    "release": "lerna publish"
-  },
-  "syncpack": {
-    "sortAz": [
-      "contributors",
-      "dependencies",
-      "devDependencies",
-      "keywords",
-      "peerDependencies"
-    ]
+    "ultrabuild": "npm run build:syncpack && npm run build:packages && npm run build:apps"
   },
   "workspaces": [
     "packages/*",
-    "examples/*"
+    "apps/*"
   ]
 }

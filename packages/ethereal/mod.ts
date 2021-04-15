@@ -95,6 +95,7 @@ export function createSystem<T extends Node3D>(viewNode:T, bindings=DefaultBindi
 }
 
 export * from '@etherealjs/core/mod'
+export type {Node3D} from '@etherealjs/core/mod'
 
 export {WebLayer3D, WebLayer3DBase, WebRenderer} from '@etherealjs/web-layer/mod'
 export type {WebLayer3DOptions} from '@etherealjs/web-layer/mod'

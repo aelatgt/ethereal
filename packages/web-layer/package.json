@@ -3,9 +3,8 @@
   "description": "Use web content in WebGL scenes!",
   "version": "1.0.0",
   "author": "Gheric Speiginer",
-  "dependencies": {
+  "devDependencies": {
     "@juggle/resize-observer": "^3.2.0",
-    "@speigg/html2canvas": "latest",
     "fast-sha256": "latest",
     "fast-text-encoding": "latest",
     "lru_map": "^0.3.3",
@@ -21,10 +20,8 @@
     "web"
   ],
   "license": "MIT",
-  "main": "mod.js",
   "peerDependencies": {
     "three": ">=0.122.0"
   },
-  "type": "module",
-  "typings": "mod.d.ts"
+  "types": "mod"
 }

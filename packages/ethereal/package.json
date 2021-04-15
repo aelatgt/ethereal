@@ -1,12 +1,19 @@
 {
   "name": "ethereal",
   "description": "A Spatial Adaptivity Engine for the Immersive Web! ",
-  "version": "1.1.2",
+  "version": "2.0",
   "author": "Gheric Speiginer",
   "bugs": "https://github.com/aelatgt/ethereal/issues",
   "dependencies": {
-    "@etherealjs/core": "file:../core",
-    "@etherealjs/web-layer": "file:../web-layer"
+    "@etherealjs/core": "link:../core",
+    "@etherealjs/web-layer": "link:../web-layer"
+  },
+  "exports": {
+    ".": {
+      "source": "./mod.ts",
+      "import": "./dist/mod.es.js",
+      "require": "./dist/mod.umd.js"
+    }
   },
   "homepage": "https://github.com/aelatgt/ethereal#readme",
   "keywords": [
@@ -23,11 +30,12 @@
     "xr"
   ],
   "license": "MIT",
-  "main": "mod.js",
   "peerDependencies": {
     "three": ">=0.122.0"
   },
   "repository": "aelatgt/ethereal.git",
-  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
   "typings": "mod.d.ts"
 }

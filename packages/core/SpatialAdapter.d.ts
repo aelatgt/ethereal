@@ -1,4 +1,3 @@
-/// <reference types="mathjs" />
 import { EtherealSystem, Node3D } from './EtherealSystem';
 import { SpatialLayout } from './SpatialLayout';
 import { BoundsMeasureType, BoundsMeasureSubType } from './SpatialObjective';
@@ -125,7 +124,6 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     onUpdate?: () => void;
     onPostUpdate?: () => void;
     syncWithParentAdapter: boolean;
-    private _prevParent;
     private _prevNodeOrientation;
     private _prevNodeBounds;
     _computeHasValidContext(): boolean;

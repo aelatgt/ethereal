@@ -1,0 +1,13 @@
+{
+  "name": "ethereal-example-demo",
+  "version": "1.1.2",
+  "author": "Gheric Speiginer",
+  "dependencies": {
+    "@emotion/css": "latest",
+    "ethereal": "^1.0.0",
+    "postprocessing": "latest",
+    "stats.js": "^0.17.0"
+  },
+  "license": "MIT",
+  "private": true
+}

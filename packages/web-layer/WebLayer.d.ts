@@ -48,7 +48,7 @@ export declare class WebLayer {
     private _tryConvertElementToWebLayer;
     private _generateSVGDocument;
     serialize(): Promise<void>;
-    rasterize(): Promise<unknown>;
+    rasterize(): Promise<void>;
     render(): void;
     private _getParentsHTML;
 }

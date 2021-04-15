@@ -1,6 +1,5 @@
 import {WebRenderer} from './WebRenderer'
 import "fast-text-encoding"
-// import ResizeObserver from 'resize-observer-polyfill'
 import { Matrix4 } from 'three'
 import {
   addCSSRule,
@@ -42,6 +41,8 @@ export class WebLayer {
     this.parentLayer = WebRenderer.getClosestLayer(this.element.parentElement)
     this.eventCallback('layercreated', { target: element })
     WebLayer.cachedCanvases.limit = WebRenderer.layers.size * WebLayer.DEFAULT_CACHE_SIZE
+    this._hashingCanvas.width = 8
+    this._hashingCanvas.height = 8
   }
 
   needsRefresh = true
@@ -90,14 +91,11 @@ export class WebLayer {
   }
 
   get depth() {
-    const parentLayer = this.parentLayer
     let depth = 0
-    if (parentLayer) {
-      let el:Element|null = this.element
-      while (el !== parentLayer.element) {
-        el = el!.parentElement
-        depth++
-      }
+    let layer = this as WebLayer
+    while (layer.parentLayer) {
+      layer = layer.parentLayer
+      depth++
     }
     return depth
   }
@@ -131,22 +129,8 @@ export class WebLayer {
     }
   }
 
-  // private static _setNeedsSerialization(layer: WebLayer) {
-  //   layer.needsSerialization = true
-  // }
-
   refresh() {
-    // const dynamicAttributes = WebRenderer.getPsuedoAttributes(this.psuedoStates)
     getBounds(this.element, this.bounds, this.parentLayer && this.parentLayer.element)
-    // if (
-    //   this._dynamicAttributes !== dynamicAttributes .//||
-    //   this.bounds.width !== this._previousBounds.width ||
-    //   this.bounds.height !== this._previousBounds.height
-    // ) {
-    //   this._dynamicAttributes = dynamicAttributes
-    //   this.traverseLayers(WebRenderer.setLayerNeedsSerialization)
-    // }
-    // this._previousBounds.copy(this.bounds)
     this.needsRefresh = false
     this._updateParentAndChildLayers()
     WebRenderer.addToSerializeQueue(this)
@@ -196,17 +180,8 @@ export class WebLayer {
     return true
   }
 
-  private _generateSVGDocument() {
-
-  }
-
   async serialize() {
     if (this.element.nodeName === 'VIDEO') return
-
-    const [svgPageCSS] = await Promise.all([
-      WebRenderer.getEmbeddedPageCSS(),
-      WebRenderer.embedExternalResources(this.element)
-    ])
 
     let { width, height } = this.bounds
 
@@ -238,6 +213,11 @@ export class WebLayer {
         'html',
         'html ' + WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE + '="" '
       )
+
+      const [svgPageCSS] = await Promise.all([
+        WebRenderer.getEmbeddedPageCSS(),
+        WebRenderer.embedExternalResources(this.element)
+      ])
       const docString =
         '<svg width="' +
         width +
@@ -272,7 +252,7 @@ export class WebLayer {
   }
 
   async rasterize() {
-    return new Promise(resolve => {
+    return new Promise<void>(resolve => {
       this.svgImage.onload = () => {
         WebRenderer.addToRenderQueue(this)
         resolve()
@@ -304,10 +284,11 @@ export class WebLayer {
     let { left, top } = this.cachedMargin.get(svgDoc)!
 
     const hashingCanvas = this._hashingCanvas
-    let hw = (hashingCanvas.width = Math.max(width * 0.05, 40))
-    let hh = (hashingCanvas.height = Math.max(height * 0.05, 40))
+    let hw = hashingCanvas.width
+    let hh = hashingCanvas.height
     const hctx = hashingCanvas.getContext('2d')!
     hctx.clearRect(0, 0, hw, hh)
+    hctx.imageSmoothingEnabled = false
     hctx.drawImage(this.svgImage, left, top, width, height, 0, 0, hw, hh)
     const hashData = hctx.getImageData(0, 0, hw, hh).data
     const newHash =
@@ -338,12 +319,12 @@ export class WebLayer {
       WebLayer.cachedCanvases.size === WebLayer.cachedCanvases.limit
         ? WebLayer.cachedCanvases.shift()![1]
         : document.createElement('canvas')
-    let w = (newCanvas.width = width * pixelRatio + 2)
-    let h = (newCanvas.height = height * pixelRatio + 2)
+    let w = (newCanvas.width = width * pixelRatio)
+    let h = (newCanvas.height = height * pixelRatio)
     const ctx = newCanvas.getContext('2d')!
+    ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, w, h)
-    ctx.drawImage(this.svgImage, left, top, width, height, 1, 1, w - 1, h - 1)
-
+    ctx.drawImage(this.svgImage, left, top, width, height, 0, 0, w, h)
     WebLayer.cachedCanvases.set(newHash, newCanvas)
     this.canvas = newCanvas
   }

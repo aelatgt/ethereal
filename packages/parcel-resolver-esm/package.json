@@ -1,8 +1,0 @@
-{
-  "name": "@etherealjs/parcel-resolver-esm",
-  "version": "1.0.0",
-  "engines": {
-    "parcel": "^2.0.0-alpha"
-  },
-  "main": "./Resolver.js"
-}

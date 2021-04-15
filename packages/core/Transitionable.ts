@@ -125,7 +125,8 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
     private _copy(to?:TransitionableType<T>, from?:TransitionableType<T>) {
         if (typeof from === 'undefined') return undefined
         if (typeof from === 'number') return from
-        return to ? (to as any).copy(from) : (from as any).clone()
+        const result = to ? (to as any).copy(from) : (from as any).clone()
+        return result
     }
 
     private _isEqual(a?:TransitionableType<T>, b?:TransitionableType<T>) {
@@ -461,6 +462,13 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const c = current as THREE.Box3
             const s = start as THREE.Box3
             const e = target as THREE.Box3
+            if (e.isEmpty()) {
+                const min = e.min
+                const max = e.max
+                if (min.x > max.x) this._swap(min,max,'x')
+                if (min.y > max.y) this._swap(min,max,'y')
+                if (min.z > max.z) this._swap(min,max,'z')
+            }
             const minAmount = this._scratchBox.min.copy(e.min).sub(s.min).lerp(V_000, 1-alpha)
             const maxAmount = this._scratchBox.max.copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
             c.min.add(minAmount)
@@ -468,6 +476,13 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             this._current = c as any
             return
         }
+    }
+
+    private _swap(a:Vector3, b:Vector3, key:'x'|'y'|'z') {
+        const aValue = a[key]
+        const bValue = b[key]
+        a[key] = bValue
+        b[key] = aValue
     }
 
     /**

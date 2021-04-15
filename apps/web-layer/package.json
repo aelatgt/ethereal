@@ -1,0 +1,26 @@
+{
+  "name": "ethereal-example-web-layer",
+  "version": "1.0.0",
+  "author": "Gheric Speiginer",
+  "dependencies": {
+    "@types/dat.gui": "^0.7.2",
+    "dat.gui": "^0.7.5",
+    "ethereal": "^1.0.0",
+    "noty": "^3.2.0-beta",
+    "stats.js": "^0.17.0",
+    "vue": "^3.0.7"
+  },
+  "keywords": [
+    "3D",
+    "AR",
+    "DOM",
+    "VR",
+    "XR",
+    "three",
+    "web"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "three": ">=0.122.0"
+  }
+}

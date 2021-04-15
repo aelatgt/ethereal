@@ -249,13 +249,13 @@ export class LayoutFrustum {
         const right = near * Math.tan(this.rightDegrees * MathUtils.DEG2RAD)
         const top = near * Math.tan(this.topDegrees * MathUtils.DEG2RAD)
         const bottom = near * Math.tan(this.bottomDegrees * MathUtils.DEG2RAD)
-        return this.#perspective.makePerspective(
+        return this._perspective.makePerspective(
             left, right,
             top, bottom,
             near, far
         )
     })
-    #perspective = new Matrix4
+    private _perspective = new Matrix4
 
     overlapPercent(f:LayoutFrustum) {
         this._boxA.min.x = this.leftDegrees

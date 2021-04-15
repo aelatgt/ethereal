@@ -10,7 +10,6 @@ import {
   Camera,
   Ray,
   Raycaster,
-  Intersection,
   Texture, 
   VideoTexture, 
   ClampToEdgeWrapping, 
@@ -33,6 +32,8 @@ export interface WebLayer3DOptions {
   onAfterRasterize?(layer: WebLayer3DBase): void
 }
 
+type Intersection = THREE.Intersection & {groupOrder:number}
+
 export type WebLayerHit = ReturnType<typeof WebLayer3D.prototype.hitTest> & {}
 
 const scratchVector = new Vector3()
@@ -49,6 +50,7 @@ export class WebLayer3DBase extends Group {
     this._webLayer = WebRenderer.getClosestLayer(element)!
 
     this.add(this.contentMesh)
+    this.add(this._boundsMesh)
     this.cursor.visible = false
     this.contentMesh.visible = false
     this.contentMesh['customDepthMaterial'] = this.depthMaterial
@@ -100,6 +102,18 @@ export class WebLayer3DBase extends Group {
       transparent: true,
       alphaTest: 0.001,
       opacity: 1
+    })
+  )
+
+  /**
+   * This non-visible mesh ensures that an adapted layer retains
+   * its innerBounds, even if the content mesh is
+   * independently adapted.
+   */
+  private _boundsMesh = new Mesh(
+    WebLayer3D.GEOMETRY,
+    new MeshBasicMaterial({
+      visible: false
     })
   )
 
@@ -196,6 +210,7 @@ export class WebLayer3DBase extends Group {
     this.quaternion.copy(this.domLayout.quaternion)
     this.scale.copy(this.domLayout.scale)
     this.contentMesh.scale.copy(this.domSize)
+    this._boundsMesh.scale.copy(this.domSize)
     // handle layer visibiltiy or removal
     const mesh = this.contentMesh
     const mat = mesh.material as THREE.MeshBasicMaterial
@@ -216,27 +231,11 @@ export class WebLayer3DBase extends Group {
       material.map = texture
       this.depthMaterial['map'] = texture
       this.depthMaterial.needsUpdate = true
-      if (Math.abs(this.position.z) < 1e-9 && this.parent == this.parentWebLayer) {
-        material.depthWrite = false
-        this.renderOrder = this.depth + this.index * 0.001
-      }
-      else {
-        material.depthWrite = true
-        this.renderOrder = 0
-      }
+      material.depthWrite = false
+      this.renderOrder = this.depth + this.index * 0.001
       material.needsUpdate = true
     }
   }
-
-  // private _refreshPending = false
-  // private scheduleRefresh() {
-  //   if (this._refreshPending) return
-  //   this._refreshPending = true
-  //   WebRenderer.scheduleIdle(() => {
-  //     this._refreshPending = false
-  //     this.refresh()
-  //   })
-  // }
 
   protected _doUpdate = () => {
     this.updateLayout()
@@ -293,6 +292,7 @@ export class WebLayer3DBase extends Group {
       t.dispose()
     }
     this.contentMesh.geometry.dispose()
+    this._boundsMesh.geometry.dispose()
     WebRenderer.disposeLayer(this._webLayer)
     for (const child of this.childWebLayers) child.dispose()
   }
@@ -502,6 +502,23 @@ export class WebLayer3D extends WebLayer3DBase {
     this._contentMeshes.push(layer.contentMesh)
   }
 
+  private _intersectionGetGroupOrder(i:Intersection) {
+    let o = i.object as THREE.Group&THREE.Object3D
+    while (o.parent && !o.isGroup) {
+      o = o.parent as THREE.Group&THREE.Object3D
+    }
+    i.groupOrder = o.renderOrder
+  }
+
+  private _intersectionSort(a:Intersection,b:Intersection) {
+    if ( a.groupOrder !== b.groupOrder ) {
+		  return b.groupOrder - a.groupOrder
+	  } else if ( a.object.renderOrder !== b.object.renderOrder ) {
+      return b.object.renderOrder - a.object.renderOrder
+    } else {
+      return a.distance - b.distance
+    }
+  }
 
   private _updateInteractions() {
     // this.updateWorldMatrix(true, true)
@@ -519,7 +536,10 @@ export class WebLayer3D extends WebLayer3DBase {
           ray.getWorldDirection(scratchVector2)
         )
       this._hitIntersections.length = 0
-      const intersection = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections)[0]
+      const intersections = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections) as Intersection[]
+      intersections.forEach(this._intersectionGetGroupOrder)
+      intersections.sort(this._intersectionSort)
+      const intersection = intersections[0]
       if (intersection) {
         const layer = intersection.object.parent as WebLayer3DBase
         layer.cursor.position.copy(intersection.point)
@@ -556,6 +576,8 @@ export class WebLayer3D extends WebLayer3DBase {
     raycaster.ray.copy(ray)
     intersections.length = 0
     raycaster.intersectObject(this, true, intersections)
+    intersections.forEach(this._intersectionGetGroupOrder)
+    intersections.sort(this._intersectionSort)
     for (const intersection of intersections) {
       const layer = meshMap!.get(intersection.object as any)
       if (!layer) continue

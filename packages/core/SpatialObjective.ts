@@ -1,6 +1,6 @@
+import { Node3D } from './EtherealSystem'
 import { MathUtils, Vector3, Quaternion, Box3, Euler } from './math-utils'
 import { SpatialLayout } from './SpatialLayout'
-import { Q_IDENTITY } from 'packages/core/mod'
 
 export type OneOrMany<T> = T|T[]
 
@@ -24,16 +24,13 @@ export type QuaternionSpec =
     >
 
 export interface ObjectiveOptions {
-    relativeTolerance?:number, 
-    absoluteTolerance?:number
+    relativeTolerance?:number|(() => number), 
+    absoluteTolerance?:number|(() => number)
 }
 
 export type BoundsMeasureType = 'spatial'|'visual'|'view'
 export type BoundsMeasureSubType = 'left'|'bottom'|'top'|'right'|'front'|'back'|'sizex'|'sizey'|'sizez'|'sizediagonal'|'centerx'|'centery'|'centerz'
-
-
-type ConstraintMode = 'absolute'|'relative'
-
+ 
 export type DiscreteSpec<T> = Exclude<T,any[]|undefined|Partial<{gt:any,lt:any}>>
 export type ContinuousSpec<T> = T extends any[] | undefined ? never : 
     T extends {gt:any,lt:any} ? T : never
@@ -49,138 +46,158 @@ export abstract class SpatialObjective {
         return s !== undefined && s instanceof Array === false && typeof s === 'object' && ('gt' in s || 'lt' in s) === true
     }
 
-
-    relativeTolerance?:number = undefined
-    absoluteTolerance?:number = undefined
-
-    bestScore = -Infinity
+    type : keyof typeof SpatialLayout.prototype.absoluteTolerance = 'ratio'
     sortBlame = 0
 
-    constructor(public layout:SpatialLayout) {}
+    bestScore = -1000
+
+    relativeTolerance ?: number = undefined
+    absoluteTolerance ?: number|string = undefined
+
+    priority = 0
+    index = -1
+
+    get computedRelativeTolerance () {
+        return this.relativeTolerance ??
+        this.layout.relativeTolerance ??
+        this.layout.adapter.system.config.optimize.relativeTolerance
+    }
+
+    get computedAbsoluteTolerance () {
+        const sys = this.layout.adapter.system
+        return this.absoluteTolerance !== undefined ? 
+            sys.measureNumber(this.absoluteTolerance, sys.mathScope[this.type]) :
+            this.layout.getComputedAbsoluteTolerance(this.type)
+    }
+
+    layout:SpatialLayout
+
+    constructor(layout:SpatialLayout) {
+        this.layout = layout
+    }
 
     abstract evaluate() : number;
 
-    protected reduceFromOneOrManySpec = <V,S>(value:V, spec:OneOrMany<S>|undefined, mode:ConstraintMode, accuracy:number, applyFn:(value:V, spec:S, mode:ConstraintMode, accuracy:number)=>number) => {
+    protected reduceFromOneOrManySpec = <V,S>(value:V, spec:OneOrMany<S>|undefined, applyFn:(value:V, spec:S)=>number) => {
         if (spec === undefined) return 0
         // score for compound spec is best score in the list
         if (spec instanceof Array) {
             let score = -Infinity
             for (const s of spec) {
-                score = Math.max(applyFn(value, s, mode, accuracy), score)
+                score = Math.max(applyFn(value, s), score)
             }
             return score
         }
-        return applyFn(value, spec, mode, accuracy)
+        return applyFn(value, spec)
     }
 
-    protected getNumberScore(value:number, spec:OneOrMany<NumberConstraintSpec>, mode:ConstraintMode, accuracy:number) {
-        return this.reduceFromOneOrManySpec(value, spec, mode, accuracy, this._getNumberScoreSingle)
+    protected getNumberScore(value:number, spec:OneOrMany<NumberConstraintSpec>) {
+        return this.reduceFromOneOrManySpec(value, spec, this._getNumberScoreSingle)
     }
 
-    private _getNumberScoreSingle = (value:number, spec:NumberConstraintSpec, mode:ConstraintMode, accuracy:number) => {
-        // absolute score = - distance from target + accuracy 
-        // relative score = (- distance from target / max magnitude) + accuracy
-
-        const isRelative = mode === 'relative'
+    private _getNumberScoreSingle = (value:number, spec:NumberConstraintSpec) => {
         let diff = 0
-        let magnitude = 1
-
         if (typeof spec !== 'object') {
-            const target = this.layout.adapter.measureNumber(spec)
-            diff = Math.abs(value - target)
-            if (isRelative) magnitude = Math.max(Math.abs(target), Math.abs(value))
+            const target = this.layout.adapter.system.measureNumber(spec)
+            diff = -Math.abs(value - target)
         } else {
-            const min = 'gt' in spec ? this.layout.adapter.measureNumber(spec.gt): undefined
-            const max = 'lt' in spec ? this.layout.adapter.measureNumber(spec.lt): undefined
+            const min = 'gt' in spec ? this.layout.adapter.system.measureNumber(spec.gt): undefined
+            const max = 'lt' in spec ? this.layout.adapter.system.measureNumber(spec.lt): undefined
             if (min !== undefined && value < min) {
                 diff = value - min
-                if (isRelative) magnitude =  Math.max(Math.abs(min), Math.abs(value))
             }
             else if (max !== undefined && value > max) {
                 diff = max - value
-                if (isRelative) magnitude = Math.max(Math.abs(max), Math.abs(value))
             }
         }
-
-        if (isRelative) {
-            if (magnitude === 0) return accuracy
-            return -(diff/magnitude) + accuracy
-        }
-
-        return - diff + accuracy
+        return diff
     }
 
-    protected getVector3Score(value:Vector3, spec:OneOrMany<Vector3Spec>|undefined, mode:ConstraintMode, accuracy:number) {        
-        return this.reduceFromOneOrManySpec(value, spec, mode, accuracy, this._getVector3ScoreSingle)
+    protected getVector3Score(value:Vector3, spec:OneOrMany<Vector3Spec>|undefined) {        
+        return this.reduceFromOneOrManySpec(value, spec, this._getVector3ScoreSingle)
     }
 
-    private _getVector3ScoreSingle = (value:Vector3, spec:Vector3Spec, mode:ConstraintMode, accuracy:number) => {
+    private _getVector3ScoreSingle = (value:Vector3, spec:Vector3Spec) => {
         // penalty for discrete spec is distance from the valid value
-        const xScore = ('x' in spec && typeof spec.x !== 'undefined') ? this.getNumberScore(value.x, spec.x, mode, accuracy) : 0
-        const yScore = ('y' in spec && typeof spec.y !== 'undefined') ? this.getNumberScore(value.y, spec.y, mode, accuracy) : 0
-        const zScore = ('z' in spec && typeof spec.z !== 'undefined') ? this.getNumberScore(value.z, spec.z, mode, accuracy) : 0
-        const magnitudeScore = ('magnitude' in spec && typeof spec.magnitude !== 'undefined') ? this.getNumberScore(value.length(), spec.magnitude, mode, accuracy) : 0
+        const xScore = ('x' in spec && typeof spec.x !== 'undefined') ? this.getNumberScore(value.x, spec.x) : 0
+        const yScore = ('y' in spec && typeof spec.y !== 'undefined') ? this.getNumberScore(value.y, spec.y) : 0
+        const zScore = ('z' in spec && typeof spec.z !== 'undefined') ? this.getNumberScore(value.z, spec.z) : 0
+        const magnitudeScore = ('magnitude' in spec && typeof spec.magnitude !== 'undefined') ? this.getNumberScore(value.length(), spec.magnitude) : 0
         return xScore + yScore + zScore + magnitudeScore
     }
 
-    protected getQuaternionScore(value:Quaternion, spec:OneOrMany<QuaternionSpec>|undefined, accuracy:number) {
-        return this.reduceFromOneOrManySpec(value, spec, 'absolute', accuracy, this._getQuaternionScoreSingle)
+    protected getQuaternionScore(value:Quaternion, spec:OneOrMany<QuaternionSpec>|undefined) {
+        return this.reduceFromOneOrManySpec(value, spec, this._getQuaternionScoreSingle)
     }
 
     private _quat = new Quaternion
     private _euler = new Euler
 
-    private _getQuaternionScoreSingle = (value:Quaternion, spec:QuaternionSpec|undefined, mode:ConstraintMode, accuracy:number) => {
+    private _getQuaternionScoreSingle = (value:Quaternion, spec:QuaternionSpec|undefined) => {
         if (spec === undefined) return 0
-        // absolute score = - angle from target + accuracy 
-        // relative score = (- angle from target / max magnitude) + accuracy
-
+        // absolute score = - angle from target  
+        // relative score = (- angle from target / max magnitude) 
         if ('x' in spec) {
             const s = this._quat.copy(spec as any)
-            return - s.angleTo(value) * MathUtils.RAD2DEG + accuracy
+            return - s.angleTo(value) * MathUtils.RAD2DEG
         } else if ('swingRange' in spec) {
             const euler = this._euler.setFromQuaternion(value)
             const swingX = euler.x * MathUtils.RAD2DEG
             const swingY = euler.y * MathUtils.RAD2DEG
             const twistZ = euler.z * MathUtils.RAD2DEG
-            const deg = this.layout.adapter.system.mathScope.degree
-            const swingRangeX = spec.swingRange?.x ? this.layout.adapter.measureNumber(spec.swingRange.x, deg) : 0
-            const swingRangeY = spec.swingRange?.y ? this.layout.adapter.measureNumber(spec.swingRange.y, deg) : 0
-            const twistRange = spec.twistRange ? this.layout.adapter.measureNumber(spec.twistRange, deg) : 0
-            const swingRange = Math.acos( 
-                Math.cos( swingRangeX * MathUtils.DEG2RAD ) * 
-                Math.cos( swingRangeY * MathUtils.DEG2RAD )
-            ) * MathUtils.RAD2DEG
-            const swingScore = (1 - (swingX / swingRangeX) ** 2 - (swingY / swingRangeY) ** 2) * swingRange
+            const system = this.layout.adapter.system
+            const deg = system.mathScope.degree
+            let swingRangeX = spec.swingRange?.x ? system.measureNumber(spec.swingRange.x, deg) : 0
+            let swingRangeY = spec.swingRange?.y ? system.measureNumber(spec.swingRange.y, deg) : 0
+            swingRangeX = Math.max(swingRangeX, 0.01)
+            swingRangeY = Math.max(swingRangeY, 0.01)
+            const twistRange = spec.twistRange ? system.measureNumber(spec.twistRange, deg) : 0
+            // const swingRange = Math.acos( 
+            //     Math.cos( swingRangeX * MathUtils.DEG2RAD ) * 
+            //     Math.cos( swingRangeY * MathUtils.DEG2RAD )
+            // ) * MathUtils.RAD2DEG
+            const swingScore = (1 - (swingX / swingRangeX) ** 2 - (swingY / swingRangeY) ** 2)
             const twistScore = twistRange - Math.abs(twistZ)
-            return swingScore + twistScore + accuracy
+            return (swingScore > 0 ? 0 : swingScore) + (twistScore > 0 ? 0 : twistScore)
         }
 
         return 0
     }
 
-    protected getBoundsScore(spec:SpatialBoundsSpec|undefined, type:BoundsMeasureType) {
+    protected getBoundsScore(spec:SpatialBoundsSpec|undefined, boundsType:BoundsMeasureType) {
         if (spec === undefined) return 0
-        let score = Infinity
+        let score = 0
         for (const key in spec) {
+            if (key === 'absolute') {
+                continue
+            } 
             let k = key as keyof SpatialBoundsSpec
             if (k === 'size' || k === 'center') {
                 const subSpec = spec[k]
                 for (const subKey in subSpec) {
                     let sk = subKey as keyof NonNullable<typeof spec[typeof k]>
-                    score = Math.min(this.getBoundsMeasureScore(subSpec?.[sk], type, k+sk as any), score)
+                    if (boundsType !== 'spatial') {
+                        if (this.type === 'meter' && sk !== 'z') continue
+                        if (this.type === 'pixel' && sk === 'z') continue
+                    }
+                    score += this.getBoundsMeasureScore(subSpec?.[sk], boundsType, k+sk as any)
                 }
             } else {
-                score = Math.min(this.getBoundsMeasureScore(spec[k], type, k), score)
+                if (boundsType !== 'spatial') {
+                    if (this.type === 'meter' && k !== 'back' && k !== 'front')
+                        continue
+                    if (this.type === 'pixel' && (k === 'back' || k === 'front'))
+                        continue
+                }
+                score += this.getBoundsMeasureScore(spec[k], boundsType, k)
             }
         }
         return score
     }
 
-    protected getBoundsMeasureScore(spec:OneOrMany<ConstraintSpec>|undefined, type:BoundsMeasureType, subType:BoundsMeasureSubType) {
+    protected getBoundsMeasureScore(spec:OneOrMany<NumberConstraintSpec>|undefined, type:BoundsMeasureType, subType:BoundsMeasureSubType) {
         if (spec === undefined) return 0
-        const state = this.layout.adapter.metrics.targetState
-        const system = this.layout.adapter.system
+        const state = this.layout.adapter.metrics.target
         let bounds : Box3
         let center : Vector3
         let size : Vector3
@@ -191,15 +208,10 @@ export abstract class SpatialObjective {
                 size = state.spatialSize
                 break
             case 'visual': 
+            case 'view':
                 bounds = state.visualBounds
                 center = state.visualCenter
                 size = state.visualSize
-                break
-            case 'view': 
-                const viewState = system.viewMetrics.targetState
-                bounds = viewState.visualBounds
-                center = viewState.visualCenter
-                size = viewState.visualSize
                 break
             default: 
                 throw new Error(`Unknown measure type "${type}.${subType}" in spec:\n "${spec}"`)
@@ -224,87 +236,84 @@ export abstract class SpatialObjective {
                 throw new Error(`Unknown measure subtype ${type}.${subType} in spec "${spec}"`)
         }
 
-        const unit = (type === 'spatial' || 
-                    subType === 'front' || 
-                    subType === 'back' || 
-                    subType === 'centerz' || 
-                    subType === 'sizez') ? system.mathScope.meter : system.mathScope.pixel
-        const accuracyMeasure = unit === system.mathScope.meter ? 
-            this.layout.spatialAccuracy : this.layout.visualAccuracy
-        const accuracy = this.layout.adapter.measureNumber(accuracyMeasure, unit)
-
         // score for compound spec is best score in the list
         if (spec instanceof Array) {
             let score = -Infinity
             for (const s of spec) {
-                score = Math.max(this._getMeasurePenaltySingle(value, s, type, subType, accuracy), score)
+                score = Math.max(this._getBoundsMeasureScoreSingle(value, s, type, subType), score)
             }
             return score
         }
-        return this._getMeasurePenaltySingle(value, spec, type, subType, accuracy)
+        return this._getBoundsMeasureScoreSingle(value, spec, type, subType)
     }
 
-    private _getMeasurePenaltySingle = (value:number, spec:ConstraintSpec|undefined, type:BoundsMeasureType, subType:BoundsMeasureSubType, accuracy:number) => {
+    private _getBoundsMeasureScoreSingle = (value:number, spec:NumberConstraintSpec|undefined, type:BoundsMeasureType, subType:BoundsMeasureSubType) => {
         if (spec === undefined) return 0
         // penalty for single spec is distance from any valid value
         if (typeof spec === 'object') {
             if ('gt' in spec) {
                 const min = this.layout.adapter.measureBounds(spec.gt, type, subType)
-                if (value < min) return value - min + accuracy
+                if (value < min) return value - min
             }
             if ('lt' in spec) {
                 const max = this.layout.adapter.measureBounds(spec.lt, type, subType)
-                if (value > max) return max - value + accuracy
+                if (value > max) return max - value
             }  
-            return accuracy
+            return 0
         }
-        return - Math.abs(value - this.layout.adapter.measureBounds(spec, type, subType)) + accuracy
+        return - Math.abs(value - this.layout.adapter.measureBounds(spec, type, subType))
     }
 
     /**  Attenuate visual score when out of view */
     protected attenuateVisualScore(score:number) : number {
         let penalty = 0
-        const acc = this.layout.adapter.measureNumber(
-            this.layout.visualAccuracy, this.layout.adapter.system.mathScope.pixel)
+        const acc = this.layout.getComputedAbsoluteTolerance('pixel')
         const adapter = this.layout.adapter
         const viewResolution = adapter.system.viewResolution
         const viewFrustum = adapter.system.viewFrustum
         const vw = viewResolution.x
         const vh = viewResolution.y
-        const visualBounds = adapter.metrics.targetState.visualBounds
+        const viewSize = viewResolution.length()
+        const visualBounds = adapter.metrics.target.visualBounds
         const leftOffset = visualBounds.min.x - -vw/2 + acc
         const rightOffset = visualBounds.max.x - vw/2 - acc
         const bottomOffset = visualBounds.min.y - -vh/2 + acc
         const topOffset = visualBounds.max.y - vh/2 - acc
         const nearOffset = visualBounds.max.z + viewFrustum.nearMeters
-        if (leftOffset < 0) penalty += Math.abs(leftOffset / vw) * 10
-        if (rightOffset > 0) penalty += Math.abs(rightOffset / vw) * 10 
-        if (bottomOffset < 0) penalty += Math.abs(bottomOffset / vh) * 10
-        if (topOffset > 0) penalty += Math.abs(topOffset / vh) * 10
-        if (nearOffset > 0) penalty += nearOffset
-        return score - Math.abs(score)*(penalty**2)
+        if (leftOffset < 0) penalty += Math.abs(leftOffset / vw)
+        if (rightOffset > 0) penalty += Math.abs(rightOffset / vw) 
+        if (bottomOffset < 0) penalty += Math.abs(bottomOffset / vh)
+        if (topOffset > 0) penalty += Math.abs(topOffset / vh)
+        if (nearOffset > 0) penalty += nearOffset * 10
+        return score - Math.abs(viewSize)*penalty
     }
 }
 
 export class LocalPositionConstraint extends SpatialObjective {
     spec?:Vector3Spec
 
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = 'meter'
+    }
+
     evaluate() {
-        const mathScope = this.layout.adapter.system.mathScope
-        const state = this.layout.adapter.metrics.targetState
-        const accuracy = this.layout.adapter.measureNumber( this.layout.relativeAccuracy, mathScope.meter )
-        return this.getVector3Score(state.localPosition, this.spec, 'relative', accuracy)
+        const state = this.layout.adapter.metrics.target
+        return this.getVector3Score(state.localPosition, this.spec)
     }
 }
 
 export class LocalOrientationConstraint extends SpatialObjective {
     spec?:QuaternionSpec
 
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = 'degree'
+    }
+
     evaluate() {
-        const mathScope = this.layout.adapter.system.mathScope
-        const state = this.layout.adapter.metrics.targetState
-        const accuracy = this.layout.adapter.measureNumber( this.layout.angularAccuracy, mathScope.degree )
-        return this.getQuaternionScore(state.localOrientation, this.spec, accuracy)
+        const state = this.layout.adapter.metrics.target
+        return this.getQuaternionScore(state.localOrientation, this.spec)
     }
 }
 
@@ -312,33 +321,47 @@ export class LocalOrientationConstraint extends SpatialObjective {
 export class LocalScaleConstraint extends SpatialObjective {
     spec?:Vector3Spec
 
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = 'ratio'
+    }
+
     evaluate() {
-        const state = this.layout.adapter.metrics.targetState
-        const accuracy = this.layout.adapter.measureNumber( this.layout.relativeAccuracy )
-        return this.getVector3Score(state.localScale, this.spec, 'absolute', accuracy)
+        const state = this.layout.adapter.metrics.target
+        return this.getVector3Score(state.localScale, this.spec)
     }
 }
 
 export class AspectConstraint extends SpatialObjective {
-    mode = 'spatial' as 'spatial'|'visual'
+    mode = 'xyz' as 'xyz'|'xy'
 
     private _scale = new Vector3
 
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = 'ratio'
+    }
+
     evaluate() {
-        const state = this.layout.adapter.metrics.targetState
-        const accuracy = this.layout.adapter.measureNumber( this.layout.relativeAccuracy )
+        const state = this.layout.adapter.metrics.target
         const mode = this.mode
         if (!mode) return 0
         // const worldScale = state.worldScale
         const s = this._scale.copy(state.worldScale)
-        const largest = mode === 'spatial' ? 
+        const largest = mode === 'xyz' ? 
             Math.max(Math.abs(s.x), Math.abs(s.y), Math.abs(s.z)) : 
             Math.max(Math.abs(s.x), Math.abs(s.y))
         const aspectFill = s.divideScalar(largest)
-        return  this.getNumberScore(aspectFill.x, 1, 'absolute', accuracy) +
-                this.getNumberScore(aspectFill.y, 1, 'absolute', accuracy) +
-                (mode === 'spatial' ? 
-                    this.getNumberScore(aspectFill.z, 1, 'absolute', accuracy):
+        // return  -(1/aspectFill.x) + 1 +
+        //         -(1/aspectFill.y) + 1 +
+        //         (mode === 'xyz' ? 
+        //             -(1/aspectFill.z) + 1:
+        //             // prevent z from being scaled largest when doing preserved 2D aspect
+        //             aspectFill.z > 1 ? 1-aspectFill.z : 0)
+        return  (aspectFill.x - 1) +
+                (aspectFill.y - 1) +
+                (mode === 'xyz' ? 
+                    aspectFill.z - 1:
                     // prevent z from being scaled largest when doing preserved 2D aspect
                     aspectFill.z > 1 ? 1-aspectFill.z : 0)
     }
@@ -358,14 +381,19 @@ export interface SpatialBoundsSpec {
     /** meters */ diagonal?: OneOrMany<ConstraintSpec>
     },
     center? : {
-    /** meters */ x?: OneOrMany<ConstraintSpec>,
-    /** meters */ y?: OneOrMany<ConstraintSpec>, 
-    /** meters */ z?: OneOrMany<ConstraintSpec>,
+    /** meters */ x?: OneOrMany<NumberConstraintSpec>,
+    /** meters */ y?: OneOrMany<NumberConstraintSpec>, 
+    /** meters */ z?: OneOrMany<NumberConstraintSpec>,
     }
 }
 
 export class SpatialBoundsConstraint extends SpatialObjective {
     spec?:SpatialBoundsSpec
+
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = 'meter'
+    }
 
     evaluate() {
         return this.getBoundsScore(this.spec, 'spatial')
@@ -393,9 +421,9 @@ export interface VisualBoundsSpec {
     /** meters */ front? : OneOrMany<ConstraintSpec>   
     /** meters */ back? : OneOrMany<ConstraintSpec>,
     center? : {
-        /** pixels */ x?:OneOrMany<ConstraintSpec>,
-        /** pixels */ y?:OneOrMany<ConstraintSpec>, 
-        /** meters */ z?:OneOrMany<ConstraintSpec>,
+        /** pixels */ x?:OneOrMany<NumberConstraintSpec>,
+        /** pixels */ y?:OneOrMany<NumberConstraintSpec>, 
+        /** meters */ z?:OneOrMany<NumberConstraintSpec>,
     }
     size? : {
     /** pixels */ x?:OneOrMany<ConstraintSpec>,
@@ -408,6 +436,11 @@ export interface VisualBoundsSpec {
 export class VisualBoundsConstraint extends SpatialObjective {
     spec?:VisualBoundsSpec
 
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = "pixel"
+    }
+
     evaluate() {
         return this.attenuateVisualScore(
             this.getBoundsScore(this.spec, 'visual') + 
@@ -419,20 +452,78 @@ export class VisualBoundsConstraint extends SpatialObjective {
 
 export class VisualMaximizeObjective extends SpatialObjective {
 
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = "pixel"
+    }
+
+    minAreaPercent = 0.2
+
     evaluate() {
-        const visualSize = this.layout.adapter.metrics.targetState.visualSize
+        const target = this.layout.adapter.metrics.target
+        const visualSize = target.visualSize
         const viewSize = this.layout.adapter.system.viewResolution
-        let visualArea = Math.min(visualSize.x * visualSize.y, viewSize.x * viewSize.y)
-        return this.attenuateVisualScore(visualArea)
+        const visualArea = Math.min(visualSize.x * visualSize.y, viewSize.x * viewSize.y)
+        const parentVisualSize = target.outerState?.visualSize || viewSize
+        const parentVisualArea = parentVisualSize.x * parentVisualSize.y
+        return this.attenuateVisualScore(visualArea) - parentVisualArea * this.minAreaPercent
     }
 }
 
-export class VisualForceObjective extends SpatialObjective {
+
+export class MagnetizeObjective extends SpatialObjective {
+
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = "meter"
+        this.absoluteTolerance = 1e10
+    }
 
     evaluate() {
-        const visualSize = this.layout.adapter.metrics.targetState.visualSize
-        let visualArea = Math.min(visualSize.x * visualSize.y, visualSize.x * visualSize.y) ** 20
-        return this.attenuateVisualScore(visualArea)
+        const center = this.layout.adapter.metrics.target.visualCenter
+        return -center.length()
     }
 }
+
+
+export class MaximizeTemporalCoherenceObjective extends SpatialObjective {
+
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = "meter"
+        this.relativeTolerance = 0
+    }
+
+    evaluate() {
+        if (!this.layout.bestSolution?.isFeasible) return 10000000
+        const metrics = this.layout.adapter.metrics
+        const previousCenter = metrics.previousTarget.spatialCenter
+        const targetCenter = metrics.target.spatialCenter
+        const previousOrientation = metrics.previousTarget.localOrientation
+        const targetOrientation = metrics.target.localOrientation
+        const previousScale = metrics.previousTarget.localScale.lengthSq()
+        const targetScale = metrics.target.localScale.lengthSq()
+        const dist = previousCenter.distanceTo(targetCenter) * 100
+        const orientationDiff = previousOrientation.angleTo(targetOrientation) / Math.PI
+        const scaleDiff = Math.abs(previousScale-targetScale) * 0.1
+        return Math.min(1 / (dist + scaleDiff + orientationDiff), 10000000)
+    }
+}
+
+
+export class MinimizeOcclusionObjective extends SpatialObjective {
+
+    constructor(layout:SpatialLayout) {
+        super(layout)
+        this.type = "meter"
+    }
+
+    evaluate() {
+        const targetState = this.layout.adapter.metrics.target
+        return 1 / (targetState.occludedPercent + targetState.occludingPercent)
+    }
+}
+
+
+
 

@@ -1,6 +1,6 @@
 import test from 'ava'
 import {EtherealSystemMock} from './testing-utils'
-import {Vector3, V_000, V_010, V_111} from './math'
+import {Vector3, V_000, V_010, V_111} from './math-utils'
 import {Object3D, Mesh, BoxGeometry, Quaternion, Box3} from 'three'
 
 
@@ -9,7 +9,7 @@ test('adapter w/ target bounds, no parent, default orientation, w/ empty inner s
     const adapter = system.getAdapter(new Object3D)
     adapter.bounds.target = new Box3().setFromCenterAndSize(new Vector3(1,2,0), new Vector3(4,5,6))
     const metrics = system.getMetrics(adapter.node)
-    const state = metrics.targetState
+    const state = metrics.target
     t.deepEqual(metrics.innerCenter, V_000)
     t.deepEqual(metrics.innerSize, V_000)
     t.deepEqual(state.localPosition, new Vector3(1,2,0))
@@ -24,7 +24,7 @@ test('adapter w/ target bounds, parent w/ geometry, orientation, and custom inne
     parentBox.position.set(10,0,0)
     parentBox.scale.set(1,2,2)
     const parentMetrics = system.getMetrics(parentBox)
-    const parentState = parentMetrics.targetState
+    const parentState = parentMetrics.target
     t.deepEqual(parentMetrics.intrinsicSize, new Vector3(2,3,4))
     t.deepEqual(parentMetrics.innerCenter, new Vector3(0,0,0))
     t.deepEqual(parentMetrics.innerSize, new Vector3(2,3,4))
@@ -43,7 +43,7 @@ test('adapter w/ target bounds, parent w/ geometry, orientation, and custom inne
         adapter.orientation.target = new Quaternion().setFromAxisAngle(V_010, Math.PI/2)
         adapter.bounds.target = new Box3().setFromCenterAndSize(V_000, V_111)
         const metrics = system.getMetrics(content)
-        const state = metrics.targetState
+        const state = metrics.target
         t.deepEqual(metrics.innerSize, new Vector3(2,2,2))
         t.deepEqual(metrics.innerCenter, new Vector3(0,0,0))
         t.deepEqual(state.localPosition, new Vector3(0,0,0))

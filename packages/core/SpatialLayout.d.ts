@@ -1,4 +1,3 @@
-/// <reference types="mathjs" />
 import { Node3D } from './EtherealSystem';
 import { Quaternion, Box3 } from './math-utils';
 import { SpatialAdapter } from './SpatialAdapter';
@@ -155,11 +154,7 @@ export declare class LayoutSolution {
      * @param stepSize
      *
      */
-    perturb(): {
-        type: string;
-        stepSize: number;
-        successRate: number;
-    };
+    perturb(): typeof LayoutSolution.prototype.mutationStrategies[0];
     private _perturbFromSpatialBoundsSpec;
     static generatePulseFrequency(min: number, max: number): number;
     private static _mutateCorner;

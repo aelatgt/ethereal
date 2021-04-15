@@ -52,7 +52,10 @@ export class EtherealSystem<N extends Node3D = Node3D> {
         predictable: true
     }) as math.MathJsStatic
 
+    mathCompiledExpressions = new Map<string,math.EvalFunction>() 
+
     mathScope = {
+        ratio: undefined,
         degree: this.math.unit('degree'),
         meter: this.math.unit('meter'),
         pixel: this.math.createUnit('pixel',{aliases:['pixels','px']}),
@@ -77,19 +80,16 @@ export class EtherealSystem<N extends Node3D = Node3D> {
             blend: true
         }) as Required<TransitionConfig>,
         optimize: new OptimizerConfig({
-            allowInvalidLayout: false,
-            relativeTolerance: 0.0001,
-            iterationsPerFrame: 8, // iterations per frame per layout
-            swarmSize: 5, // solutions per layout
+            maxWait: 0.3,
+            relativeTolerance: 0.0001, 
+            maxIterationsPerFrame: 20, // iterations per frame per layout
+            swarmSize: 20, // solutions per layout
             pulseFrequencyMin: 0, // minimal exploitation pulse
             pulseFrequencyMax: 1.5, // maximal exploitation pulse
-            pulseRate: 0.3, // The ratio of directed exploitation vs random exploration,
-            stepSizeMin: 0.000001, 
-            stepSizeMax: 10,
-            stepSizeStart: 0.8,
-            staleRestartRate: 0.5,
-            successRateMovingAverage: 200,
-            successRateMin: 0.05
+            pulseRate: 0.2, // The ratio of directed exploitation vs random exploration,
+            stepSizeMin: 0.01,
+            stepSizeMax: 4,
+            stepSizeStart: 1
         }) as Required<OptimizerConfig>
     }
 
@@ -165,7 +165,7 @@ export class EtherealSystem<N extends Node3D = Node3D> {
      */
     getState = (node:N) => {
         if (!node) throw new Error('node must be defined')
-        return this.getMetrics(node).targetState
+        return this.getMetrics(node).target
     }
 
     /**
@@ -209,6 +209,7 @@ export class EtherealSystem<N extends Node3D = Node3D> {
             this.mathScope.vdeg = this.math.unit(this.viewResolution.y/this.viewFrustum.sizeDegrees.y,'px')
             this.mathScope.vw = this.math.unit(this.viewResolution.x/100,'px')
             this.mathScope.vh = this.math.unit(this.viewResolution.y/100,'px')
+            this.measureNumberCache.clear()
         }
         this._prevResolution.copy(this.viewResolution)
         this._prevSize.copy(this.viewFrustum.sizeDegrees)
@@ -237,5 +238,24 @@ export class EtherealSystem<N extends Node3D = Node3D> {
             adapter.metrics.update()
         }
 
+    }
+
+    private measureNumberCache = new Map<string, number>()
+
+    measureNumber(measure:string|number, unit?:string|math.Unit) {
+        if (typeof measure === 'number') return measure
+        if (this.measureNumberCache?.has(measure)) return this.measureNumberCache.get(measure)!
+
+        if (!this.mathCompiledExpressions.has(measure)) {
+            const node = this.math.parse(measure)
+            const code = node.compile()
+            this.mathCompiledExpressions.set(measure, code)
+        }
+        const code = this.mathCompiledExpressions.get(measure)!
+        const result = code.evaluate(this.mathScope)
+        const value = typeof result === 'number' ? result :
+            this.math.number(code.evaluate(this.mathScope), unit!)
+        this.measureNumberCache?.set(measure, value)
+        return value
     }
 }

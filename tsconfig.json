@@ -1,26 +1,21 @@
 {
-  "include": ["packages", "examples"],
-  "exclude": ["**/node_modules"],
+  "include": ["packages", "apps", "vite.config.ts"],
   "compilerOptions": {
-    "declaration": true,
-    "pretty": true,
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "node",
-    "lib": ["ES2018", "DOM", "dom.iterable"],
-    "noEmit": true,
-    "noEmitOnError": true,
+    "lib": ["ESNext", "DOM", "dom.iterable"],
+    "resolveJsonModule": true,
     "skipLibCheck": true,
+    "declaration": true,
+    "noEmit": true,
     "preserveConstEnums": true,
     "esModuleInterop": true,
-    "downlevelIteration": true,
-    "experimentalDecorators": true,
     "isolatedModules": true,
     "strict": true,
     "jsx": "preserve",
     "baseUrl": ".",
-    "paths": {
-      "*": ["node_modules/*"],
-    }
+    "types": ["vite/client", "node"],
+    "pretty": true
   }
 }
