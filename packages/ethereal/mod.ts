@@ -1,5 +1,5 @@
 import {
-    EtherealSystem, 
+    EtherealLayoutSystem, 
     SpatialMetrics,
     Node3D, 
     NodeState, 
@@ -15,6 +15,7 @@ declare module 'three/src/core/Object3D' {
 export const ThreeBindings = {
     getChildren(metrics:SpatialMetrics, children:Node3D[]) {
         const nodeObj = metrics.node as THREE.Object3D
+        if (!nodeObj.isObject3D) return
         children.length = 0
         for (let i = 0; i < nodeObj.children.length; i++) {
             children[i] = nodeObj.children[i]
@@ -27,31 +28,26 @@ export const ThreeBindings = {
             metrics.system.viewFrustum.setFromPerspectiveProjectionMatrix(cameraNode.projectionMatrix)
         }
 
-        const nodeObj = metrics.node as THREE.Mesh
-        nodeObj.matrixAutoUpdate && nodeObj.updateMatrix()
-        state.localMatrix = nodeObj.matrix
-        // state.opacity = (nodeObj.material as THREE.MeshBasicMaterial)?.opacity ?? 
-        //                 (nodeObj.material as THREE.MeshBasicMaterial[])?.[0]?.opacity ?? 1
-        // state.localOrientation = nodeObj.quaternion
-        // state.localPosition = nodeObj.position
-        // state.localScale = nodeObj.scale
-        state.parent = nodeObj.parent
+        const node = metrics.node as THREE.Mesh
+        if (!node.isObject3D) return
+
+        node.matrixAutoUpdate && node.updateMatrix()
+        state.localMatrix = node.matrix
+        state.parent = node.parent
+        state.opacity = getThreeOpacity(metrics) || 1
     },
     getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) {
-        const nodeObj = metrics.node as THREE.Mesh
-        if (nodeObj.geometry) {
-            if (!nodeObj.geometry.boundingBox) nodeObj.geometry.computeBoundingBox()
-            return bounds.copy(nodeObj.geometry.boundingBox as any)
+        const node = metrics.node as THREE.Mesh
+        if (!node.isObject3D) return
+        if (node.geometry) {
+            if (!node.geometry.boundingBox) node.geometry.computeBoundingBox()
+            return bounds.copy(node.geometry.boundingBox as any)
         }
         return bounds
     },
     apply(metrics:SpatialMetrics, state:NodeState) {
         const node = metrics.node as THREE.Mesh
-        // if (node.material) {
-        //     const materialList = node.material as THREE.MeshBasicMaterial[]
-        //     if (materialList.length) materialList[0].opacity = state.opacity
-        //     else (node.material as THREE.MeshBasicMaterial).opacity = state.opacity
-        // }
+        if (!node.isObject3D) return
         if (state.parent !== node.parent) {
             const newParent = state.parent as THREE.Object3D
             newParent.add(node)
@@ -61,8 +57,44 @@ export const ThreeBindings = {
         node.scale.copy(state.localScale)
         node.matrix.copy(state.localMatrix)
         node.matrixWorld.copy(state.worldMatrix)
+        applyThreeOpacity(metrics, state.opacity)
         // node.matrixAutoUpdate = true
         // node.matrixWorldNeedsUpdate = true
+    }
+}
+
+function getThreeOpacity(metrics:SpatialMetrics) : number|undefined {    
+    const node = metrics.node as THREE.Mesh
+    if (node.material) {
+        const materialList = node.material as THREE.MeshBasicMaterial[]
+        if (materialList.length) {
+            for (const m of materialList) {
+                if (m.opacity !== undefined) return m.opacity
+            }
+        } else {
+            if ('opacity' in node.material) return node.material.opacity
+        }
+    }
+    for (const child of metrics.boundsChildren) {
+        const opacity = getThreeOpacity(metrics.system.getMetrics(child))
+        if (opacity !== undefined) return opacity
+    }
+    return undefined
+}
+
+function applyThreeOpacity(metrics:SpatialMetrics, opacity:number) {
+    const node = metrics.node as THREE.Mesh
+    if (node.material) {
+        const materialList = node.material as THREE.MeshBasicMaterial[]
+        if (materialList.length) {
+            for (const m of materialList) {
+                if ('opacity' in m) m.opacity = opacity
+            }
+        }
+        else (node.material as THREE.MeshBasicMaterial).opacity = opacity
+    }
+    for (const child of metrics.boundsChildren) {
+        applyThreeOpacity(metrics.system.getMetrics(child), opacity)
     }
 }
 
@@ -90,8 +122,8 @@ export const DefaultBindings = {
     }
 }
 
-export function createSystem<T extends Node3D>(viewNode:T, bindings=DefaultBindings) {
-    return new EtherealSystem(viewNode, bindings)
+export function createLayoutSystem<T extends Node3D>(viewNode:T, bindings=DefaultBindings) {
+    return new EtherealLayoutSystem(viewNode, bindings)
 }
 
 export * from '@etherealjs/core/mod'

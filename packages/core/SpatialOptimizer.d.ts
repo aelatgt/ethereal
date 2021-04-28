@@ -1,4 +1,4 @@
-import { EtherealSystem, Node3D } from './EtherealSystem';
+import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem';
 import { SpatialAdapter } from './SpatialAdapter';
 export declare class OptimizerConfig {
     constructor(config?: OptimizerConfig);
@@ -6,12 +6,9 @@ export declare class OptimizerConfig {
     stepSizeMin?: number;
     stepSizeMax?: number;
     stepSizeStart?: number;
-    staleRestartRate?: number;
-    successRateMin?: number;
-    allowInvalidLayout?: boolean;
-    /** The number of samples to use for computing success rate */
-    successRateMovingAverage?: number;
-    iterationsPerFrame?: number;
+    /** Max number of seconds to wait for a feasible layout */
+    maxWait?: number;
+    maxIterationsPerFrame?: number;
     /**
      * The solution swarm size for each layout
      */
@@ -46,20 +43,18 @@ export declare class OptimizerConfig {
  *  - exploration consists of gaussian random perturbation of an arbitrary solution
  */
 export declare class SpatialOptimizer<N extends Node3D> {
-    #private;
-    system: EtherealSystem<N>;
-    constructor(system: EtherealSystem<N>);
+    system: EtherealLayoutSystem<N>;
+    constructor(system: EtherealLayoutSystem<N>);
     private _config;
     private _setConfig;
     private _prevOrientation;
     private _prevBounds;
     /**
      * Optimize the layouts defined on this adapter
-     *
-     * Returns true if layout is valid (no constraints are violated)
-     * Returrns false if layout is invalid
      */
     update(adapter: SpatialAdapter<any>): boolean;
+    private _scratchSolution;
+    private _scratchBestSolution;
     private _updateLayout;
     private _manageSolutionPopulation;
 }

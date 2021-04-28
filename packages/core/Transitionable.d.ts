@@ -1,5 +1,5 @@
 import { MathType } from './math-utils';
-import { EtherealSystem } from './EtherealSystem';
+import { EtherealLayoutSystem } from './EtherealLayoutSystem';
 export declare type Easing = (v: number) => number;
 export declare type EasingModifier = (easing: Easing) => Easing;
 export interface EasingModule {
@@ -79,9 +79,9 @@ export declare class TransitionConfig {
     blend?: boolean;
 }
 export declare class Transitionable<T extends MathType = MathType> extends TransitionConfig {
-    system: EtherealSystem<any>;
+    system: EtherealLayoutSystem<any>;
     parentConfig: TransitionConfig;
-    constructor(system: EtherealSystem<any>, startValue: MathType, config?: TransitionConfig, parentConfig?: TransitionConfig);
+    constructor(system: EtherealLayoutSystem<any>, startValue: MathType, config?: TransitionConfig, parentConfig?: TransitionConfig);
     /** */
     needsUpdate: boolean;
     private _copy;
@@ -183,6 +183,7 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
     private _scratchColor;
     private _blackColor;
     private _addTransitionToCurrent;
+    private _swap;
     /**
      *
      */

@@ -25,7 +25,8 @@ export default class Treadmill {
     )
 
     snubberAnchor = new THREE.Object3D()
-    snubberAnchorPosition = new THREE.Vector3().set(0.033, -0.062, 0.018)
+    snubberAnchorPosition = new THREE.Vector3().set(-0.33, 0.82, 0.18)
+    // snubberAnchorPosition = new THREE.Vector3().set(0.033, -0.062, 0.018)
 
     snubberMesh?: THREE.Mesh
 
@@ -89,6 +90,8 @@ export default class Treadmill {
             this.poster.material.map = texture
             this.poster.material.needsUpdate = true
         })
+        this.poster.add(this.snubberAnchor)
+        this.snubberAnchor.position.copy(this.snubberAnchorPosition)
     }
 
     private loadSnubberMesh() {
@@ -103,7 +106,7 @@ export default class Treadmill {
             const snubberMaterial = new THREE.MeshNormalMaterial()
             const snubberMesh = new THREE.Mesh(snubberGeometry, snubberMaterial)
             this.snubberMesh = snubberMesh
-            this.snubberMesh.scale.setScalar(0.01)
+            this.snubberMesh.scale.setScalar(0.1)
             // this.snubberMesh.rotateZ(Math.PI)
             snubberRoot.add(snubberMesh)
             // const hull = SimplifiedHull.get(snubberMesh.geometry)

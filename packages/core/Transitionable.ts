@@ -13,7 +13,7 @@ import {
     computeRelativeDifference,
     MathType
 } from './math-utils'
-import { EtherealSystem } from './EtherealSystem'
+import { EtherealLayoutSystem } from './EtherealLayoutSystem'
 
 import * as easingImport from '@popmotion/easing'
 
@@ -109,10 +109,10 @@ export class TransitionConfig {
 export class Transitionable<T extends MathType = MathType> extends TransitionConfig {
 
     constructor(
-        public system:EtherealSystem<any>, 
+        public system:EtherealLayoutSystem<any>, 
         startValue:MathType,
         config?:TransitionConfig, 
-        public parentConfig:TransitionConfig = system.config.transition)
+        public parentConfig:TransitionConfig = system.transition)
     {
         super(config)
         this.reset(startValue as TransitionableType<T>)
@@ -262,7 +262,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
     get resolvedConfig() {
         const r = this._resolvedConfig
         const adapterConfig = this.parentConfig
-        const systemConfig = this.system.config.transition
+        const systemConfig = this.system.transition
         r.multiplier = this.multiplier ?? adapterConfig?.multiplier ?? systemConfig.multiplier
         r.duration = this.duration ?? adapterConfig?.duration ?? systemConfig.duration
         r.easing = this.easing ?? adapterConfig?.easing ?? systemConfig.easing
@@ -278,7 +278,8 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
 
     delayTime = 0
     debounceTime = 0
-    waitTime = 0
+
+    // waitTime = 0
 
     private _previousStatus: 'unchanged'|'changed'|'settling'|'committing' = 'unchanged'
     get previousStatus() {
@@ -310,13 +311,13 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         const delta = this.system.deltaTime * config.multiplier
         const delay = this.delayTime + delta
         const debounce = this.debounceTime + delta
-        const wait = this.waitTime + delta
+        // const wait = this.waitTime + delta
         const relDiff = this.relativeDifference
         const changed = relDiff > threshold
 
         if (!changed) return 'unchanged'
 
-        if (!this.forceWait && ((delay >= config.delay && debounce >= config.debounce) || wait >= config.maxWait)) {
+        if (!this.forceWait && ((delay >= config.delay && debounce >= config.debounce) || delay >= config.maxWait)) {
             return 'committing'
         }
 
@@ -358,24 +359,20 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
 
         // Hysteresis-Aware Target Change Trigger
 
+        this.debounceTime += delta
+        this.delayTime += delta
+
         switch (status) {
+            case 'settling': break
             case 'changed': 
                 this.reference = this.target
                 this.debounceTime = 0
-                // continue
-            case 'settling':
-                if (!this.reference) {
-                    this.delayTime += delta
-                } else {
-                    this.debounceTime += delta
-                    this.waitTime += delta
-                }
                 break
             case 'unchanged': 
                 this.reference = undefined
                 this.delayTime = 0
-                this.debounceTime = 0
-                this.waitTime = 0
+                // this.debounceTime = 0
+                // this.waitTime = 0
                 // if relative difference is greater than 0
                 // (and less then the change threshold),
                 // instantly update the last committed value to the 
@@ -390,6 +387,8 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
                 }
                 break
             case 'committing': 
+                this.delayTime = 0
+                this.debounceTime = 0
                 const transition = typeof this.forceCommit === 'object' ? 
                     this.forceCommit : new Transition<T>()
                 transition.target = transition.target ?? this._copy(undefined, this.target)
@@ -462,17 +461,17 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const c = current as THREE.Box3
             const s = start as THREE.Box3
             const e = target as THREE.Box3
-            if (e.isEmpty()) {
-                const min = e.min
-                const max = e.max
-                if (min.x > max.x) this._swap(min,max,'x')
-                if (min.y > max.y) this._swap(min,max,'y')
-                if (min.z > max.z) this._swap(min,max,'z')
-            }
             const minAmount = this._scratchBox.min.copy(e.min).sub(s.min).lerp(V_000, 1-alpha)
             const maxAmount = this._scratchBox.max.copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
             c.min.add(minAmount)
             c.max.add(maxAmount)
+            if (c.isEmpty()) {
+                const min = c.min
+                const max = c.max
+                if (min.x > max.x) this._swap(min,max,'x')
+                if (min.y > max.y) this._swap(min,max,'y')
+                if (min.z > max.z) this._swap(min,max,'z')
+            }
             this._current = c as any
             return
         }

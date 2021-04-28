@@ -1,7 +1,9 @@
 import { Box3, Vector3, Quaternion, Matrix4 } from './math-utils';
-import { EtherealSystem, Node3D } from './EtherealSystem';
+import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem';
+declare const InternalRawState: unique symbol;
 declare const InternalCurrentState: unique symbol;
 declare const InternalTargetState: unique symbol;
+declare const InternalPreviousTargetState: unique symbol;
 export declare class NodeState<N extends Node3D = Node3D> {
     mode: 'current' | 'target';
     metrics: SpatialMetrics<N>;
@@ -11,8 +13,9 @@ export declare class NodeState<N extends Node3D = Node3D> {
     get parent(): N | null;
     set parent(val: N | null);
     private _parent;
+    get opacity(): number;
     get parentState(): NodeState<N> | undefined;
-    get outerState(): NodeState<N>;
+    get outerState(): NodeState<N> | undefined;
     private _cachedLocalMatrix;
     get localMatrix(): Matrix4;
     set localMatrix(val: Matrix4);
@@ -123,6 +126,9 @@ export declare class NodeState<N extends Node3D = Node3D> {
      *
      */
     get outerCenter(): Vector3;
+    /**
+     *
+     */
     get outerSize(): Vector3;
     private get _viewState();
     /**
@@ -140,9 +146,6 @@ export declare class NodeState<N extends Node3D = Node3D> {
      */
     get spatialFromView(): Matrix4;
     private _spatialFromView;
-    /**
-     * The view projection frame from spatial frame
-     */
     /**
      * Normalized Device Coordinates
      */
@@ -201,6 +204,13 @@ export declare class NodeState<N extends Node3D = Node3D> {
      */
     get occludedPercent(): number;
     private _occludedPercent;
+    /**
+     * Used as a heuristic for view-size maximization
+     * (average edge length corresponds better with inncreasig visual area
+     * compared to area of the projected bounding-box in
+     * cases where the underlying aspect ratios are not fixed)
+     */
+    visualAverageEdgeLength(): void;
 }
 /**
  * Maintains current & target scenegraph state,
@@ -210,9 +220,9 @@ export declare class NodeState<N extends Node3D = Node3D> {
  * All metric values should be treated as read-only.
  */
 export declare class SpatialMetrics<N extends Node3D = Node3D> {
-    system: EtherealSystem<N>;
+    system: EtherealLayoutSystem<N>;
     node: N;
-    constructor(system: EtherealSystem<N>, node: N);
+    constructor(system: EtherealLayoutSystem<N>, node: N);
     private _cache;
     needsUpdate: boolean;
     /**
@@ -259,28 +269,42 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     private _cachedNodeChildren;
     private _nodeChildren;
     /**
-     * Get the local node state (only local state is defined)
-     */
-    get nodeState(): Readonly<NodeState<N>>;
-    private _cachedNodeState;
-    private _nodeState;
-    /**
      * Compute spatial state from spatial orientation & bounds
      */
     private _computeState;
-    invalidateNodeStates(): void;
+    invalidateStates(): void;
+    /**
+     * The raw node state.
+     * This is raw local with `target` ancestor states.
+     */
+    get raw(): Readonly<NodeState<N>>;
+    private _cachedRawState;
+    [InternalRawState]: NodeState<N>;
     /**
      * The current state
      */
-    get currentState(): NodeState<N>;
+    get current(): NodeState<N>;
     private _cachedCurrentState;
     [InternalCurrentState]: NodeState<N>;
     /**
      * The target state
      */
-    get targetState(): NodeState<N>;
+    get target(): NodeState<N>;
     private _cachedTargetState;
     [InternalTargetState]: NodeState<N>;
+    /**
+     * The previous target state
+     */
+    get previousTarget(): NodeState<N>;
+    [InternalPreviousTargetState]: NodeState<N>;
+    /**
+     * The reference node
+     */
+    get referenceNode(): N | null;
+    /**
+     * The reference metrics
+     */
+    get referenceMetrics(): SpatialMetrics<N> | null;
     /**
      * The parent node
      */
@@ -292,7 +316,7 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     /**
      * The closest non-empty containing metrics
      */
-    get outerMetrics(): SpatialMetrics<N>;
+    get outerMetrics(): SpatialMetrics<N> | null;
     /**
      * The child nodes that are included in this bounding context
      */

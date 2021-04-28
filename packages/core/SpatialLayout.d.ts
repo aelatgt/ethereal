@@ -1,67 +1,78 @@
-import { Node3D } from './EtherealSystem';
+import { Node3D } from './EtherealLayoutSystem';
 import { Quaternion, Box3 } from './math-utils';
 import { SpatialAdapter } from './SpatialAdapter';
-import { ObjectiveOptions, Vector3Spec, LocalPositionConstraint, QuaternionSpec, LocalOrientationConstraint, LocalScaleConstraint, AspectConstraint, SpatialBoundsSpec, SpatialBoundsConstraint, VisualBoundsSpec, VisualBoundsConstraint, VisualMaximizeObjective, VisualForceObjective, SpatialObjective } from './SpatialObjective';
+import { OptimizerConfig } from './SpatialOptimizer';
+import { ObjectiveOptions, Vector3Spec, LocalPositionConstraint, QuaternionSpec, LocalOrientationConstraint, LocalScaleConstraint, AspectConstraint, SpatialBoundsSpec, SpatialBoundsConstraint, VisualBoundsSpec, VisualBoundsConstraint, VisualMaximizeObjective as MaximizeObjective, SpatialObjective, MagnetizeObjective, MinimizeOcclusionObjective } from './SpatialObjective';
 /**
  * Defines spatial layout constraints/goals
  */
-export declare class SpatialLayout {
+export declare class SpatialLayout extends OptimizerConfig {
     adapter: SpatialAdapter<any>;
-    static compiledExpressions: Map<string, import("mathjs").EvalFunction>;
     constructor(adapter: SpatialAdapter<any>);
-    spatialAccuracy: string;
-    visualAccuracy: string;
-    angularAccuracy: string;
-    relativeAccuracy: number;
+    relativeTolerance?: number;
+    absoluteTolerance: {
+        meter: string;
+        pixel: string;
+        degree: string;
+        ratio: number;
+    };
+    getComputedAbsoluteTolerance(type: keyof typeof SpatialLayout.prototype.absoluteTolerance): number;
     successRate: number;
     restartRate: number;
     /**
      * The objectives applied to this layout
      */
-    objectives: SpatialObjective[];
+    objectives: readonly SpatialObjective[];
     /**
-     * The parent node
-     * If `undefined`, target parent is the current parent
+     * The reference node
+     * If `undefined`, the parent node is the reference node
      * if `null`, this node is considered as flagged to be removed
      */
-    parentNode?: Node3D | null;
-    attachedTo(parentNode: Node3D | null | undefined): this;
+    referenceNode?: Node3D | null;
+    relativeTo(parentNode: Node3D | null | undefined): this;
+    /**
+     * Add an orientation constraint
+     */
+    orientation(spec: QuaternionSpec, opts?: Partial<LocalOrientationConstraint>): this;
+    orientationConstraint?: LocalOrientationConstraint;
     /**
      * Add a local position objective
      * (local units are ambigious due to potential parent scaling).
      */
-    localPosition(spec: Vector3Spec, opts?: ObjectiveOptions): this;
-    localPositionConstraint?: LocalPositionConstraint;
-    /**
-     * Add a local orientation constraint
-     */
-    localOrientation(spec: QuaternionSpec, opts?: ObjectiveOptions): this;
-    localOrientationConstraint?: LocalOrientationConstraint;
+    position(spec: Vector3Spec, opts?: Partial<LocalPositionConstraint>): this;
+    positionConstraint?: LocalPositionConstraint;
     /**
      * Add a local scale constraint
      */
-    localScale(spec: Vector3Spec, opts?: ObjectiveOptions): this;
-    localScaleConstraint?: LocalScaleConstraint;
+    scale(spec: Vector3Spec, opts?: Partial<LocalScaleConstraint>): this;
+    scaleConstraint?: LocalScaleConstraint;
     /**
     * Add an aspect-ratio constraint
     * Constrain normalized world scale to preserve
-    * spatial or visual aspect ratios
+    * xyz or xy aspect ratios
     */
-    preserveAspect(mode: 'spatial' | 'visual', opts?: ObjectiveOptions): this;
-    preserveAspectConstraint?: AspectConstraint;
-    /**
-     * Add a local orientation constraint (same as localOrientation)
-     */
-    spatialOrientation(spec: QuaternionSpec, opts?: ObjectiveOptions): this;
-    spatialBounds(spec: SpatialBoundsSpec, opts?: ObjectiveOptions): this;
-    spatialBoundsConstraint?: SpatialBoundsConstraint;
+    keepAspect(mode?: 'xyz' | 'xy', opts?: Partial<AspectConstraint>): this;
+    keepAspectConstraint?: AspectConstraint;
+    bounds(spec: SpatialBoundsSpec, opts?: Partial<SpatialBoundsConstraint>): this;
+    boundsConstraint?: SpatialBoundsConstraint;
     visualOrientation(spec: QuaternionSpec, opts?: ObjectiveOptions): void;
-    visualBounds(spec: VisualBoundsSpec, opts?: ObjectiveOptions): this;
-    visualBoundsConstraint?: VisualBoundsConstraint;
-    visualMaximize(opts?: ObjectiveOptions): this;
-    visualMaximizeObjective?: VisualMaximizeObjective;
-    visualForce(opts?: ObjectiveOptions): this;
-    visualForceObjective?: VisualForceObjective;
+    visualBounds(spec: VisualBoundsSpec, opts?: Partial<VisualBoundsConstraint>): this;
+    visualBoundsMeterConstraint?: VisualBoundsConstraint;
+    visualBoundsPixelConstraint?: VisualBoundsConstraint;
+    magnetize(opts?: Partial<MagnetizeObjective>): this;
+    magnetizeObjective?: MagnetizeObjective;
+    maximize(opts?: Partial<MaximizeObjective>): this;
+    maximizeObjective?: MaximizeObjective;
+    avoidOcclusion(opts?: Partial<MinimizeOcclusionObjective>): this;
+    minimizeOcclusionObjective?: MagnetizeObjective;
+    /**
+     * Add an objective with it's options.
+     * If the objective instance is already present, it's not added again.
+     *
+     * After an objective is added, the objective list is stably sorted,
+     * according to the priority of each objective.
+     */
+    addObjective<T extends SpatialObjective>(obj: T, opts?: Partial<T>): this;
     /**
      * The solutions being explored for this layout
      */
@@ -74,6 +85,9 @@ export declare class SpatialLayout {
      * Return true if this layout has a valid solution
      */
     get hasValidSolution(): boolean;
+    private _prioritySort;
+    /** stable-sort objectives by priority */
+    sortObjectives(): void;
     bestSolution: LayoutSolution;
     /**
      * Update best scores and sort solutions
@@ -82,19 +96,26 @@ export declare class SpatialLayout {
     /**
      * Each objective function should return a scalar value
      * that increases in correlation with improved fitness.
-     * The fitness value does not need to be normalized, as objectives
-     * are not weighted directly aginst one another. Rather,
-     * solutions are ranked by preferring the solution that
-     * has the highest score within the `relativeTolerance`
+     *
+     * The fitness value does not need to be normalized, as
+     * individual objectives are not weighted directly against
+     * one another. Rather, solutions are ranked by preferring
+     * the solution that has the highest score (within tolerance)
      * of each objective, in order of objective priority.
-     * If at any point the relative difference between
-     * scores is larger than the relative tolerance for
-     * a given objective, the two solutions will be ranked
-     * by that objective.
+     *
+     * If one solution is feasible (no negative scores) and the
+     * other soltion isn't, the feasible one is always ranked higher.
+     *
+     * In all other cases, solutions are compared by examining
+     * their objective scores sequentially:
+     *
+     * If at any point the difference between scores is larger
+     * than the tolerance for a given objective, the two solutions
+     * will be ranked by that objective.
      *
      * If any two solutions are within relative tolerance
      * of one another for all objectives, those two will be
-     * compared to ane another by the lowest priority objective
+     * compared to one another by the lowest priority objective
      *
      * If either solution breaks constraints, then
      * the one with the lowest penalty is ranked higher
@@ -104,7 +125,6 @@ export declare class SpatialLayout {
 export interface MutationStrategy {
     type: string;
     stepSize: number;
-    successRate: number;
 }
 export declare class LayoutSolution {
     constructor(layout?: SpatialLayout);
@@ -128,15 +148,13 @@ export declare class LayoutSolution {
      * (one for each objective, higher is better)
      */
     scores: number[];
-    bestScores: number[];
     /**
      * All constraints are satisfied
      */
-    get isValid(): boolean;
+    isFeasible: boolean;
     mutationStrategies: {
         type: string;
         stepSize: number;
-        successRate: number;
     }[];
     private _selectStrategy;
     private _mutationWeights;
@@ -144,6 +162,7 @@ export declare class LayoutSolution {
     private static _scratchV1;
     private static _scratchV2;
     randomize(sizeHint: number): this;
+    private static _direction;
     private static _center;
     private static _size;
     private static _otherCenter;
@@ -155,8 +174,7 @@ export declare class LayoutSolution {
      *
      */
     perturb(): typeof LayoutSolution.prototype.mutationStrategies[0];
-    private _perturbFromSpatialBoundsSpec;
+    private _swap;
     static generatePulseFrequency(min: number, max: number): number;
-    private static _mutateCorner;
     apply(evaluate?: boolean): void;
 }

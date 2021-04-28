@@ -22,12 +22,14 @@ export interface NodeBindings<N extends Node3D> {
 /**
  * Manages spatial adaptivity within an entire scene graph
  */
-export declare class EtherealSystem<N extends Node3D = Node3D> {
+export declare class EtherealLayoutSystem<N extends Node3D = Node3D> {
     viewNode: N;
     bindings: NodeBindings<N>;
     constructor(viewNode: N, bindings: NodeBindings<N>);
     math: import("mathjs").MathJsStatic;
+    mathCompiledExpressions: Map<string, import("mathjs").EvalFunction>;
     mathScope: {
+        ratio: undefined;
         degree: import("mathjs").Unit;
         meter: import("mathjs").Unit;
         pixel: import("mathjs").Unit;
@@ -110,4 +112,6 @@ export declare class EtherealSystem<N extends Node3D = Node3D> {
      * @param deltaTime
      */
     update(deltaTime: number, time: number): void;
+    private measureNumberCache;
+    measureNumber(measure: string | number, unit?: string | math.Unit): number;
 }

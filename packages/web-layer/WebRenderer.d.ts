@@ -32,15 +32,14 @@ export declare class WebRenderer {
     static readonly activeElement: Element | null;
     static readonly targetElement: Element | null;
     static getPsuedoAttributes(states: typeof WebLayer.prototype.psuedoStates): string;
+    static documentObserver: MutationObserver;
     static _didInit: boolean;
     static _init(): void;
     static addToSerializeQueue(layer: WebLayer): void;
     static addToRasterizeQueue(layer: WebLayer): void;
     static addToRenderQueue(layer: WebLayer): void;
-    static TASK_SERIALIZE_MAX_TIME: number;
-    static TASK_RASTERIZE_MAX_TIME: number;
-    static TASK_RASTERIZE_MAX_SIMULTANEOUS: number;
-    static TASK_RENDER_MAX_TIME: number;
+    static TASK_ASYNC_MAX_COUNT: number;
+    static TASK_SYNC_MAX_TIME: number;
     static rasterizeTaskCount: number;
     private static _runTasks;
     static tasksPending: boolean;
@@ -63,7 +62,7 @@ export declare class WebRenderer {
     static attributeHTML(name: string, value?: string): string;
     static generateEmbeddedCSS(url: string, css: string): Promise<string>;
     static getURL(url: string): Promise<XMLHttpRequest>;
-    private static _embeddedPageCSS;
+    private static embeddedPageCSS;
     static getEmbeddedPageCSS(): Promise<string[]>;
     static getDataURL(url: string): Promise<string>;
     static updateInputAttributes(element: Element): void;

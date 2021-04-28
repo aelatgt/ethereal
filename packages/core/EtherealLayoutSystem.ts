@@ -35,7 +35,7 @@ export interface NodeBindings<N extends Node3D> {
 /**
  * Manages spatial adaptivity within an entire scene graph
  */
-export class EtherealSystem<N extends Node3D = Node3D> {
+export class EtherealLayoutSystem<N extends Node3D = Node3D> {
 
     constructor(public viewNode:N, public bindings:NodeBindings<N>) {}
 
@@ -65,33 +65,34 @@ export class EtherealSystem<N extends Node3D = Node3D> {
         vh: undefined as math.Unit|undefined
     }
 
-    config = {
-        epsillonMeters: 1e-8,
-        epsillonRadians: 1e-8,
-        epsillonRatio: 1e-8,
-        transition: new TransitionConfig({
-            multiplier: 1,
-            duration: 0,
-            easing: easing.easeInOut,
-            threshold: 0.001,
-            delay: 0,
-            debounce: 0,
-            maxWait: 10,
-            blend: true
-        }) as Required<TransitionConfig>,
-        optimize: new OptimizerConfig({
-            maxWait: 0.3,
-            relativeTolerance: 0.0001, 
-            maxIterationsPerFrame: 20, // iterations per frame per layout
-            swarmSize: 20, // solutions per layout
-            pulseFrequencyMin: 0, // minimal exploitation pulse
-            pulseFrequencyMax: 1.5, // maximal exploitation pulse
-            pulseRate: 0.2, // The ratio of directed exploitation vs random exploration,
-            stepSizeMin: 0.01,
-            stepSizeMax: 4,
-            stepSizeStart: 1
-        }) as Required<OptimizerConfig>
-    }
+    epsillonMeters = 1e-8
+    epsillonRadians = 1e-8
+    epsillonRatio = 1e-8
+
+    transition = new TransitionConfig({
+        multiplier: 1,
+        duration: 0,
+        easing: easing.easeInOut,
+        threshold: 0.001,
+        delay: 0,
+        debounce: 0,
+        maxWait: 10,
+        blend: true
+    }) as Required<TransitionConfig>
+
+    optimize = new OptimizerConfig({
+        minFeasibleTime: 0.2,
+        maxInfeasibleTime: 0.5,
+        relativeTolerance: 0.5, 
+        maxIterationsPerFrame: 20, // iterations per frame per layout
+        swarmSize: 30, // solutions per layout
+        pulseFrequencyMin: 0, // minimal exploitation pulse
+        pulseFrequencyMax: 1.5, // maximal exploitation pulse
+        pulseRate: 0.2, // The ratio of directed exploitation vs random exploration,
+        stepSizeMin: 0.001,
+        stepSizeMax: 4,
+        stepSizeStart: 1
+    }) as Required<OptimizerConfig>
 
     /**
      * 
@@ -185,7 +186,7 @@ export class EtherealSystem<N extends Node3D = Node3D> {
      * Create a Transitionable instance
      */
     createTransitionable = <T extends MathType> (value:T, config?:TransitionConfig) => {
-        const t = new Transitionable(this, value, config, this.config.transition)
+        const t = new Transitionable(this, value, config, this.transition)
         this.transitionables.push(t)
         return t as any as Transitionable<T>
     }

@@ -4,7 +4,6 @@
   "author": "Gheric Speiginer",
   "dependencies": {
     "@emotion/css": "latest",
-    "ethereal": "^1.0.0",
     "postprocessing": "latest",
     "stats.js": "^0.17.0"
   },

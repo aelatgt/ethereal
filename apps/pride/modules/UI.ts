@@ -1,13 +1,13 @@
 import * as THREE from 'three'
 import * as ethereal from 'ethereal'
 import {Q_IDENTITY, V_111, V_000} from 'ethereal'
+import {createApp} from 'vue'
 
 import {App} from '../main'
 import {UpdateEvent} from '../App'
-import Treadmill from './Treadmill'
-import PrideAPI from '../lib/PrideAPI'
+
 import PrideVue from './Pride.vue'
-import {createApp} from 'vue'
+import PrideAPI from './PrideAPI'
 import {createState, STATE} from './State'
 
 export default class UI {
@@ -20,10 +20,6 @@ export default class UI {
         layerSeparation: 0.002,
         onLayerCreate: (layer) => {
             const adapter = this.app.system.getAdapter(layer)
-            // adapter.optimize.allowInvalidLayout = true
-            adapter.transition.duration = 1
-            // adapter.transition.debounce = 0.5 // 0.4
-            adapter.transition.maxWait = 10
             adapter.onUpdate = () => {
                 layer.update()
             }
@@ -40,15 +36,16 @@ export default class UI {
     controls = this.pride.querySelector('#controls')!
     backButton = this.pride.querySelector('#back')!
     doneButton = this.pride.querySelector('#done')!
+    recordButton = this.pride.querySelector('#record')!
     yesButton = this.pride.querySelector('#yes')!
     noButton = this.pride.querySelector('#no')!
     immersiveButton = this.pride.querySelector('#immersive-toggle')!
 
     immersiveAnchor = new THREE.Object3D()
 
-    snubberBox = new THREE.BoxHelper(this.treadmill.snubber)
+    snubberBox = new THREE.BoxHelper(this.app.treadmill.snubber)
 
-    constructor(private app: App, private treadmill: Treadmill) {
+    constructor(private app: App) {
         
         const setupImmersiveAnchor = () => {
             this.app.scene.add(this.immersiveAnchor)
@@ -65,19 +62,19 @@ export default class UI {
             const adapter = this.app.system.getAdapter(this.pride)
 
             const immersiveLayout = adapter.createLayout()
+                .orientation(Q_IDENTITY)
+                .scale(V_111)
                 .visualBounds({
-                    back: '-5m',
+                    back: '-10m',
                     center: {x:0,y:0}
                 })
-                .scale(V_111)
-                .orientation(Q_IDENTITY)
 
             const flatLayout = adapter.createLayout()
-                .relativeTo(this.app.camera) // attach the UI to the camera
+                .poseRelativeTo(this.app.camera) // attach the UI to the camera
                 .orientation(Q_IDENTITY)
                 .keepAspect()
                 .visualBounds({
-                    back: '-2m',
+                    back: '-4m',
                     size: {y: '100 vh', diagonal:{gt:'50vh'}},
                     center: {x: '0 vdeg', y:'0 vdeg'}
                 })
@@ -86,6 +83,8 @@ export default class UI {
             adapter.onUpdate = () => {
                 this.pride.options.autoRefresh = (this.app.timeSinceLastResize > 100)
                 this.pride.update()
+                // we only want to move the entire pride UI into an immersive layout
+                // on devices that offer an immersive interaction space (e.g., Quest/Hololens)
                 if (this.app.interactionSpace === 'world' && this.state.immersiveMode) {
                     adapter.layouts = [immersiveLayout]
                 } else {
@@ -95,6 +94,7 @@ export default class UI {
 
 
             const adapterContent = this.app.system.getAdapter(this.pride.contentMesh)
+            adapterContent.transition.duration = 1
             adapterContent.onUpdate = () => {
                 if (this.state.immersiveMode) {
                     this.pride.contentMesh.position.z = -1
@@ -107,7 +107,7 @@ export default class UI {
         }
 
         const setupTreadmillPoster = () => {
-            const poster = this.treadmill.poster
+            const poster = this.app.treadmill.poster
             this.app.scene.add(poster)
             const adapter = app.system.getAdapter(poster) 
             adapter.onUpdate = () => {
@@ -122,7 +122,8 @@ export default class UI {
         }
 
         const setupSnubberModel = () => { 
-            const snubber = this.treadmill.snubber
+            const snubber = this.app.treadmill.snubber
+            snubber.position.set(10,-10,-10)
             this.app.scene.add(snubber)
             this.app.scene.add(this.snubberBox)
 
@@ -131,8 +132,8 @@ export default class UI {
             adapter.transition.maxWait = 10
             
             const flatLayout = adapter.createLayout()
-                .relativeTo(this.model)
-                .orientation({swingRange:{x:'10deg',y:'10deg'}, twistRange:'0deg'})
+                .poseRelativeTo(this.model)
+                // .orientation({swingRange:{x:'10deg',y:'10deg'}, twistRange:'0deg'})
                 .keepAspect('xyz')
                 .visualBounds({
                     back:       '0m',
@@ -141,22 +142,25 @@ export default class UI {
                     bottom:     {gt: '10px'},
                     top:        {lt: '-10px'}
                 })
-                .magnetize()
-                .maximize({minAreaPercent:0.5})
+                // .magnetize()
+                .maximize({minAreaPercent:0.1})
 
-            const immersiveFloating = adapter.createLayout()
-                .orientation(Q_IDENTITY)
-                .keepAspect('xyz')
-                .bounds({size: {diagonal: '0.2m'}})
-                .visualBounds({center: {x: '0', y: '0'}})
+            // const immersiveFloating = adapter.createLayout()
+            //     .orientation(Q_IDENTITY)
+            //     .keepAspect('xyz')
+            //     .bounds({size: {diagonal: '0.2m'}})
+            //     .visualBounds({center: {x: '0', y: '0'}})
             
             const immersiveAnchored = adapter.createLayout() 
-                .relativeTo(this.treadmill.snubberAnchor)
-                .position(V_000)
-                .orientation(Q_IDENTITY)
+                .poseRelativeTo(this.app.treadmill.poster)
                 .scale(V_111)
+                .bounds({
+                    center: this.app.treadmill.snubberAnchorPosition
+                })
+                // .position(V_000)
+                .orientation(Q_IDENTITY)
 
-            const IMMERSIVE = [immersiveFloating] as any
+            const IMMERSIVE = [immersiveAnchored] as any
             const FLAT = [flatLayout]
 
             adapter.onUpdate = () => {
@@ -185,9 +189,13 @@ export default class UI {
         const setupContentLayer = () => {
             const adapter = this.app.system.getAdapter(this.content)
             const immersiveLayout = adapter.createLayout()
-                .relativeTo(this.treadmill.snubber)
-                .keepAspect('xy')
+                .poseRelativeTo(this.app.treadmill.snubber)
+                .keepAspect('xyz')
                 .orientation(Q_IDENTITY)
+                .bounds({
+                    // center: {magnitude: {lt: '100%'}},
+                    size: {diagonal: {lt: '100%'}}
+                })
                 .visualBounds({
                     absolute: {
                         left: {gt:'10px'},
@@ -218,6 +226,11 @@ export default class UI {
         })
 
         this.doneButton.element.addEventListener('click', async () => {
+            await PrideAPI.done()
+            PrideAPI.get()
+        })
+
+        this.recordButton.element.addEventListener('click', async () => {
             await PrideAPI.done()
             PrideAPI.get()
         })

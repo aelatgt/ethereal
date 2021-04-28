@@ -7,12 +7,12 @@
     ]
   },
   "dependencies": {
+    "@etherealjs/core": "file:packages/core",
+    "@etherealjs/web-layer": "file:packages/web-layer",
+    "ethereal": "file:packages/ethereal",
     "three": "^0.122.0",
     "three-mesh-bvh": "^0.2.0",
-    "vue": "^3.0.7",
-    "ethereal": "link:packages/ethereal",
-    "@etherealjs/core": "link:packages/core",
-    "@etherealjs/web-layer": "link:packages/web-layer"
+    "vue": "^3.0.7"
   },
   "devDependencies": {
     "@types/node": "^14.14.33",
@@ -23,7 +23,7 @@
     "syncpack": "^5.6.7",
     "typescript": "^3.9.3",
     "ultra-runner": "^3.10.5",
-    "vite": "^2.0.5"
+    "vite": "^2.2.3"
   },
   "engines": {
     "npm": ">=7.6"

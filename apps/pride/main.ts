@@ -1,9 +1,8 @@
 import AppBase from './App'
-import Treadmill from './components/Treadmill'
-import UI from './components/UI'
-import PrideAPI from './lib/PrideAPI'
+import Treadmill from './modules/Treadmill'
+import UI from './modules/UI'
+import PrideAPI from './modules/PrideAPI'
 import * as THREE from 'three'
-import {createSystem} from 'ethereal'
 import * as ethereal from 'ethereal'
 
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh'
@@ -21,9 +20,9 @@ declare module 'three/src/core/BufferGeometry' {
 // TODO: switch to A-Frame
 export class App extends AppBase {
     pride = PrideAPI
-    system = createSystem(this.camera)
+    system = ethereal.createLayoutSystem(this.camera)
     treadmill = new Treadmill(this)
-    ui = new UI(this, this.treadmill)
+    ui = new UI(this)
     ethereal = ethereal
 }
 
@@ -32,16 +31,16 @@ const app = new App({
         app.system.viewFrustum.setFromPerspectiveProjectionMatrix(app.camera.projectionMatrix)
         app.renderer.getSize(app.system.viewResolution)
         app.system.update(event.deltaTime, event.elapsedTime)
-        app.treadmill.update(event)
-        app.ui.update(event)
     },
-    onEnterXR: (event) => {
-        app.treadmill.enterXR(event)
-    },
+    onEnterXR: (event) => {},
     onExitXR: (event) => {
         app.ui.state.immersiveMode = false
     }
 })
+
+app.system.transition.duration = 1
+app.system.transition.debounce = 0//0.4
+app.system.transition.easing = ethereal.easing.easeOut
 
 app.start().catch((e: Error) => {
     console.log(e.stack)

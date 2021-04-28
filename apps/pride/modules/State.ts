@@ -1,6 +1,6 @@
 
 import {reactive, inject, readonly, provide} from 'vue'
-import PrideAPI from '../lib/PrideAPI'
+import PrideAPI from './PrideAPI'
 
 class State {
     logo = './public/pride-view.png'

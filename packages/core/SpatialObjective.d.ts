@@ -33,12 +33,11 @@ export declare type QuaternionSpec = OneOrMany<{
     twistRange: string;
 }>>;
 export interface ObjectiveOptions {
-    relativeTolerance?: number;
-    absoluteTolerance?: number;
+    relativeTolerance?: number | (() => number);
+    absoluteTolerance?: number | (() => number);
 }
 export declare type BoundsMeasureType = 'spatial' | 'visual' | 'view';
 export declare type BoundsMeasureSubType = 'left' | 'bottom' | 'top' | 'right' | 'front' | 'back' | 'sizex' | 'sizey' | 'sizez' | 'sizediagonal' | 'centerx' | 'centery' | 'centerz';
-declare type ConstraintMode = 'absolute' | 'relative';
 export declare type DiscreteSpec<T> = Exclude<T, any[] | undefined | Partial<{
     gt: any;
     lt: any;
@@ -48,45 +47,54 @@ export declare type ContinuousSpec<T> = T extends any[] | undefined ? never : T 
     lt: any;
 } ? T : never;
 export declare abstract class SpatialObjective {
-    layout: SpatialLayout;
     static isDiscreteSpec<T>(s: T): s is DiscreteSpec<T>;
     static isContinuousSpec<T>(s: T): s is ContinuousSpec<T>;
-    relativeTolerance?: number;
-    absoluteTolerance?: number;
-    bestScore: number;
+    type: keyof typeof SpatialLayout.prototype.absoluteTolerance;
     sortBlame: number;
+    bestScore: number;
+    relativeTolerance?: number;
+    absoluteTolerance?: number | string;
+    priority: number;
+    index: number;
+    get computedRelativeTolerance(): number;
+    get computedAbsoluteTolerance(): number;
+    layout: SpatialLayout;
     constructor(layout: SpatialLayout);
     abstract evaluate(): number;
-    protected reduceFromOneOrManySpec: <V, S>(value: V, spec: S | S[] | undefined, mode: ConstraintMode, accuracy: number, applyFn: (value: V, spec: S, mode: ConstraintMode, accuracy: number) => number) => number;
-    protected getNumberScore(value: number, spec: OneOrMany<NumberConstraintSpec>, mode: ConstraintMode, accuracy: number): number;
+    protected reduceFromOneOrManySpec: <V, S>(value: V, spec: S | S[] | undefined, applyFn: (value: V, spec: S) => number) => number;
+    protected getNumberScore(value: number, spec: OneOrMany<NumberConstraintSpec>): number;
     private _getNumberScoreSingle;
-    protected getVector3Score(value: Vector3, spec: OneOrMany<Vector3Spec> | undefined, mode: ConstraintMode, accuracy: number): number;
+    protected getVector3Score(value: Vector3, spec: OneOrMany<Vector3Spec> | undefined): number;
     private _getVector3ScoreSingle;
-    protected getQuaternionScore(value: Quaternion, spec: OneOrMany<QuaternionSpec> | undefined, accuracy: number): number;
+    protected getQuaternionScore(value: Quaternion, spec: OneOrMany<QuaternionSpec> | undefined): number;
     private _quat;
     private _euler;
     private _getQuaternionScoreSingle;
-    protected getBoundsScore(spec: SpatialBoundsSpec | undefined, type: BoundsMeasureType): number;
-    protected getBoundsMeasureScore(spec: OneOrMany<ConstraintSpec> | undefined, type: BoundsMeasureType, subType: BoundsMeasureSubType): number;
-    private _getMeasurePenaltySingle;
+    protected getBoundsScore(spec: SpatialBoundsSpec | undefined, boundsType: BoundsMeasureType): number;
+    protected getBoundsMeasureScore(spec: OneOrMany<NumberConstraintSpec> | undefined, type: BoundsMeasureType, subType: BoundsMeasureSubType): number;
+    private _getBoundsMeasureScoreSingle;
     /**  Attenuate visual score when out of view */
     protected attenuateVisualScore(score: number): number;
 }
 export declare class LocalPositionConstraint extends SpatialObjective {
     spec?: Vector3Spec;
+    constructor(layout: SpatialLayout);
     evaluate(): number;
 }
 export declare class LocalOrientationConstraint extends SpatialObjective {
     spec?: QuaternionSpec;
+    constructor(layout: SpatialLayout);
     evaluate(): number;
 }
 export declare class LocalScaleConstraint extends SpatialObjective {
     spec?: Vector3Spec;
+    constructor(layout: SpatialLayout);
     evaluate(): number;
 }
 export declare class AspectConstraint extends SpatialObjective {
-    mode: "spatial" | "visual";
+    mode: "xyz" | "xy";
     private _scale;
+    constructor(layout: SpatialLayout);
     evaluate(): number;
 }
 export interface SpatialBoundsSpec {
@@ -103,13 +111,14 @@ export interface SpatialBoundsSpec {
         /** meters */ diagonal?: OneOrMany<ConstraintSpec>;
     };
     center?: {
-        /** meters */ x?: OneOrMany<ConstraintSpec>;
-        /** meters */ y?: OneOrMany<ConstraintSpec>;
-        /** meters */ z?: OneOrMany<ConstraintSpec>;
+        /** meters */ x?: OneOrMany<NumberConstraintSpec>;
+        /** meters */ y?: OneOrMany<NumberConstraintSpec>;
+        /** meters */ z?: OneOrMany<NumberConstraintSpec>;
     };
 }
 export declare class SpatialBoundsConstraint extends SpatialObjective {
     spec?: SpatialBoundsSpec;
+    constructor(layout: SpatialLayout);
     evaluate(): number;
 }
 export interface VisualBoundsSpec {
@@ -133,9 +142,9 @@ export interface VisualBoundsSpec {
     /** meters */ front?: OneOrMany<ConstraintSpec>;
     /** meters */ back?: OneOrMany<ConstraintSpec>;
     center?: {
-        /** pixels */ x?: OneOrMany<ConstraintSpec>;
-        /** pixels */ y?: OneOrMany<ConstraintSpec>;
-        /** meters */ z?: OneOrMany<ConstraintSpec>;
+        /** pixels */ x?: OneOrMany<NumberConstraintSpec>;
+        /** pixels */ y?: OneOrMany<NumberConstraintSpec>;
+        /** meters */ z?: OneOrMany<NumberConstraintSpec>;
     };
     size?: {
         /** pixels */ x?: OneOrMany<ConstraintSpec>;
@@ -146,12 +155,23 @@ export interface VisualBoundsSpec {
 }
 export declare class VisualBoundsConstraint extends SpatialObjective {
     spec?: VisualBoundsSpec;
+    constructor(layout: SpatialLayout);
     evaluate(): number;
 }
 export declare class VisualMaximizeObjective extends SpatialObjective {
+    constructor(layout: SpatialLayout);
+    minAreaPercent: number;
     evaluate(): number;
 }
-export declare class VisualForceObjective extends SpatialObjective {
+export declare class MagnetizeObjective extends SpatialObjective {
+    constructor(layout: SpatialLayout);
     evaluate(): number;
 }
-export {};
+export declare class MaximizeTemporalCoherenceObjective extends SpatialObjective {
+    constructor(layout: SpatialLayout);
+    evaluate(): number;
+}
+export declare class MinimizeOcclusionObjective extends SpatialObjective {
+    constructor(layout: SpatialLayout);
+    evaluate(): number;
+}

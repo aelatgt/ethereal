@@ -1,4 +1,4 @@
-import { EtherealSystem, Node3D } from './EtherealSystem'
+import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem'
 import { Quaternion, Box3 } from './math-utils'
 import { 
     LayoutSolution, 
@@ -17,8 +17,10 @@ export class OptimizerConfig {
     stepSizeMax?: number
     stepSizeStart?: number
     
+    /** Min number of seconds to wait after producing an infeasible layout */
+    minFeasibleTime?: number
     /** Max number of seconds to wait for a feasible layout */
-    maxWait?: number
+    maxInfeasibleTime?: number
 
     maxIterationsPerFrame? : number
 
@@ -61,13 +63,14 @@ export class OptimizerConfig {
  */
 export class SpatialOptimizer<N extends Node3D> {
 
-    constructor(public system:EtherealSystem<N>) {}
+    constructor(public system:EtherealLayoutSystem<N>) {}
 
     private _config = new OptimizerConfig as Required<OptimizerConfig>
 
     private _setConfig(config:OptimizerConfig) {
-        const defaultConfig = this.system.config.optimize
-        this._config.maxWait = config.maxWait ?? defaultConfig.maxWait
+        const defaultConfig = this.system.optimize
+        this._config.minFeasibleTime = config.minFeasibleTime ?? defaultConfig.minFeasibleTime
+        this._config.maxInfeasibleTime = config.maxInfeasibleTime ?? defaultConfig.maxInfeasibleTime
         this._config.pulseRate = config.pulseRate ?? defaultConfig.pulseRate
         this._config.maxIterationsPerFrame = config.maxIterationsPerFrame ?? defaultConfig.maxIterationsPerFrame
         this._config.swarmSize = config.swarmSize ?? defaultConfig.swarmSize
@@ -105,15 +108,25 @@ export class SpatialOptimizer<N extends Node3D> {
         let bestSolution:LayoutSolution|undefined
         for (const layout of adapter.layouts) {
             const solution = layout.solutions[0]
-            if (!bestSolution || layout.compareSolutions(solution, bestSolution) < 0) {
-                bestLayout = layout
+            if (!bestSolution || (!bestSolution.isFeasible && solution.isFeasible)) {
                 bestSolution = solution
+                bestLayout = layout
+                if (bestSolution.isFeasible) break
             }
         }
         
-        adapter.layoutWaitTime += adapter.system.deltaTime
-        if (bestSolution && (bestSolution.isFeasible || adapter.layoutWaitTime > this._config.maxWait)) {
-            adapter.layoutWaitTime = 0
+
+        adapter.layoutFeasibleTime += adapter.system.deltaTime
+        adapter.layoutInfeasibleTime += adapter.system.deltaTime
+
+        if (bestSolution?.isFeasible) {
+            adapter.layoutInfeasibleTime = 0
+        } else {
+            adapter.layoutFeasibleTime = 0
+        }
+        
+        if ((bestSolution && bestSolution.isFeasible && adapter.layoutFeasibleTime > this._config.minFeasibleTime) ||  
+            adapter.layoutInfeasibleTime > this._config.maxInfeasibleTime) {
             bestSolution!.apply(false)
             adapter.activeLayout = bestLayout!
         } else {

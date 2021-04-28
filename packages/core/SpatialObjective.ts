@@ -1,4 +1,3 @@
-import { Node3D } from './EtherealSystem'
 import { MathUtils, Vector3, Quaternion, Box3, Euler } from './math-utils'
 import { SpatialLayout } from './SpatialLayout'
 
@@ -60,7 +59,7 @@ export abstract class SpatialObjective {
     get computedRelativeTolerance () {
         return this.relativeTolerance ??
         this.layout.relativeTolerance ??
-        this.layout.adapter.system.config.optimize.relativeTolerance
+        this.layout.adapter.system.optimize.relativeTolerance
     }
 
     get computedAbsoluteTolerance () {
@@ -174,7 +173,7 @@ export abstract class SpatialObjective {
             let k = key as keyof SpatialBoundsSpec
             if (k === 'size' || k === 'center') {
                 const subSpec = spec[k]
-                for (const subKey in subSpec) {
+                for (const subKey of VECTOR3_SPEC_KEYS) {
                     let sk = subKey as keyof NonNullable<typeof spec[typeof k]>
                     if (boundsType !== 'spatial') {
                         if (this.type === 'meter' && sk !== 'z') continue
@@ -289,7 +288,7 @@ export abstract class SpatialObjective {
     }
 }
 
-export class LocalPositionConstraint extends SpatialObjective {
+export class RelativePositionConstraint extends SpatialObjective {
     spec?:Vector3Spec
 
     constructor(layout:SpatialLayout) {
@@ -303,7 +302,7 @@ export class LocalPositionConstraint extends SpatialObjective {
     }
 }
 
-export class LocalOrientationConstraint extends SpatialObjective {
+export class RelativeOrientationConstraint extends SpatialObjective {
     spec?:QuaternionSpec
 
     constructor(layout:SpatialLayout) {
@@ -318,7 +317,7 @@ export class LocalOrientationConstraint extends SpatialObjective {
 }
 
 
-export class LocalScaleConstraint extends SpatialObjective {
+export class WorldScaleConstraint extends SpatialObjective {
     spec?:Vector3Spec
 
     constructor(layout:SpatialLayout) {
@@ -328,7 +327,7 @@ export class LocalScaleConstraint extends SpatialObjective {
 
     evaluate() {
         const state = this.layout.adapter.metrics.target
-        return this.getVector3Score(state.localScale, this.spec)
+        return this.getVector3Score(state.worldScale, this.spec)
     }
 }
 
@@ -386,6 +385,8 @@ export interface SpatialBoundsSpec {
     /** meters */ z?: OneOrMany<NumberConstraintSpec>,
     }
 }
+
+const VECTOR3_SPEC_KEYS = ['x','y','z','diagonal']
 
 export class SpatialBoundsConstraint extends SpatialObjective {
     spec?:SpatialBoundsSpec
@@ -464,9 +465,9 @@ export class VisualMaximizeObjective extends SpatialObjective {
         const visualSize = target.visualSize
         const viewSize = this.layout.adapter.system.viewResolution
         const visualArea = Math.min(visualSize.x * visualSize.y, viewSize.x * viewSize.y)
-        const parentVisualSize = target.outerState?.visualSize || viewSize
-        const parentVisualArea = parentVisualSize.x * parentVisualSize.y
-        return this.attenuateVisualScore(visualArea) - parentVisualArea * this.minAreaPercent
+        const refVisualSize = target.referenceState?.visualSize || viewSize
+        const refVisualArea = refVisualSize.x * refVisualSize.y
+        return this.attenuateVisualScore(visualArea) - refVisualArea * this.minAreaPercent
     }
 }
 

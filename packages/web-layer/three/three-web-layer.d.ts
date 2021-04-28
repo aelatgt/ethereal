@@ -1,4 +1,4 @@
-import { Vector3, Group, Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, Geometry, Camera, Intersection, Texture, Matrix4, WebGLRenderer } from 'three';
+import { Vector3, Group, Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, Geometry, Camera, Texture, Matrix4, WebGLRenderer } from 'three';
 import { WebLayer } from '../WebLayer';
 import { Bounds } from '../dom-utils';
 export interface WebLayer3DOptions {
@@ -8,6 +8,9 @@ export interface WebLayer3DOptions {
     onLayerCreate?(layer: WebLayer3DBase): void;
     onAfterRasterize?(layer: WebLayer3DBase): void;
 }
+declare type Intersection = THREE.Intersection & {
+    groupOrder: number;
+};
 export declare type WebLayerHit = ReturnType<typeof WebLayer3D.prototype.hitTest> & {};
 export declare class WebLayer3DBase extends Group {
     options: WebLayer3DOptions;
@@ -18,6 +21,12 @@ export declare class WebLayer3DBase extends Group {
     get currentTexture(): Texture;
     textureNeedsUpdate: boolean;
     contentMesh: Mesh<Geometry, MeshBasicMaterial>;
+    /**
+     * This non-visible mesh ensures that an adapted layer retains
+     * its innerBounds, even if the content mesh is
+     * independently adapted.
+     */
+    private _boundsMesh;
     cursor: Object3D;
     depthMaterial: MeshDepthMaterial;
     domLayout: Object3D;
@@ -122,6 +131,8 @@ export declare class WebLayer3D extends WebLayer3DBase {
     private _previousHoverLayers;
     private _contentMeshes;
     private _prepareHitTest;
+    private _intersectionGetGroupOrder;
+    private _intersectionSort;
     private _updateInteractions;
     static getLayerForQuery(selector: string): WebLayer3DBase | undefined;
     static getClosestLayerForElement(element: Element): WebLayer3DBase | undefined;
@@ -131,3 +142,4 @@ export declare class WebLayer3D extends WebLayer3DBase {
         target: HTMLElement;
     } | undefined;
 }
+export {};

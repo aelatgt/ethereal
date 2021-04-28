@@ -1,6 +1,5 @@
 import { Vector2, Matrix4, Box3 } from './math-utils';
 export declare class LayoutFrustum {
-    #private;
     private _cache;
     isLayoutFrustum: boolean;
     get leftDegrees(): number;
@@ -62,6 +61,7 @@ export declare class LayoutFrustum {
     setFromPerspectiveProjectionMatrix(projectionMatrix: Matrix4, ndcBounds?: Box3): this;
     get perspectiveProjectionMatrix(): Matrix4;
     private _cachedPerspectiveProjectionMatrix;
+    private _perspective;
     overlapPercent(f: LayoutFrustum): number;
     private _boxA;
     private _boxB;

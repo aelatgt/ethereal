@@ -1,4 +1,4 @@
-import {EtherealSystem, Node3D} from './EtherealSystem'
+import {EtherealLayoutSystem, Node3D} from './EtherealLayoutSystem'
 import {Box3} from './math-utils'
 
 import {Object3D, Mesh, PerspectiveCamera} from 'three'
@@ -8,7 +8,7 @@ declare module 'three/src/core/Object3D' {
     interface Object3D extends Node3D {}
 }
 
-export class EtherealSystemMock extends EtherealSystem {
+export class EtherealSystemMock extends EtherealLayoutSystem {
     constructor() {
         super(new PerspectiveCamera,{
             getChildren(metrics:SpatialMetrics, children:Node3D[]) {

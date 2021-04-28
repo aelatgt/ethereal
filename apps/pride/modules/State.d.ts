@@ -10,7 +10,7 @@ declare class State {
         elementType: "Info" | "Instruction";
         elementSubType: "ManualInstruction" | "Conditional";
         objects: {
-            [name: string]: import("../lib/PrideAPI").LabelAugmentation | import("../lib/PrideAPI").BoxAugmentation | import("../lib/PrideAPI").SphereAugmentation | import("../lib/PrideAPI").HighlightAugmentation;
+            [name: string]: import("./PrideAPI").LabelAugmentation | import("./PrideAPI").BoxAugmentation | import("./PrideAPI").SphereAugmentation | import("./PrideAPI").HighlightAugmentation;
         };
     };
     immersiveMode: boolean;

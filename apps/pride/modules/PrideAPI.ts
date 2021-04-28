@@ -56,7 +56,7 @@ const data = {
     image: '',
     video: './public/armWiggleDemonstrated.mov',
     elementType: '' as 'Info'|'Instruction',
-    elementSubType: '' as 'ManualInstruction'|'Conditional',
+    elementSubType: '' as 'ManualInstruction'|'Conditional'|'RecordInstruction',
     objects: {} as {[name: string]: LabelAugmentation|BoxAugmentation|SphereAugmentation|HighlightAugmentation}
 }
 
@@ -80,20 +80,25 @@ async function get() : Promise<any> {
     const objectKeys = Object.keys(json).filter((key) => key.toLowerCase().includes('object'))
     for (const key of objectKeys) {
         const jsonObject = json[key]
-        const realityAugmentation = jsonObject.properties.realityaugmentation as string
-        if (!realityAugmentation) { continue }
         const object = data.objects[jsonObject.name] = {} as any
-        const augmentationProperties = realityAugmentation.split(';')
-        for (const prop of augmentationProperties) {
-            if (!prop) { continue }
-            let [name, value] = prop.split(':')
-            name = name.trim()
-            value = value.trim()
-            if (name === 'position' || name === 'rotation' || name === 'size') {
-                const [x, y, z] = value.split(' ').map((v: string) => parseFloat(v))
-                object[name] = {x, y, z}
+        const properties = jsonObject.properties
+        for (const propertyKey in properties) {
+            if (propertyKey === 'realityaugmentation') {
+                const augmentationProperties = properties[propertyKey].split(';')
+                for (const prop of augmentationProperties) {
+                    if (!prop) { continue }
+                    let [name, value] = prop.split(':')
+                    name = name.trim()
+                    value = value.trim()
+                    if (name === 'position' || name === 'rotation' || name === 'size') {
+                        const [x, y, z] = value.split(' ').map((v: string) => parseFloat(v))
+                        object[name] = {x, y, z}
+                    } else {
+                        object[name] = isNaN(value as any) ? value : parseFloat(value)
+                    }
+                }
             } else {
-                object[name] = isNaN(value as any) ? value : parseFloat(value)
+                object[propertyKey] = properties[propertyKey]
             }
         }
     }
@@ -115,6 +120,7 @@ async function done(value = 'none') {
             value,
         }),
     })
+    get()
     return result.json()
 }
 

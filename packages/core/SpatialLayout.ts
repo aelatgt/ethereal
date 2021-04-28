@@ -1,12 +1,12 @@
-import { Node3D } from './EtherealSystem'
+import { Node3D } from './EtherealLayoutSystem'
 import { Vector3, Quaternion, Box3, MathUtils, randomSelect, randomQuaternion, gaussian, levy} from './math-utils'
 import { SpatialAdapter } from './SpatialAdapter'
 import { OptimizerConfig } from './SpatialOptimizer'
 import { 
     ObjectiveOptions, 
-    Vector3Spec, LocalPositionConstraint, 
-    QuaternionSpec, LocalOrientationConstraint,
-    LocalScaleConstraint, AspectConstraint,
+    Vector3Spec, RelativePositionConstraint as RelativePositionConstraint, 
+    QuaternionSpec, RelativeOrientationConstraint as RelativeOrientationConstraint,
+    WorldScaleConstraint as WorldScaleConstraint, AspectConstraint,
     SpatialBoundsSpec, SpatialBoundsConstraint,
     VisualBoundsSpec, VisualBoundsConstraint, 
     VisualMaximizeObjective as MaximizeObjective,
@@ -25,7 +25,7 @@ export class SpatialLayout extends OptimizerConfig {
     
     relativeTolerance?:number
     absoluteTolerance = {
-        meter: '2mm',
+        meter: '1mm',
         pixel: '1px',
         degree: '0.002deg',
         ratio: 0.005
@@ -45,51 +45,52 @@ export class SpatialLayout extends OptimizerConfig {
     objectives = new Array<SpatialObjective>() as ReadonlyArray<SpatialObjective>
     
     /**
-     * The reference node 
-     * If `undefined`, the parent node is the reference node
-     * if `null`, this node is considered as flagged to be removed
+     * The reference frame for position and orientation constraints. 
+     * if not defined, the parent node becomes the reference frame. 
      */
-    referenceNode? : Node3D|null
+    referenceNode?:Node3D|null = null
 
-    
-    relativeTo(parentNode:Node3D|null|undefined) {
-        this.referenceNode = parentNode
+    /**
+     * Define a reference frame for position and orientation constraints.
+     * @param reference 
+     */
+    poseRelativeTo(reference?:Node3D|null) {
+        this.referenceNode = reference
         return this
     }
 
     /**
-     * Add an orientation constraint
+     * Add a relative orientation constraint
      */
-    orientation(spec:QuaternionSpec, opts?:Partial<LocalOrientationConstraint>) {
-        const obj = this.orientationConstraint = this.orientationConstraint ?? new LocalOrientationConstraint(this)
+    orientation(spec:QuaternionSpec, opts?:Partial<RelativeOrientationConstraint>) {
+        const obj = this.orientationConstraint = this.orientationConstraint ?? new RelativeOrientationConstraint(this)
         obj.spec = spec
         obj.priority = -3
         return this.addObjective(obj, opts)
     }
-    orientationConstraint?:LocalOrientationConstraint
+    orientationConstraint?:RelativeOrientationConstraint
 
     /**
-     * Add a local position objective
-     * (local units are ambigious due to potential parent scaling).
+     * Add a relative position constraint
      */
-    position(spec:Vector3Spec, opts?:Partial<LocalPositionConstraint>) {
-        const obj = this.positionConstraint = this.positionConstraint ?? new LocalPositionConstraint(this)
+    position(spec:Vector3Spec, opts?:Partial<RelativePositionConstraint>) {
+        const obj = this.positionConstraint = this.positionConstraint ?? new RelativePositionConstraint(this)
         obj.spec = spec
         obj.priority = -2
         return this.addObjective(obj, opts)
     }
-    positionConstraint?:LocalPositionConstraint
+    positionConstraint?:RelativePositionConstraint
 
     /**
-     * Add a local scale constraint
+     * Add a world scale constraint
      */
-    scale(spec:Vector3Spec, opts?:Partial<LocalScaleConstraint>) {
-        const obj = this.scaleConstraint = this.scaleConstraint ?? new LocalScaleConstraint(this)
+    scale(spec:Vector3Spec, opts?:Partial<WorldScaleConstraint>) {
+        const obj = this.scaleConstraint = this.scaleConstraint ?? new WorldScaleConstraint(this)
         obj.spec = spec
         obj.priority = -2
         return this.addObjective(obj, opts)
     }
-    scaleConstraint?:LocalScaleConstraint
+    scaleConstraint?:WorldScaleConstraint
 
     /**
     * Add an aspect-ratio constraint
@@ -263,6 +264,8 @@ export class SpatialLayout extends OptimizerConfig {
         for (let i = 0; i < objectives.length; i++) {
             const scoreA = a.scores[i] 
             const scoreB = b.scores[i] 
+            if (isNaN(scoreA)) return 1
+            if (isNaN(scoreB)) return -1
             const objective = objectives[i]
             const oRelTol = objective.computedRelativeTolerance
             const oAbsTol = objective.computedAbsoluteTolerance
@@ -483,7 +486,7 @@ export class LayoutSolution {
             size.multiplyScalar(scale)
         }
 
-        size.clampScalar(this.layout.adapter.system.config.epsillonMeters/10,1e20)
+        size.clampScalar(this.layout.adapter.system.epsillonMeters/10,1e20)
         bounds.setFromCenterAndSize(center, size)
 
 

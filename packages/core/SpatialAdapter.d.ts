@@ -1,8 +1,7 @@
-import { EtherealSystem, Node3D } from './EtherealSystem';
+import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem';
 import { SpatialLayout } from './SpatialLayout';
 import { BoundsMeasureType, BoundsMeasureSubType } from './SpatialObjective';
 import { Transitionable, TransitionConfig } from './Transitionable';
-import { OptimizerConfig } from './SpatialOptimizer';
 import { Quaternion, Box3 } from './math-utils';
 import { SpatialMetrics } from './SpatialMetrics';
 /**
@@ -27,7 +26,7 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     /**
      * The EtherealSystem instance
      */
-    system: EtherealSystem<N>;
+    system: EtherealLayoutSystem<N>;
     /**
      * The wrapped third-party scenegraph nodes
      */
@@ -42,23 +41,17 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     /**
      * The EtherealSystem instance
      */
-    system: EtherealSystem<N>, 
+    system: EtherealLayoutSystem<N>, 
     /**
      * The wrapped third-party scenegraph nodes
      */
     node: N);
-    measureNumberCache: Map<string, number>;
-    measureNumber(measure: string | number, unit?: string | math.Unit): number;
     measureBoundsCache: Map<string, number>;
     measureBounds(measure: string | number, type: BoundsMeasureType, subType: BoundsMeasureSubType): number;
     /**
      *
      */
     readonly metrics: SpatialMetrics<N>;
-    /**
-     * Optimizer settings for this node
-     */
-    readonly optimize: OptimizerConfig;
     /**
      * Transition overrides for this node
      */
@@ -70,9 +63,9 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      *
      * if `null`, this node is considered as flagged to be removed.
      */
-    set parentNode(p: N | null | undefined);
-    get parentNode(): N | null | undefined;
-    private _parentNode?;
+    set referenceNode(p: N | null | undefined);
+    get referenceNode(): N | null | undefined;
+    private _referenceNode?;
     /**
      * The closest ancestor adapter
      */
@@ -102,6 +95,10 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      * orientation, bounds, and opacity will be automatically updated.
      */
     layouts: SpatialLayout[];
+    /**
+     * Time spent waiting for feasible layout solution
+     */
+    layoutWaitTime: number;
     get previousLayout(): SpatialLayout | null;
     private _prevLayout;
     set activeLayout(val: SpatialLayout | null);

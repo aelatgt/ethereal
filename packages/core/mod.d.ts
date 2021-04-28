@@ -1,3 +1,4 @@
+export * from './EtherealLayoutSystem';
 export * from './math-utils';
 export * from './LayoutFrustum';
 export * from './SpatialMetrics';
@@ -6,5 +7,4 @@ export * from './SpatialLayout';
 export * from './SpatialOptimizer';
 export * from './Transitionable';
 export * from './SphericalCoordinate';
-export * from './EtherealSystem';
 export * from './MemoizationCache';

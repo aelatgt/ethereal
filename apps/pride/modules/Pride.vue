@@ -19,7 +19,7 @@
             <div xr-layer class="button" id="done" v-show="['ManualInstruction', 'ClarifyingInfo', 'VerifyInstruction'].indexOf(pride.elementSubType) > -1">Done</div>
             <div xr-layer class="button" id="yes" v-show="pride.elementSubType === 'Conditional'">Yes</div>
             <div xr-layer class="button" id="no" v-show="pride.elementSubType === 'Conditional'">No</div>
-            <div xr-layer class="button" id="no" v-show="pride.elementSubType === 'Bla'">Record</div>
+            <div xr-layer class="button" id="record" v-show="pride.elementSubType === 'RecordInstruction'">Record</div>
             <div xr-layer class="button" id="immersive-toggle"><b>{{immersiveMode ? 'Flat' : 'Immersive'}}</b></div>
         </div>
     </div>
@@ -71,6 +71,17 @@ export default defineComponent({
 
     .xr #model {
         flex: 0 0 0;
+    }
+
+    .xr #content {
+        position: absolute;
+        width: 200px;
+    }
+
+    .xr #media {
+        position: absolute;
+        width: 200px;
+        height: 100px;
     }
 
     .logo {
