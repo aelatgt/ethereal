@@ -50,6 +50,7 @@ export class NodeState<N extends Node3D=Node3D> {
     })
     get localMatrix() { return this._localMatrix }
     set localMatrix(val:Matrix4) {
+        if (isNaN(val.elements[0])) throw new Error()
         if (!this._localMatrix.equals(val)) {
             this.invalidate()
             this._localMatrix.copy(val)
@@ -195,6 +196,12 @@ export class NodeState<N extends Node3D=Node3D> {
         this._spatialMatrixInverse.getInverse(this._spatialMatrix)
         this._localFromSpatial.multiplyMatrices(this.worldMatrixInverse, spatialMatrix)
         this._spatialFromLocal.getInverse(this._localFromSpatial)
+        const reference = this.referenceState
+        if (reference) {
+            this._spatialFromReference.multiplyMatrices(this._spatialMatrixInverse, reference.worldMatrix)
+        } else {
+            this._spatialFromReference.copy(this._spatialMatrixInverse)
+        }
         return spatialMatrix
     })
     get spatialMatrix() {
@@ -205,6 +212,7 @@ export class NodeState<N extends Node3D=Node3D> {
     private _spatialMatrixInverse = new Matrix4
     private _localFromSpatial = new Matrix4
     private _spatialFromLocal = new Matrix4
+    private _spatialFromReference = new Matrix4
 
 
     /**
@@ -230,16 +238,25 @@ export class NodeState<N extends Node3D=Node3D> {
         this.spatialMatrix
         return this._spatialFromLocal 
     }
+
+    /**
+     * Convert to spatial frame from reference frame
+     */
+    get spatialFromReference() { 
+        this.spatialMatrix
+        return this._spatialFromReference 
+    }
     
     /**
      * The spatial bounds 
      */
     private _cachedSpatialBounds = this._cache.memoize(() => {
-        if (this.metrics.innerBounds.isEmpty()) {
-            this._spatialBounds.setFromCenterAndSize(V_000,V_111)
-        } else {
-            this._spatialBounds.copy(this.metrics.innerBounds)
-        }
+        // if (this.metrics.innerBounds.isEmpty()) {
+        //     this._spatialBounds.setFromCenterAndSize(V_000,V_111)
+        // } else {
+        //    this._spatialBounds.copy(this.metrics.innerBounds)
+        // }
+        this._spatialBounds.copy(this.metrics.innerBounds)
         const bounds = this._spatialBounds.applyMatrix4(this.spatialFromLocal)
         bounds.getCenter(this._spatialCenter)
         bounds.getSize(this._spatialSize)
@@ -266,57 +283,29 @@ export class NodeState<N extends Node3D=Node3D> {
         return this._spatialCenter
     }
 
-    // private _fallbackReferenceState() {
-    //     let state = this.parentState
-    //     // let metrics = refNode ? this.metrics.system.getMetrics(refNode) : null
-    //     while (state && (state.metrics.innerBounds.isEmpty() && state.metrics !== this.metrics.system.viewMetrics)) {
-    //         state = state.parentState
-    //     }
-    //     return state
-    //     // return this.mode === 'current' ? metrics?.current : metrics?.target // metrics?.[this.mode]
-    // }
 
-    /**
-     * The outer bounds origin in the world frame
-     */
-    get outerOrigin() {
-        return this.referenceState?.worldCenter ?? V_000
-    }
-
-    /**
-     * The outer bounds orientation in the world frame
-     */
-    get outerOrientation() {
-        const result = this.referenceState?.worldOrientation ?? Q_IDENTITY
-        return this._referenceOrientation.copy(result)
-    }
-    private _referenceOrientation = new Quaternion
-
-    /**
-     * The reference bounds in the spatial frame
-     */
     private _cachedOuterBounds = this._cache.memoize(() => {
         const bounds = this._outerBounds
-        const referenceState = this.referenceState
-        if (referenceState && !referenceState.metrics.innerBounds.isEmpty() ) {
-            bounds.copy(referenceState.metrics.innerBounds)
-            const spatialFromOuter = this._spatialFromOuter.multiplyMatrices( 
-                this.spatialMatrixInverse, 
-                referenceState.worldMatrix 
-            )
-            bounds.applyMatrix4(spatialFromOuter)
+        const adapter = this.metrics.system.nodeAdapters.get(this.metrics.node)
+        if (adapter) {
+            bounds.copy(adapter.outerBounds[this.mode])
         } else {
-            bounds.makeEmpty()
+            const referenceState = this.referenceState
+            if (!referenceState) bounds.setFromCenterAndSize(V_000,V_000)
+            else bounds.copy(referenceState.metrics.innerBounds)
+            bounds.applyMatrix4(this.spatialFromReference)
         }
         bounds.getCenter(this._outerCenter)
         bounds.getSize(this._outerSize)
         return bounds
     })
+    /**
+    * The reference bounds in the spatial frame
+    */
     get outerBounds() { return this._cachedOuterBounds() }
     private _outerBounds = new Box3
     private _outerCenter = new Vector3
     private _outerSize = new Vector3
-    private _spatialFromOuter = new Matrix4
 
     /**
      * 
@@ -332,6 +321,67 @@ export class NodeState<N extends Node3D=Node3D> {
     get outerSize() {
         this.outerBounds
         return this._outerSize
+    }
+
+    /**
+     * The outer bounds origin in the world frame
+     */
+    get outerOrigin() {
+        const adapter = this.metrics.system.nodeAdapters.get(this.metrics.node)
+        if (adapter) return adapter.outerOrigin[this.mode]
+        return this.referenceState?.worldCenter ?? V_000
+    }
+    private _outerOrigin = new Vector3
+
+    /**
+     * The outer bounds orientation in the world frame
+     */
+    get outerOrientation() {
+        const adapter = this.metrics.system.nodeAdapters.get(this.metrics.node)
+        if (adapter) return adapter.outerOrientation[this.mode]
+        const result = this.referenceState?.worldOrientation ?? Q_IDENTITY
+        return this._referenceOrientation.copy(result)
+    }
+    private _referenceOrientation = new Quaternion
+
+
+
+    private _cachedOuterVisualBounds = this._cache.memoize(() => {
+        const bounds = this._outerVisualBounds
+        const adapter = this.metrics.system.nodeAdapters.get(this.metrics.node)
+        if (adapter) {
+            bounds.copy(adapter.outerVisualBounds[this.mode])
+        } else {
+            const referenceState = this.referenceState
+            if (!referenceState) bounds.setFromCenterAndSize(V_000, V_000)
+            else bounds.copy(referenceState.visualBounds)
+        }
+        bounds.getCenter(this._outerVisualCenter)
+        bounds.getSize(this._outerVisualSize)
+        return bounds
+    })
+    /**
+    * The reference bounds in the visual frame
+    */
+    get outerVisualBounds() { return this._cachedOuterVisualBounds() }
+    private _outerVisualBounds = new Box3
+    private _outerVisualCenter = new Vector3
+    private _outerVisualSize = new Vector3
+
+    /**
+     * 
+     */
+    get outerVisualCenter() {
+        this.outerVisualBounds
+        return this._outerVisualCenter
+    }
+
+    /**
+     * The outerVisual bounds size in the spatial frame
+     */
+    get outerVisualSize() {
+        this.outerVisualBounds
+        return this._outerVisualSize
     }
 
 
@@ -665,7 +715,6 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
      */
     get innerBounds() {
         return this._cachedInnerBounds()
-        // return this._innerBounds
     }
     
     get innerCenter() {
@@ -825,10 +874,7 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
                 if (Math.abs(innerSize.y) >= sizeEpsillon) worldScale.y /= innerSize.y
                 if (Math.abs(innerSize.z) >= sizeEpsillon) worldScale.z /= innerSize.z
 
-                state.referenceState ?
-                    worldOrientation.multiplyQuaternions(state.outerOrientation, localOrientation).normalize() :
-                    worldOrientation.copy(localOrientation)
-
+                worldOrientation.multiplyQuaternions(state.outerOrientation, localOrientation).normalize()
                 spatialOffset.copy(spatialCenter).applyQuaternion(worldOrientation)
                 innerOffset.copy(innerCenter).multiply(worldScale).applyQuaternion(worldOrientation)
                 worldPosition.copy(state.outerOrigin).add(spatialOffset).sub(innerOffset)
@@ -912,35 +958,18 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
      * The reference node 
      */
     get referenceNode() {
+        this.update()
         const adapter = this.system.nodeAdapters.get(this.node)
         return adapter?.referenceNode === undefined ? 
             this.parentNode : adapter.referenceNode
     }
-
-    // /**
-    //  * The reference metrics
-    //  */
-    // get referenceMetrics() {
-    //     const reference = this.referenceNode
-    //     if (!reference) return null
-    //     return this.system.getMetrics(reference)
-    // }
     
     get referenceMetrics() : SpatialMetrics<N> | null {    
         const adapter = this.system.nodeAdapters.get(this.node)
         if (adapter?.referenceNode) return this.system.getMetrics(adapter.referenceNode)
         let metrics = this.parentNode ? this.system.getMetrics(this.parentNode) : null
-        // while (metrics && (metrics.innerBounds.isEmpty() && metrics !== this.system.viewMetrics)) {
-        //     metrics = metrics.referenceMetrics
-        // }
         return metrics
     }
-
-    // get referenceOrigin() {
-    //     const adapter = this.system.nodeAdapters.get(this.node)
-    //     if (adapter?.referenceOrigin) return adapter.referenceOrigin
-    //     this.parentMetrics.
-    // }
 
     /** 
      * The parent node
@@ -958,20 +987,6 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         if (!parent) return null
         return this.system.getMetrics(parent)
     }
-
-    // /**
-    //  * The reference metrics
-    //  */
-    // get referenceMetrics() {
-    //     const adapter = this.system.getAdapter(this.node)
-    //     if (adapter.referenceNode) return this.system.getMetrics(adapter.referenceNode)
-    //     const refNode = this.parentNode
-    //     let metrics = refNode && this.system.getMetrics(refNode)
-    //     while (metrics && (metrics.innerBounds.isEmpty() && metrics !== this.system.viewMetrics)) {
-    //         metrics = metrics.parentMetrics
-    //     }
-    //     return metrics
-    // }
 
     /**
      * The child nodes that are included in this bounding context

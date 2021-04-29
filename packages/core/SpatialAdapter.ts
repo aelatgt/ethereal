@@ -2,7 +2,7 @@ import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem'
 import { SpatialLayout } from './SpatialLayout'
 import { BoundsMeasureType, BoundsMeasureSubType } from './SpatialObjective'
 import { Transitionable, TransitionConfig } from './Transitionable'
-import { Quaternion, Box3, Vector3, V_000, Q_IDENTITY } from './math-utils'
+import { Quaternion, Box3, Vector3, V_000, V_111, Q_IDENTITY } from './math-utils'
 import { SpatialMetrics, NodeState } from './SpatialMetrics'
 
 const safariJitBug = (x:any) => {console.log(x++)}
@@ -38,13 +38,30 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         public node:N
     ) {
         this.metrics = this.system.getMetrics(this.node)
-        this._orientation = new Transitionable(this.system, this.metrics.raw.localOrientation, undefined, this.transition)
-        this._bounds = new Transitionable(this.system, this.metrics.raw.spatialBounds, undefined, this.transition)
-        this._opacity = new Transitionable(this.system, this.metrics.raw.opacity, undefined, this.transition)
-        this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set
-        // const outer = this.metrics.raw.referenceState
-        // this._referenceOrigin = new Transitionable(this.system, outer?.worldCenter || V_000, undefined, this.transition)
-        // this._referenceOrientation = new Transitionable(this.system, outer?.worldOrientation || Q_IDENTITY, undefined, this.transition)
+        const raw = this.metrics.raw
+
+        this._orientation = new Transitionable(this.system, raw.localOrientation, undefined, this.transition)
+        this._bounds = new Transitionable(this.system, raw.spatialBounds, undefined, this.transition)
+        this._opacity = new Transitionable(this.system, raw.opacity, undefined, this.transition)
+        
+        this._outerOrigin = new Transitionable(this.system, raw.outerOrigin, undefined, this.transition)
+        this._outerOrientation = new Transitionable(this.system, raw.outerOrientation, undefined, this.transition)
+        this._outerBounds = new Transitionable(this.system, raw.outerBounds, undefined, this.transition)
+        this._outerVisualBounds = new Transitionable(this.system, raw.outerVisualBounds, undefined, this.transition)
+        
+        this._outerOrigin.debounce = 0
+        this._outerOrigin.delay = 0
+        this._outerOrientation.debounce = 0
+        this._outerOrientation.delay = 0
+        this._outerBounds.debounce = 0
+        this._outerBounds.delay = 0
+        this._outerVisualBounds.debounce = 0
+        this._outerVisualBounds.delay = 0
+
+        this._orientation.syncGroup = 
+        this._bounds.syncGroup = 
+        this._opacity.syncGroup =
+            new Set
     }
 
     measureBoundsCache = new Map<string, number>()
@@ -81,8 +98,8 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
                 referenceCenter = state.outerCenter
                 break
             case 'visual': 
-                referenceBounds = state.referenceState?.visualBounds ?? viewState.visualBounds
-                referenceCenter = state.referenceState?.visualCenter ?? viewState.visualCenter
+                referenceBounds = state.outerVisualBounds
+                referenceCenter = state.outerVisualCenter
                 break
             case 'view': 
                 referenceBounds = viewState.visualBounds
@@ -94,7 +111,7 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
 
         if (measure.includes('%')) {
             const outerSize = type === 'spatial' ? state.outerSize : 
-                (state.referenceState?.visualSize ?? viewState.visualSize)
+                (state.outerVisualSize ?? viewState.visualSize)
             let percent = 0 as number|math.Unit
             switch (subType) {
                 case 'left': case 'centerx': case 'right': case 'sizex':
@@ -134,7 +151,7 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         let result = code.evaluate(scope)
         if (typeof result === 'object') result = math.number(result, unit) 
         value += result
-        
+
         scope.percent = undefined
         this.measureBoundsCache?.set(cacheKey, value)
 
@@ -158,100 +175,40 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
      * 
      * if `null`, this node is considered as flagged to be removed.
      */
-    set referenceNode(p: N|null|undefined) {
-        const currentReference = typeof this._referenceNode !== 'undefined' ? this._referenceNode : this.metrics.raw.parent
-        const newReference = typeof p !== 'undefined' ? p : this.metrics.raw.parent
-        if (newReference === currentReference) return
-        const currentOuterState = this.metrics.current.referenceState
-        if (currentOuterState) {
-            const outerWorldOrientation = currentOuterState.worldOrientation
-            const outerWorldCenter = currentOuterState.worldCenter
-            this.orientation.start.premultiply(outerWorldOrientation)
-            this.orientation.target.premultiply(outerWorldOrientation)
-            this.orientation.reference?.premultiply(outerWorldOrientation)
-            this.orientation.current.premultiply(outerWorldOrientation)
-            for (const t of this.orientation.queue) { 
-                t.target.premultiply(outerWorldOrientation) 
-            }
-            this.bounds.start.min.add(outerWorldCenter)
-            this.bounds.start.max.add(outerWorldCenter)
-            this.bounds.target.min.add(outerWorldCenter)
-            this.bounds.target.max.add(outerWorldCenter)
-            this.bounds.reference?.min.add(outerWorldCenter)
-            this.bounds.reference?.max.add(outerWorldCenter)
-            this.bounds.current.min.add(outerWorldCenter)
-            this.bounds.current.max.add(outerWorldCenter)
-            for (const t of this.bounds.queue) {
-                t.target.min.add(outerWorldCenter)
-                t.target.max.add(outerWorldCenter)
-            }
-        }
-        this._referenceNode = p
-        // this.metrics.invalidateStates()
-        const newOuterState = this.metrics.current.referenceState
-        if (this.metrics.parentNode && this.metrics.containsNode(this.metrics.parentNode)) {
-            throw new Error(`Node cannot become it's own descendent`)
-        }
-        if (newOuterState) {
-            const outerWorldOrientationInverse = newOuterState.worldOrientationInverse
-            const outerWorldCenter = newOuterState.worldCenter
-            this.orientation.start.premultiply(outerWorldOrientationInverse)
-            this.orientation.target.premultiply(outerWorldOrientationInverse)
-            this.orientation.reference?.premultiply(outerWorldOrientationInverse)
-            this.orientation.current.premultiply(outerWorldOrientationInverse)
-            for (const t of this.orientation.queue) { t.target.premultiply(outerWorldOrientationInverse) }
-            this.bounds.start.min.sub(outerWorldCenter)
-            this.bounds.start.max.sub(outerWorldCenter)
-            this.bounds.target.min.sub(outerWorldCenter)
-            this.bounds.target.max.sub(outerWorldCenter)
-            this.bounds.reference?.min.sub(outerWorldCenter)
-            this.bounds.reference?.max.sub(outerWorldCenter)
-            this.bounds.current.min.sub(outerWorldCenter)
-            this.bounds.current.max.sub(outerWorldCenter)
-            for (const t of this.bounds.queue) {
-                t.target.min.sub(outerWorldCenter)
-                t.target.max.sub(outerWorldCenter)
-            }
-        }
-    }
-    get referenceNode() { return this._referenceNode }
-    private _referenceNode? : N | null
+    referenceNode = undefined as N|null|undefined
 
 
     /**
-     * The target parent node.
      * 
-     * If `undefined`, target parent is the current parent.
-     * 
-     * if `null`, this node is considered as flagged to be removed.
      */
-    // set referenceNode(p: N|null|undefined) {
-    //     this._referenceNode = p
-    //     const outer = this.metrics.target.referenceState
-    //     if (outer) {
-    //         // this.outerBounds.target = outer.worldCenter
-    //         // this.outerOrientation.target = outer.worldOrientation
-    //     }
-    // }
-    // get referenceNode() { return this._referenceNode }
-    // private _referenceNode? : N | null
+    get outerOrigin() {
+        return this._outerOrigin
+    }
+    private _outerOrigin : Transitionable<Vector3>
 
+    /**
+     * 
+     */
+    get outerOrientation() {
+        return this._outerOrientation
+    }
+    private _outerOrientation : Transitionable<Quaternion>
 
-    // /**
-    //  * 
-    //  */
-    // get outerOrientation() {
-    //     return this._referenceOrientation
-    // }
-    // private _referenceOrientation : Transitionable<Quaternion>
+    /**
+     * 
+     */
+    get outerBounds() {
+        return this._outerBounds
+    }
+    private _outerBounds : Transitionable<Box3>
     
-    // /**
-    //  * 
-    //  */
-    // get outerBounds() {
-    //     return this._referenceBounds
-    // }
-    // private _referenceBounds : Transitionable<Box3>
+    /**
+     * 
+     */
+    get outerVisualBounds() {
+        return this._outerVisualBounds
+    }
+    private _outerVisualBounds : Transitionable<Box3>
     
 
     /**
@@ -374,7 +331,20 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         this._parentAdapter = this._computeParentAdapter()
         this._hasValidContext = this._computeHasValidContext()
 
+        // allow outer bounds to be animated whenever the
+        // reference frame or spatial frame changes
         const metrics = this.metrics
+        if (metrics.referenceMetrics) {
+            this.outerOrigin.target.copy(metrics.referenceMetrics.target.worldCenter)
+            this.outerOrientation.target.copy(metrics.referenceMetrics.target.worldOrientation)
+            this.outerBounds.target.copy(metrics.referenceMetrics.innerBounds)
+            this.outerBounds.target.applyMatrix4(metrics.target.spatialFromReference)
+            this.outerVisualBounds.target.copy(metrics.referenceMetrics.target.visualBounds)
+        }
+        this.outerOrigin.update()
+        this.outerOrientation.update()
+        this.outerBounds.update()
+        this.outerVisualBounds.update()
 
         if (this.onUpdate) {       
             let nodeState = metrics.raw

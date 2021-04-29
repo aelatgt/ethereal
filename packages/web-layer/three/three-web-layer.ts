@@ -209,7 +209,9 @@ export class WebLayer3DBase extends Group {
     this.position.copy(this.domLayout.position)
     this.quaternion.copy(this.domLayout.quaternion)
     this.scale.copy(this.domLayout.scale)
+    // this.contentMesh.position.set(0,0,0)
     this.contentMesh.scale.copy(this.domSize)
+    // this._boundsMesh.position.set(0,0,0)
     this._boundsMesh.scale.copy(this.domSize)
     // handle layer visibiltiy or removal
     const mesh = this.contentMesh

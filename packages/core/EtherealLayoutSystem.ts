@@ -81,9 +81,9 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
     }) as Required<TransitionConfig>
 
     optimize = new OptimizerConfig({
-        minFeasibleTime: 0.2,
-        maxInfeasibleTime: 0.5,
-        relativeTolerance: 0.5, 
+        minFeasibleTime: 0.3,
+        maxInfeasibleTime: 1,
+        relativeTolerance: 0.8, 
         maxIterationsPerFrame: 20, // iterations per frame per layout
         swarmSize: 30, // solutions per layout
         pulseFrequencyMin: 0, // minimal exploitation pulse
@@ -222,6 +222,10 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
                 adapter.opacity.needsUpdate = true
                 adapter.orientation.needsUpdate = true
                 adapter.bounds.needsUpdate = true
+                adapter.outerOrigin.needsUpdate = true
+                adapter.outerOrientation.needsUpdate = true
+                adapter.outerBounds.needsUpdate = true
+                adapter.outerVisualBounds.needsUpdate = true
             }
         }
 

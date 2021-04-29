@@ -31,7 +31,7 @@ export class MemoizationCache {
 }
 
 
-const UNSET = Symbol('unset')
+const UNSET = undefined //Symbol('unset')
 
 function memoize<R>(cb:()=>R) : MemoizedFunction<R> {
     let value:R = UNSET as any

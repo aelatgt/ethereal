@@ -30,7 +30,7 @@ export class OptimizerConfig {
     swarmSize? : number
 
     /**
-     * Ratio of exploration vs exploitation 
+     * Ratio of exploitation vs exploration 
      */
     pulseRate?: number // = 0.2
     

@@ -58,6 +58,8 @@ export const ThreeBindings = {
         node.matrix.copy(state.localMatrix)
         node.matrixWorld.copy(state.worldMatrix)
         applyThreeOpacity(metrics, state.opacity)
+
+        if (isNaN(state.localPosition.x)) throw new Error
         // node.matrixAutoUpdate = true
         // node.matrixWorldNeedsUpdate = true
     }

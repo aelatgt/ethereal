@@ -126,8 +126,19 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         if (typeof from === 'undefined') return undefined
         if (typeof from === 'number') return from
         const result = to ? (to as any).copy(from) : (from as any).clone()
+        if (result && 'isBox3' in result) {
+            const resultBox = result as Box3
+            const resultSize = resultBox.getSize(this._size)
+            if (resultBox.isEmpty() ||
+                !isFinite(resultSize.x) ||
+                !isFinite(resultSize.y) ||
+                !isFinite(resultSize.z)) {
+                resultBox.setFromCenterAndSize(V_000, V_000)
+            }
+        }
         return result
     }
+    private _size = new Vector3
 
     private _isEqual(a?:TransitionableType<T>, b?:TransitionableType<T>) {
         if (a === undefined || b === undefined) return false
@@ -140,7 +151,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
      * Reset all states to the specified value, 
      * and remove all ongoing transitions
      */
-    reset(v:TransitionableType<T>) {
+    reset(v?:TransitionableType<T>) {
         this._start = this._copy(this._start, v)
         this._current = this._copy(this._current, v)
         this._target = this._copy(this._target, v)
@@ -371,20 +382,18 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             case 'unchanged': 
                 this.reference = undefined
                 this.delayTime = 0
-                // this.debounceTime = 0
-                // this.waitTime = 0
                 // if relative difference is greater than 0
                 // (and less then the change threshold),
                 // instantly update the last committed value to the 
                 // current target
-                if (this.relativeDifference > 0) {
-                    if (this.queue.length > 0) {
-                        const t = this.queue[this.queue.length-1]
-                        t.target = this._copy(t.target, this.target)
-                    } else {
-                        this.start = this._copy(this.start, this.target)
-                    }
-                }
+                // if (this.relativeDifference > 0) {
+                //     if (this.queue.length > 0) {
+                //         const t = this.queue[this.queue.length-1]
+                //         t.target = this._copy(t.target, this.target)
+                //     } else {
+                //         this.start = this._copy(this.start, this.target)
+                //     }
+                // }
                 break
             case 'committing': 
                 this.delayTime = 0

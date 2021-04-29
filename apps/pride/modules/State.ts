@@ -14,9 +14,9 @@ class State {
 
     start() {
         this.getPrideData()
-        setInterval(() => {
-            this.getPrideData()
-        }, 5000)
+        // setInterval(() => {
+        //     this.getPrideData()
+        // }, 10000)
         return this
     }
 }

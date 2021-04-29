@@ -95,11 +95,12 @@ export default class UI {
 
             const adapterContent = this.app.system.getAdapter(this.pride.contentMesh)
             adapterContent.transition.duration = 1
+            adapterContent.bounds.enabled = true
             adapterContent.onUpdate = () => {
                 if (this.state.immersiveMode) {
-                    this.pride.contentMesh.position.z = -1
+                    this.pride.contentMesh.position.set(0,0,-1)
                 } else {
-                    this.pride.contentMesh.position.z = 0
+                    this.pride.contentMesh.position.set(0,0,0)
                 }
             }
 
@@ -133,7 +134,7 @@ export default class UI {
             
             const flatLayout = adapter.createLayout()
                 .poseRelativeTo(this.model)
-                // .orientation({swingRange:{x:'10deg',y:'10deg'}, twistRange:'0deg'})
+                .orientation({swingRange:{x:'10deg',y:'10deg'}, twistRange:'0deg'})
                 .keepAspect('xyz')
                 .visualBounds({
                     back:       '0m',
