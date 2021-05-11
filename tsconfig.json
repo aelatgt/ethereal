@@ -1,6 +1,7 @@
 {
   "include": ["packages", "apps", "vite.config.ts"],
   "compilerOptions": {
+    "allowUmdGlobalAccess": true,
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "node",

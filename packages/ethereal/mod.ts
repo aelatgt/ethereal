@@ -6,7 +6,8 @@ import {
     Box3
 } from "@etherealjs/core/mod"
 
-import type * as THREE from 'three'
+export {WebLayer3D, WebLayer3DBase, WebRenderer, THREE, DOM as toDOM} from '@etherealjs/web-layer/mod'
+export type {WebLayer3DOptions} from '@etherealjs/web-layer/mod'
 
 declare module 'three/src/core/Object3D' {
     interface Object3D extends Node3D {}
@@ -130,9 +131,6 @@ export function createLayoutSystem<T extends Node3D>(viewNode:T, bindings=Defaul
 
 export * from '@etherealjs/core/mod'
 export type {Node3D} from '@etherealjs/core/mod'
-
-export {WebLayer3D, WebLayer3DBase, WebRenderer} from '@etherealjs/web-layer/mod'
-export type {WebLayer3DOptions} from '@etherealjs/web-layer/mod'
 
 
 // import {WebLayer3D,WebLayer3DOptions} from '@etherealjs/web-layer/mod'

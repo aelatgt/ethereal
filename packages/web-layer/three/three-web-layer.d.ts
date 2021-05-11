@@ -1,4 +1,4 @@
-import { Vector3, Group, Object3D, Mesh, MeshBasicMaterial, MeshDepthMaterial, Geometry, Camera, Texture, Matrix4, WebGLRenderer } from 'three';
+import * as _THREE from 'three';
 import { WebLayer } from '../WebLayer';
 import { Bounds } from '../dom-utils';
 export interface WebLayer3DOptions {
@@ -8,29 +8,30 @@ export interface WebLayer3DOptions {
     onLayerCreate?(layer: WebLayer3DBase): void;
     onAfterRasterize?(layer: WebLayer3DBase): void;
 }
+export { THREE };
 declare type Intersection = THREE.Intersection & {
     groupOrder: number;
 };
 export declare type WebLayerHit = ReturnType<typeof WebLayer3D.prototype.hitTest> & {};
-export declare class WebLayer3DBase extends Group {
+export declare class WebLayer3DBase extends THREE.Group {
     options: WebLayer3DOptions;
     element: Element;
     constructor(elementOrHTML: Element | string, options?: WebLayer3DOptions);
     protected _webLayer: WebLayer;
-    textures: Map<HTMLCanvasElement | HTMLVideoElement, Texture>;
-    get currentTexture(): Texture;
+    textures: Map<HTMLCanvasElement | HTMLVideoElement, _THREE.Texture>;
+    get currentTexture(): _THREE.Texture;
     textureNeedsUpdate: boolean;
-    contentMesh: Mesh<Geometry, MeshBasicMaterial>;
+    contentMesh: _THREE.Mesh<_THREE.Geometry, _THREE.MeshBasicMaterial>;
     /**
      * This non-visible mesh ensures that an adapted layer retains
      * its innerBounds, even if the content mesh is
      * independently adapted.
      */
     private _boundsMesh;
-    cursor: Object3D;
-    depthMaterial: MeshDepthMaterial;
-    domLayout: Object3D;
-    domSize: Vector3;
+    cursor: _THREE.Object3D;
+    depthMaterial: _THREE.MeshDepthMaterial;
+    domLayout: _THREE.Object3D;
+    domSize: _THREE.Vector3;
     /**
      * Get the hover state
      */
@@ -107,11 +108,11 @@ export declare class WebLayer3DBase extends Group {
 export declare class WebLayer3D extends WebLayer3DBase {
     options: WebLayer3DOptions;
     static layersByElement: WeakMap<Element, WebLayer3DBase>;
-    static layersByMesh: WeakMap<Mesh<Geometry | import("three").BufferGeometry, import("three").Material | import("three").Material[]>, WebLayer3DBase>;
+    static layersByMesh: WeakMap<_THREE.Mesh<_THREE.Geometry | _THREE.BufferGeometry, _THREE.Material | _THREE.Material[]>, WebLayer3DBase>;
     static DEFAULT_LAYER_SEPARATION: number;
     static DEFAULT_PIXELS_PER_UNIT: number;
-    static GEOMETRY: Geometry;
-    static computeNaturalDistance(projection: Matrix4 | Camera, renderer: WebGLRenderer): number;
+    static GEOMETRY: _THREE.Geometry;
+    static computeNaturalDistance(projection: THREE.Matrix4 | THREE.Camera, renderer: THREE.WebGLRenderer): number;
     static shouldApplyDOMLayout(layer: WebLayer3DBase): boolean;
     get parentWebLayer(): WebLayer3DBase;
     private _interactionRays;
@@ -142,4 +143,3 @@ export declare class WebLayer3D extends WebLayer3DBase {
         target: HTMLElement;
     } | undefined;
 }
-export {};

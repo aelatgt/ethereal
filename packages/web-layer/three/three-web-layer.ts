@@ -1,23 +1,31 @@
-import {
-  Vector3, 
-  Group,
-  Object3D, 
-  Mesh,
-  MeshBasicMaterial,
-  MeshDepthMaterial,
-  PlaneGeometry,
-  Geometry,
-  Camera,
-  Ray,
-  Raycaster,
-  Texture, 
-  VideoTexture, 
-  ClampToEdgeWrapping, 
-  RGBADepthPacking,
-  LinearFilter,
-  Matrix4,
-  WebGLRenderer
-} from 'three'
+// import {
+//   Vector3, 
+//   Group,
+//   Object3D, 
+//   Mesh,
+//   MeshBasicMaterial,
+//   MeshDepthMaterial,
+//   PlaneGeometry,
+//   Geometry,
+//   Camera,
+//   Ray,
+//   Raycaster,
+//   Texture, 
+//   VideoTexture, 
+//   THREE.ClampToEdgeWrapping, 
+//   RGBADepthPacking,
+//   LinearFilter,
+//   Matrix4,
+//   WebGLRenderer
+// } from 'three'
+
+import * as _THREE from 'three'
+
+if (self.THREE) {
+  var THREE = self.THREE
+} else {
+  var THREE = _THREE
+}
 
 import { WebLayer} from '../WebLayer'
 import { WebRenderer } from '../WebRenderer'
@@ -32,16 +40,18 @@ export interface WebLayer3DOptions {
   onAfterRasterize?(layer: WebLayer3DBase): void
 }
 
+export {THREE}
+
 type Intersection = THREE.Intersection & {groupOrder:number}
 
 export type WebLayerHit = ReturnType<typeof WebLayer3D.prototype.hitTest> & {}
 
-const scratchVector = new Vector3()
-const scratchVector2 = new Vector3()
+const scratchVector = new THREE.Vector3()
+const scratchVector2 = new THREE.Vector3()
 const scratchBounds = new Bounds()
 const scratchBounds2 = new Bounds()
 
-export class WebLayer3DBase extends Group {
+export class WebLayer3DBase extends THREE.Group {
   public element:Element
   constructor(elementOrHTML: Element|string, public options: WebLayer3DOptions = {}) {
     super()
@@ -61,17 +71,17 @@ export class WebLayer3DBase extends Group {
 
   protected _webLayer : WebLayer
 
-  textures = new Map<HTMLCanvasElement | HTMLVideoElement, Texture>()
+  textures = new Map<HTMLCanvasElement | HTMLVideoElement, THREE.Texture>()
 
   get currentTexture() {
     if (this._webLayer.element.tagName === 'VIDEO') {
       const video = this._webLayer.element as HTMLVideoElement
       let t = this.textures.get(video)
       if (!t) {
-        t = new VideoTexture(video)
-        t.wrapS = ClampToEdgeWrapping
-        t.wrapT = ClampToEdgeWrapping
-        t.minFilter = LinearFilter
+        t = new THREE.VideoTexture(video)
+        t.wrapS = THREE.ClampToEdgeWrapping
+        t.wrapT = THREE.ClampToEdgeWrapping
+        t.minFilter = THREE.LinearFilter
         this.textures.set(video, t)
       }
       return t
@@ -80,11 +90,11 @@ export class WebLayer3DBase extends Group {
     const canvas = this._webLayer.canvas
     let t = this.textures.get(canvas)
     if (!t) {
-      t = new Texture(canvas)
+      t = new THREE.Texture(canvas)
       t.needsUpdate = true
-      t.wrapS = ClampToEdgeWrapping
-      t.wrapT = ClampToEdgeWrapping
-      t.minFilter = LinearFilter
+      t.wrapS = THREE.ClampToEdgeWrapping
+      t.wrapT = THREE.ClampToEdgeWrapping
+      t.minFilter = THREE.LinearFilter
       this.textures.set(canvas, t)
     } else if (this.textureNeedsUpdate) {
       this.textureNeedsUpdate = false
@@ -96,9 +106,9 @@ export class WebLayer3DBase extends Group {
   textureNeedsUpdate = false
 
   // content = new Object3D()
-  contentMesh = new Mesh(
+  contentMesh = new THREE.Mesh(
     WebLayer3D.GEOMETRY,
-    new MeshBasicMaterial({
+    new THREE.MeshBasicMaterial({
       transparent: true,
       alphaTest: 0.001,
       opacity: 1
@@ -110,22 +120,22 @@ export class WebLayer3DBase extends Group {
    * its innerBounds, even if the content mesh is
    * independently adapted.
    */
-  private _boundsMesh = new Mesh(
+  private _boundsMesh = new THREE.Mesh(
     WebLayer3D.GEOMETRY,
-    new MeshBasicMaterial({
+    new THREE.MeshBasicMaterial({
       visible: false
     })
   )
 
-  cursor = new Object3D()
+  cursor = new THREE.Object3D()
 
-  depthMaterial = new MeshDepthMaterial({
-    depthPacking: RGBADepthPacking,
+  depthMaterial = new THREE.MeshDepthMaterial({
+    depthPacking: THREE.RGBADepthPacking,
     alphaTest: 0.01
   })
 
-  domLayout = new Object3D()
-  domSize = new Vector3(1,1,1)
+  domLayout = new THREE.Object3D()
+  domSize = new THREE.Vector3(1,1,1)
 
   /**
    * Get the hover state
@@ -415,19 +425,19 @@ export class WebLayer3DBase extends Group {
 export class WebLayer3D extends WebLayer3DBase {
 
   static layersByElement = new WeakMap<Element, WebLayer3DBase>()
-  static layersByMesh = new WeakMap<Mesh, WebLayer3DBase>()
+  static layersByMesh = new WeakMap<THREE.Mesh, WebLayer3DBase>()
 
   static DEFAULT_LAYER_SEPARATION = 0.001
   static DEFAULT_PIXELS_PER_UNIT = 1000
-  static GEOMETRY = new PlaneGeometry(1, 1, 2, 2) as Geometry
+  static GEOMETRY = new THREE.PlaneGeometry(1, 1, 2, 2) as THREE.Geometry
 
   static computeNaturalDistance(
-    projection: Matrix4 | Camera,
-    renderer: WebGLRenderer
+    projection: THREE.Matrix4 | THREE.Camera,
+    renderer: THREE.WebGLRenderer
   ) {
-    let projectionMatrix = projection as Matrix4
-    if ((projection as Camera).isCamera) {
-      projectionMatrix = (projection as Camera).projectionMatrix
+    let projectionMatrix = projection as  THREE.Matrix4
+    if ((projection as THREE.Camera).isCamera) {
+      projectionMatrix = (projection as THREE.Camera).projectionMatrix
     }
     const pixelRatio = renderer.getPixelRatio()
     const widthPixels = renderer.domElement.width / pixelRatio
@@ -449,8 +459,8 @@ export class WebLayer3D extends WebLayer3DBase {
     return super.parentWebLayer!
   }
 
-  private _interactionRays = [] as Array<Ray | Object3D>
-  private _raycaster = new Raycaster()
+  private _interactionRays = [] as Array<THREE.Ray | THREE.Object3D>
+  private _raycaster = new THREE.Raycaster()
   private _hitIntersections = [] as Intersection[]
 
   constructor(elementOrHTML: Element|string, public options: WebLayer3DOptions = {}) {
@@ -495,7 +505,7 @@ export class WebLayer3D extends WebLayer3DBase {
   }
 
   private _previousHoverLayers = new Set<WebLayer3DBase>()
-  private _contentMeshes = [] as Mesh[]
+  private _contentMeshes = [] as THREE.Mesh[]
 
   private _prepareHitTest = (layer:WebLayer3DBase) => {
     if (layer.pseudoStates.hover) this._previousHoverLayers.add(layer)
@@ -531,7 +541,7 @@ export class WebLayer3D extends WebLayer3DBase {
     this.traverseLayersPreOrder(this._prepareHitTest)
 
     for (const ray of this._interactionRays) {
-      if (ray instanceof Ray) this._raycaster.ray.copy(ray)
+      if (ray instanceof THREE.Ray) this._raycaster.ray.copy(ray)
       else
         this._raycaster.ray.set(
           ray.getWorldPosition(scratchVector),
@@ -624,10 +634,10 @@ class CameraFOVs {
 }
 
 const _fovs = new CameraFOVs()
-const _getFovsMatrix = new Matrix4()
-const _getFovsVector = new Vector3()
-const FORWARD = new Vector3(0, 0, -1)
-function getFovs(projectionMatrix: Matrix4) {
+const _getFovsMatrix = new THREE.Matrix4()
+const _getFovsVector = new THREE.Vector3()
+const FORWARD = new THREE.Vector3(0, 0, -1)
+function getFovs(projectionMatrix: THREE.Matrix4) {
   const out = _fovs
   const invProjection = _getFovsMatrix.getInverse(projectionMatrix)
   const vec = _getFovsVector
