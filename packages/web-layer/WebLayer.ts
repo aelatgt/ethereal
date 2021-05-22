@@ -40,8 +40,8 @@ export class WebLayer {
     this.parentLayer = WebRenderer.getClosestLayer(this.element.parentElement)
     this.eventCallback('layercreated', { target: element })
     WebLayer.cachedCanvases.limit = WebRenderer.layers.size * WebLayer.DEFAULT_CACHE_SIZE
-    this._hashingCanvas.width = 8
-    this._hashingCanvas.height = 8
+    this._hashingCanvas.width = 20
+    this._hashingCanvas.height = 20
   }
 
   needsRefresh = true
