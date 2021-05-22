@@ -9,7 +9,7 @@ export default defineConfig({
   },
   build: {
     lib: {
-      entry: './mod.ts',
+      entry: './ethereal.ts',
       name: 'Ethereal'
     },
     sourcemap: true,

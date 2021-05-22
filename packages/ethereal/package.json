@@ -5,12 +5,12 @@
   "author": "Gheric Speiginer",
   "bugs": "https://github.com/aelatgt/ethereal/issues",
   "dependencies": {
-    "@etherealjs/core": "2.0",
-    "@etherealjs/web-layer": "^1.0.0"
+    "@etherealjs/core": "^2.0.0",
+    "@etherealjs/web-layer": "^2.0.0"
   },
   "exports": {
     ".": {
-      "source": "./mod.ts",
+      "source": "./ethereal.ts",
       "import": "./dist/ethereal.es.js",
       "require": "./dist/ethereal.umd.js"
     }
@@ -37,5 +37,5 @@
   "scripts": {
     "build": "vite build"
   },
-  "typings": "mod.d.ts"
+  "typings": "ethereal.d.ts"
 }
