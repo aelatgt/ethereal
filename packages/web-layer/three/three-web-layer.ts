@@ -41,8 +41,14 @@ export class WebLayer3DBase extends THREE.Group {
     this.add(this.contentMesh)
     this.add(this._boundsMesh)
     this.cursor.visible = false
+    
+    this.matrixAutoUpdate = true
+
+    this.contentMesh.matrixAutoUpdate = true
     this.contentMesh.visible = false
     this.contentMesh['customDepthMaterial'] = this.depthMaterial
+
+    this._boundsMesh.matrixAutoUpdate = true
 
     WebLayer3D.layersByElement.set(this.element, this)
     WebLayer3D.layersByMesh.set(this.contentMesh, this)
