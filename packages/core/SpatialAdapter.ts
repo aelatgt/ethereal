@@ -5,23 +5,18 @@ import { Transitionable, TransitionConfig } from './Transitionable'
 import { Quaternion, Box3, Vector3, V_000, V_111, Q_IDENTITY } from './math-utils'
 import { SpatialMetrics, NodeState } from './SpatialMetrics'
 
-const safariJitBug = (x:any) => {console.log(x++)}
-
 /**
  * This class enables *spatially adaptive layout* for a single node in a scenegraph.
  * 
  * This integrates several core capabilties:
  * 
- *  - layout engine: a 3D box-model layout engine, enabling content layout be flexibly specificed 
- *      in relation to other content
- * 
- *  - metrics engine: performant reactive computation of various spatial metrics,
+ *  - spatial metrics/query engine: performant reactive computation of various spatial metrics,
  *      enabling the straightforward specification of layout constraints and objectives
  * 
- *  - optimization engine: a swarm metahueristics engine, enabling layout to be optimized 
- *      based on configurable layout constraints/objectives
+ *  - spatial layout/optimization engine: a swarm metahueristics engine, enabling layout to be optimized 
+ *      based on configurable spatial/visual layout constraints/objectives
  * 
- *  - transition engine: a Finite Impulse Response transition engine w/ configurable hysteresis,
+ *  - spatial transition engine: a Finite Impulse Response transition engine w/ configurable hysteresis,
  *      enabling layout transitions that can be smoothly combined with various easings, 
  *      and gauranteed to settle within their individual transition windows 
  */
@@ -129,7 +124,7 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
                         math.unit(Math.sqrt(outerSize.x ** 2 + outerSize.y ** 2) / 100, 'px')
                     break
                 default:
-                    throw new Error(`Unknown measure subtype "${type}.${subType}"`)
+                    throw new Error(`Invalid measure subtype "${type}.${subType}" for percentage units`)
             }
             scope.percent = percent
         }
@@ -145,6 +140,7 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             case 'front': value = referenceBounds.min.z; break;
             case 'centerz': value = referenceCenter.z; break;
             case 'back': value = referenceBounds.max.z; break;
+            case 'centerdistance':
             default: value = 0
         }
         
@@ -359,12 +355,16 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             if (!this.system.optimizer.update(this)) {
                 const orientation = nodeState.localOrientation
                 const bounds = nodeState.spatialBounds
+                if (previousNodeParent !== nodeState.parent) {
+                    this.referenceNode = undefined
+                }
                 if (previousNodeParent !== nodeState.parent ||
-                    previousNodeOrientation.angleTo(orientation) > this.system.epsillonRadians ||
+                    previousNodeOrientation.angleTo(orientation) > this.system.epsillonRadians) {
+                    this.orientation.target = orientation
+                }
+                if (previousNodeParent !== nodeState.parent || 
                     previousNodeBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||
                     previousNodeBounds.max.distanceTo(bounds.max) > this.system.epsillonMeters) {
-                    this.referenceNode = undefined
-                    this.orientation.target = orientation
                     this.bounds.target = bounds
                 }
             }

@@ -7,12 +7,12 @@
     ]
   },
   "dependencies": {
-    "@etherealjs/core": "file:packages/core",
-    "@etherealjs/web-layer": "file:packages/web-layer",
+    "@vue/compiler-sfc": "^3.0.11",
     "ethereal": "file:packages/ethereal",
+    "sass": "^1.32.12",
     "three": "^0.122.0",
     "three-mesh-bvh": "^0.2.0",
-    "vue": "^3.0.7"
+    "vue": "^3.0.11"
   },
   "devDependencies": {
     "@types/node": "^14.14.33",
@@ -26,20 +26,19 @@
     "vite": "^2.2.3"
   },
   "engines": {
+    "node": ">=16",
     "npm": ">=7.6"
   },
   "license": "MIT",
   "private": true,
   "scripts": {
-    "build": "npx ultra ultrabuild",
+    "prebuild": "npx ultra -r build",
+    "build": "npm run build:packages && npm run build:apps",
     "build:apps": "vite build && link-into docs/ 'apps/**/public'",
     "build:packages": "tsc -p tsconfig.build.json",
-    "build:syncpack": "syncpack fix-mismatches && syncpack format && syncpack set-semver-ranges --prod --dev --semver-range '^' && syncpack set-semver-ranges --peer --semver-range '>='",
     "clean": "rimraf apps/**/dist packages/**/dist docs/apps",
-    "dev": "vite --https",
-    "serve": "vite --https preview",
-    "test": "ava",
-    "ultrabuild": "npm run build:syncpack && npm run build:packages && npm run build:apps"
+    "dev": "vite",
+    "serve": "vite --https preview"
   },
   "workspaces": [
     "packages/*",

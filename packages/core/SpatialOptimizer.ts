@@ -119,15 +119,14 @@ export class SpatialOptimizer<N extends Node3D> {
         adapter.layoutFeasibleTime += adapter.system.deltaTime
         adapter.layoutInfeasibleTime += adapter.system.deltaTime
 
-        if (bestSolution?.isFeasible) {
-            adapter.layoutInfeasibleTime = 0
-        } else {
+        if (!bestSolution?.isFeasible) {
             adapter.layoutFeasibleTime = 0
         }
         
-        if ((bestSolution && bestSolution.isFeasible && adapter.layoutFeasibleTime > this._config.minFeasibleTime) ||  
-            adapter.layoutInfeasibleTime > this._config.maxInfeasibleTime) {
-            bestSolution!.apply(false)
+        if ((bestSolution && bestSolution.isFeasible && adapter.layoutFeasibleTime >= this._config.minFeasibleTime) ||  
+            adapter.layoutInfeasibleTime >= this._config.maxInfeasibleTime) {
+            adapter.layoutInfeasibleTime = 0
+            bestSolution!.apply()
             adapter.activeLayout = bestLayout!
         } else {
             adapter.referenceNode = prevReference
@@ -155,14 +154,16 @@ export class SpatialOptimizer<N extends Node3D> {
         let iterations = c.maxIterationsPerFrame
 
         // if (!adapter.hasValidContext || layout.solutions[0]?.isFeasible)
-        if (layout.solutions[0]?.isFeasible) 
+        if (layout.solutions[0]?.isFeasible)
             iterations = 1
 
         // manage solution population (if necessary)
         this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart)
 
         // rescore previous best solution (in case the score changed)
-        solutions[0].apply()
+        // solutions[0].apply()
+        for (const s of solutions) s.apply()
+        layout.sortSolutions()
 
         // optimize solutions
         for (let i=0; i< iterations; i++) {
@@ -201,25 +202,32 @@ export class SpatialOptimizer<N extends Node3D> {
                 
                 // better than previous ?
                 const success = layout.compareSolutions(newSolution, solution) < 0
-                if (success) solution.copy(newSolution)
-
+                if (success) {
+                    solution.copy(newSolution)
+                    if (solution !== solutions[0] && layout.compareSolutions(solution, solutions[0]) < 0) {
+                        solutions[0].copy(solution)
+                    }
+                }
+           
                 // adapt step size
                 if (mutationStrategy) {
                     mutationStrategy.stepSize *= success ? diversificationFactor : intensificationFactor
                     if (!success && mutationStrategy.stepSize < c.stepSizeMin || mutationStrategy.stepSize > c.stepSizeMax) {
                         // random restart
-                        layout.restartRate = 0.001 + (1-0.001) * layout.restartRate
                         for (const m of solution.mutationStrategies) {
                             m.stepSize = c.stepSizeStart
                         }
                         if (solution !== solutions[0]) {
+                            layout.restartRate = 0.001 + (1-0.001) * layout.restartRate
                             solution.randomize(1)
                             solution.apply()
                         }
                         // solution.bestScores.length = 0
                         // for (const s of solution.scores) solution.bestScores.push(s)
                     } else {
-                        layout.restartRate = (1-0.001) * layout.restartRate
+                        if (solution !== solutions[0]) {
+                            layout.restartRate = (1-0.001) * layout.restartRate
+                        }
                         // if (!success && solution !== solutions[0] && Math.random() < 2 ** (50 * mutationStrategy.stepSize / c.stepSizeStart - 50))
                         //     solution.copy(newSolution)
                     }
@@ -230,10 +238,10 @@ export class SpatialOptimizer<N extends Node3D> {
             // best solution may have changed
             layout.sortSolutions()
             if (layout.compareSolutions(bestSolution, solutions[0]) <= 0) {
-                layout.successRate = (1-0.001) * layout.successRate
+                layout.successRate = (1-0.005) * layout.successRate
             } else {
-                layout.successRate = 0.001 + (1-0.001) * layout.successRate
-            }
+                layout.successRate = 0.005 + (1-0.005) * layout.successRate
+            }                
         }
     }
 

@@ -6,15 +6,17 @@ export declare class OptimizerConfig {
     stepSizeMin?: number;
     stepSizeMax?: number;
     stepSizeStart?: number;
+    /** Min number of seconds to wait after producing an infeasible layout */
+    minFeasibleTime?: number;
     /** Max number of seconds to wait for a feasible layout */
-    maxWait?: number;
+    maxInfeasibleTime?: number;
     maxIterationsPerFrame?: number;
     /**
      * The solution swarm size for each layout
      */
     swarmSize?: number;
     /**
-     * Ratio of exploration vs exploitation
+     * Ratio of exploitation vs exploration
      */
     pulseRate?: number;
     /**

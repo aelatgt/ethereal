@@ -91,8 +91,7 @@ export class TransitionConfig {
      */
     delay?: number
     /**
-     * The number of seconds that the `stagedTarget` must remain 
-     * stable to automatically "commit" a transition
+     * The number of seconds to wait after a new "commit" is allowed
      */
     debounce?: number
     /**
@@ -335,7 +334,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         const refRelDiff = this.referenceRelativeDifference
         const stable = refRelDiff < threshold
 
-        if (!stable && delay >= config.delay) {
+        if (!stable) {
             return 'changed'
         }
 
@@ -354,6 +353,10 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
 
         // Finite Impulse Response Interruptable Transitions
 
+        // for (const transition of queue) {
+        //     transition.elapsed += delta
+        // }
+
         while (queue.length && queue[0].elapsed >= queue[0].duration) {
             this.start = queue.shift()!.target
         }
@@ -361,23 +364,23 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         this.current = this.start
         const current = this._current
         let previousTarget = this.start
+        
         for (const transition of queue) {
             this._addTransitionToCurrent(current, previousTarget, transition)
-            transition.elapsed += delta
             previousTarget = transition.target
+            transition.elapsed += delta
             if (!transition.blend) break
         }
 
         // Hysteresis-Aware Target Change Trigger
 
         this.debounceTime += delta
-        this.delayTime += delta
 
         switch (status) {
             case 'settling': break
             case 'changed': 
+                this.delayTime += delta
                 this.reference = this.target
-                this.debounceTime = 0
                 break
             case 'unchanged': 
                 this.reference = undefined
@@ -420,8 +423,6 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
     private _blackColor = new Color(0,0,0)
 
     private _addTransitionToCurrent = (current:TransitionableType<T>, start:TransitionableType<T>, transition:Required<Transition<T>>) => {
-        if (transition.elapsed === 0) return 
-        
         const alpha = transition.easing( Math.min(transition.elapsed / transition.duration, 1) )
         const target = transition.target
 
@@ -474,13 +475,13 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const maxAmount = this._scratchBox.max.copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
             c.min.add(minAmount)
             c.max.add(maxAmount)
-            if (c.isEmpty()) {
-                const min = c.min
-                const max = c.max
-                if (min.x > max.x) this._swap(min,max,'x')
-                if (min.y > max.y) this._swap(min,max,'y')
-                if (min.z > max.z) this._swap(min,max,'z')
-            }
+            // if (c.isEmpty()) {
+            //     const min = c.min
+            //     const max = c.max
+            //     if (min.x > max.x) this._swap(min,max,'x')
+            //     if (min.y > max.y) this._swap(min,max,'y')
+            //     if (min.z > max.z) this._swap(min,max,'z')
+            // }
             this._current = c as any
             return
         }

@@ -20,7 +20,7 @@ import * as ethereal from 'ethereal'
 export class DemoApp extends AppBase {
 
     ethereal = ethereal
-    system = ethereal.createSystem(this.camera)
+    system = ethereal.createLayoutSystem(this.camera)
     publicUrl = process.env.PUBLIC_URL ?? '/'
 
     gltfLoader = new GLTFLoader()

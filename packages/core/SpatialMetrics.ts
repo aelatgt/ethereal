@@ -43,6 +43,7 @@ export class NodeState<N extends Node3D=Node3D> {
 
     private _cachedLocalMatrix = this._cache.memoize(() => {
         this._localMatrix.decompose(this._localPosition, this._localOrientation, this._localScale)
+        this._localOrientation.normalize()
         this._localOrientationInverse.copy(this._localOrientation).inverse()
         this._localRotation.makeRotationFromQuaternion(this._localOrientation)
         this._localRotationInverse.makeRotationFromQuaternion(this._localOrientationInverse)
@@ -251,11 +252,6 @@ export class NodeState<N extends Node3D=Node3D> {
      * The spatial bounds 
      */
     private _cachedSpatialBounds = this._cache.memoize(() => {
-        // if (this.metrics.innerBounds.isEmpty()) {
-        //     this._spatialBounds.setFromCenterAndSize(V_000,V_111)
-        // } else {
-        //    this._spatialBounds.copy(this.metrics.innerBounds)
-        // }
         this._spatialBounds.copy(this.metrics.innerBounds)
         const bounds = this._spatialBounds.applyMatrix4(this.spatialFromLocal)
         bounds.getCenter(this._spatialCenter)
@@ -331,7 +327,6 @@ export class NodeState<N extends Node3D=Node3D> {
         if (adapter) return adapter.outerOrigin[this.mode]
         return this.referenceState?.worldCenter ?? V_000
     }
-    private _outerOrigin = new Vector3
 
     /**
      * The outer bounds orientation in the world frame
@@ -339,12 +334,8 @@ export class NodeState<N extends Node3D=Node3D> {
     get outerOrientation() {
         const adapter = this.metrics.system.nodeAdapters.get(this.metrics.node)
         if (adapter) return adapter.outerOrientation[this.mode]
-        const result = this.referenceState?.worldOrientation ?? Q_IDENTITY
-        return this._referenceOrientation.copy(result)
+        return this.referenceState?.worldOrientation ?? Q_IDENTITY
     }
-    private _referenceOrientation = new Quaternion
-
-
 
     private _cachedOuterVisualBounds = this._cache.memoize(() => {
         const bounds = this._outerVisualBounds
@@ -435,7 +426,14 @@ export class NodeState<N extends Node3D=Node3D> {
         const viewProjectionFromWorld = this._viewProjectionFromWorld.multiplyMatrices(projection, viewFromWorld)
         const bounds = this._ndcBounds.copy(this.metrics.innerBounds).applyMatrix4(viewProjectionFromWorld)
         bounds.getCenter(this._ndcCenter)
-        bounds.getSize(this._ndcSize) 
+        bounds.getSize(this._ndcSize)
+        if (!isFinite(bounds.min.x) || !isFinite(bounds.min.y) || !isFinite(bounds.min.z) || 
+            !isFinite(bounds.max.x) || !isFinite(bounds.max.y) || !isFinite(bounds.max.z)) {
+            bounds.min.setScalar(-1)
+            bounds.max.setScalar(1)
+            bounds.getCenter(this._ndcCenter)
+            bounds.getSize(this._ndcSize)
+        }
         return bounds
     }, this._viewState._cache)
     private _viewProjectionFromWorld = new Matrix4

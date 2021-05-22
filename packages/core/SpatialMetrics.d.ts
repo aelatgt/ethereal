@@ -10,12 +10,12 @@ export declare class NodeState<N extends Node3D = Node3D> {
     constructor(mode: 'current' | 'target', metrics: SpatialMetrics<N>);
     private _cache;
     invalidate(): void;
+    opacity: number;
     get parent(): N | null;
     set parent(val: N | null);
     private _parent;
-    get opacity(): number;
     get parentState(): NodeState<N> | undefined;
-    get outerState(): NodeState<N> | undefined;
+    get referenceState(): NodeState<N> | undefined;
     private _cachedLocalMatrix;
     get localMatrix(): Matrix4;
     set localMatrix(val: Matrix4);
@@ -73,11 +73,9 @@ export declare class NodeState<N extends Node3D = Node3D> {
     get worldCenter(): Vector3;
     private _worldCenter;
     /**
-     * The outer origin in world coordinates
-     */
-    get worldOrigin(): Vector3;
-    /**
-     * The spatial frame (convert to world frame from spatial frame)
+     * Convert to world frame from spatial frame
+     *
+     * Spatial Frame = Reference Origin + My World Orientation
      */
     private _cachedSpatialMatrix;
     get spatialMatrix(): Matrix4;
@@ -85,6 +83,7 @@ export declare class NodeState<N extends Node3D = Node3D> {
     private _spatialMatrixInverse;
     private _localFromSpatial;
     private _spatialFromLocal;
+    private _spatialFromReference;
     /**
      * Convert to spatial frame from world frame
      */
@@ -97,6 +96,10 @@ export declare class NodeState<N extends Node3D = Node3D> {
      * Convert to spatial frame from local frame
      */
     get spatialFromLocal(): Matrix4;
+    /**
+     * Convert to spatial frame from reference frame
+     */
+    get spatialFromReference(): Matrix4;
     /**
      * The spatial bounds
      */
@@ -113,29 +116,52 @@ export declare class NodeState<N extends Node3D = Node3D> {
      * The spatial center
      */
     get spatialCenter(): Vector3;
-    /**
-     * The first non-empty parent bounds, reoriented
-     */
     private _cachedOuterBounds;
+    /**
+    * The reference bounds in the spatial frame
+    */
     get outerBounds(): Box3;
     private _outerBounds;
     private _outerCenter;
     private _outerSize;
-    private _spatialFromOuter;
     /**
      *
      */
     get outerCenter(): Vector3;
     /**
-     *
+     * The outer bounds size in the spatial frame
      */
     get outerSize(): Vector3;
+    /**
+     * The outer bounds origin in the world frame
+     */
+    get outerOrigin(): Vector3;
+    /**
+     * The outer bounds orientation in the world frame
+     */
+    get outerOrientation(): Quaternion;
+    private _cachedOuterVisualBounds;
+    /**
+    * The reference bounds in the visual frame
+    */
+    get outerVisualBounds(): Box3;
+    private _outerVisualBounds;
+    private _outerVisualCenter;
+    private _outerVisualSize;
+    /**
+     *
+     */
+    get outerVisualCenter(): Vector3;
+    /**
+     * The outerVisual bounds size in the spatial frame
+     */
+    get outerVisualSize(): Vector3;
     private get _viewState();
     /**
-     * The view frame from local frame
+     * The view frame from world frame
      */
-    get viewFromLocal(): Matrix4;
-    private _viewFromLocal;
+    get viewFromWorld(): Matrix4;
+    private _viewFromWorld;
     /**
      * The view frame from spatial frame
      */
@@ -151,7 +177,7 @@ export declare class NodeState<N extends Node3D = Node3D> {
      */
     get ndcBounds(): Box3;
     private _cachedNDCBounds;
-    private _viewProjectionFromLocal;
+    private _viewProjectionFromWorld;
     private _ndcBounds;
     private _ndcCenter;
     private _ndcSize;
@@ -274,8 +300,7 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     private _computeState;
     invalidateStates(): void;
     /**
-     * The raw node state.
-     * This is raw local with `target` ancestor states.
+     * The raw node state, before any update, with ancestor target states
      */
     get raw(): Readonly<NodeState<N>>;
     private _cachedRawState;
@@ -301,9 +326,6 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * The reference node
      */
     get referenceNode(): N | null;
-    /**
-     * The reference metrics
-     */
     get referenceMetrics(): SpatialMetrics<N> | null;
     /**
      * The parent node
@@ -313,10 +335,6 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * The parent metrics
      */
     get parentMetrics(): SpatialMetrics<N> | null;
-    /**
-     * The closest non-empty containing metrics
-     */
-    get outerMetrics(): SpatialMetrics<N> | null;
     /**
      * The child nodes that are included in this bounding context
      */

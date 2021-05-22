@@ -65,15 +65,15 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
         vh: undefined as math.Unit|undefined
     }
 
-    epsillonMeters = 1e-8
-    epsillonRadians = 1e-8
-    epsillonRatio = 1e-8
+    epsillonMeters = 1e-10
+    epsillonRadians = 1e-10
+    epsillonRatio = 1e-10
 
     transition = new TransitionConfig({
         multiplier: 1,
         duration: 0,
         easing: easing.easeInOut,
-        threshold: 0.001,
+        threshold: 0,
         delay: 0,
         debounce: 0,
         maxWait: 10,
@@ -81,17 +81,17 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
     }) as Required<TransitionConfig>
 
     optimize = new OptimizerConfig({
-        minFeasibleTime: 0.3,
+        minFeasibleTime: 0.2,
         maxInfeasibleTime: 1,
-        relativeTolerance: 0.8, 
-        maxIterationsPerFrame: 20, // iterations per frame per layout
-        swarmSize: 30, // solutions per layout
+        relativeTolerance: 0.6, 
+        maxIterationsPerFrame: 40, // iterations per frame per layout
+        swarmSize: 20, // solutions per layout
         pulseFrequencyMin: 0, // minimal exploitation pulse
         pulseFrequencyMax: 1.5, // maximal exploitation pulse
-        pulseRate: 0.2, // The ratio of directed exploitation vs random exploration,
-        stepSizeMin: 0.001,
+        pulseRate: 0.05, // The ratio of directed exploitation vs random exploration,
+        stepSizeMin: 0.000001,
         stepSizeMax: 4,
-        stepSizeStart: 1
+        stepSizeStart: 1.5
     }) as Required<OptimizerConfig>
 
     /**

@@ -28,7 +28,10 @@ export interface ObjectiveOptions {
 }
 
 export type BoundsMeasureType = 'spatial'|'visual'|'view'
-export type BoundsMeasureSubType = 'left'|'bottom'|'top'|'right'|'front'|'back'|'sizex'|'sizey'|'sizez'|'sizediagonal'|'centerx'|'centery'|'centerz'
+export type BoundsMeasureSubType = 
+    'left'|'bottom'|'top'|'right'|'front'|'back'|
+    'sizex'|'sizey'|'sizez'|'sizediagonal'|
+    'centerx'|'centery'|'centerz'|'centerdistance'
  
 export type DiscreteSpec<T> = Exclude<T,any[]|undefined|Partial<{gt:any,lt:any}>>
 export type ContinuousSpec<T> = T extends any[] | undefined ? never : 
@@ -48,7 +51,11 @@ export abstract class SpatialObjective {
     type : keyof typeof SpatialLayout.prototype.absoluteTolerance = 'ratio'
     sortBlame = 0
 
-    bestScore = -1000
+    // bestScore = -1000
+
+    get bestScore() {
+        return this.layout.solutions[0].scores[this.index]
+    }
 
     relativeTolerance ?: number = undefined
     absoluteTolerance ?: number|string = undefined
@@ -226,6 +233,8 @@ export abstract class SpatialObjective {
             case 'centerx': value = center.x; break
             case 'centery': value = center.y; break
             case 'centerz': value = center.z; break
+            case 'centerdistance': value = type === 'spatial' ? 
+                center.length() : Math.sqrt(center.x**2 + size.y**2); break
             case 'sizex':   value = size.x; break
             case 'sizey':  value = size.y; break
             case 'sizez':   value = size.z; break
@@ -288,19 +297,19 @@ export abstract class SpatialObjective {
     }
 }
 
-export class RelativePositionConstraint extends SpatialObjective {
-    spec?:Vector3Spec
+// export class RelativePositionConstraint extends SpatialObjective {
+//     spec?:Vector3Spec
 
-    constructor(layout:SpatialLayout) {
-        super(layout)
-        this.type = 'meter'
-    }
+//     constructor(layout:SpatialLayout) {
+//         super(layout)
+//         this.type = 'meter'
+//     }
 
-    evaluate() {
-        const state = this.layout.adapter.metrics.target
-        return this.getVector3Score(state.localPosition, this.spec)
-    }
-}
+//     evaluate() {
+//         const state = this.layout.adapter.metrics.target
+//         return this.getVector3Score(state.spatialCenter, this.spec)
+//     }
+// }
 
 export class RelativeOrientationConstraint extends SpatialObjective {
     spec?:QuaternionSpec
@@ -374,19 +383,20 @@ export interface SpatialBoundsSpec {
     /** meters */ front? :  OneOrMany<ConstraintSpec>  
     /** meters */ back? :  OneOrMany<ConstraintSpec>
     size? : {
-    /** meters */ x?: OneOrMany<ConstraintSpec>,
-    /** meters */ y?: OneOrMany<ConstraintSpec>, 
-    /** meters */ z?: OneOrMany<ConstraintSpec>, 
+    /** meters */ x?: OneOrMany<NumberConstraintSpec>,
+    /** meters */ y?: OneOrMany<NumberConstraintSpec>, 
+    /** meters */ z?: OneOrMany<NumberConstraintSpec>, 
     /** meters */ diagonal?: OneOrMany<ConstraintSpec>
     },
     center? : {
     /** meters */ x?: OneOrMany<NumberConstraintSpec>,
     /** meters */ y?: OneOrMany<NumberConstraintSpec>, 
     /** meters */ z?: OneOrMany<NumberConstraintSpec>,
+    /** meters */ distance?: OneOrMany<ConstraintSpec>
     }
 }
 
-const VECTOR3_SPEC_KEYS = ['x','y','z','diagonal']
+const VECTOR3_SPEC_KEYS = ['x','y','z','diagonal', 'distance']
 
 export class SpatialBoundsConstraint extends SpatialObjective {
     spec?:SpatialBoundsSpec
@@ -424,7 +434,8 @@ export interface VisualBoundsSpec {
     center? : {
         /** pixels */ x?:OneOrMany<NumberConstraintSpec>,
         /** pixels */ y?:OneOrMany<NumberConstraintSpec>, 
-        /** meters */ z?:OneOrMany<NumberConstraintSpec>,
+        /** meters */ z?:OneOrMany<ConstraintSpec>,
+        /** pixels */ distance?: OneOrMany<ConstraintSpec>,
     }
     size? : {
     /** pixels */ x?:OneOrMany<ConstraintSpec>,
@@ -467,7 +478,9 @@ export class VisualMaximizeObjective extends SpatialObjective {
         const visualArea = Math.min(visualSize.x * visualSize.y, viewSize.x * viewSize.y)
         const refVisualSize = target.referenceState?.visualSize || viewSize
         const refVisualArea = refVisualSize.x * refVisualSize.y
-        return this.attenuateVisualScore(visualArea) - refVisualArea * this.minAreaPercent
+        const score = this.attenuateVisualScore(visualArea) - refVisualArea * this.minAreaPercent
+        if (score === 0) console.log(score)
+        return score
     }
 }
 

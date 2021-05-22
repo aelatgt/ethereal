@@ -64,8 +64,7 @@ export declare class TransitionConfig {
      */
     delay?: number;
     /**
-     * The number of seconds that the `stagedTarget` must remain
-     * stable to automatically "commit" a transition
+     * The number of seconds to wait after a new "commit" is allowed
      */
     debounce?: number;
     /**
@@ -85,12 +84,13 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
     /** */
     needsUpdate: boolean;
     private _copy;
+    private _size;
     private _isEqual;
     /**
      * Reset all states to the specified value,
      * and remove all ongoing transitions
      */
-    reset(v: TransitionableType<T>): void;
+    reset(v?: TransitionableType<T>): void;
     /**
      * The starting value for currently ongoing transitions
      */
@@ -158,7 +158,6 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
     private _resolvedConfig;
     delayTime: number;
     debounceTime: number;
-    waitTime: number;
     private _previousStatus;
     get previousStatus(): "unchanged" | "changed" | "settling" | "committing";
     /**

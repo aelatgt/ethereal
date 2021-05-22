@@ -4,7 +4,7 @@ import { SpatialAdapter } from './SpatialAdapter'
 import { OptimizerConfig } from './SpatialOptimizer'
 import { 
     ObjectiveOptions, 
-    Vector3Spec, RelativePositionConstraint as RelativePositionConstraint, 
+    Vector3Spec, //RelativePositionConstraint as RelativePositionConstraint, 
     QuaternionSpec, RelativeOrientationConstraint as RelativeOrientationConstraint,
     WorldScaleConstraint as WorldScaleConstraint, AspectConstraint,
     SpatialBoundsSpec, SpatialBoundsConstraint,
@@ -25,8 +25,8 @@ export class SpatialLayout extends OptimizerConfig {
     
     relativeTolerance?:number
     absoluteTolerance = {
-        meter: '1mm',
-        pixel: '1px',
+        meter: '4mm',
+        pixel: '4px',
         degree: '0.002deg',
         ratio: 0.005
     }
@@ -59,27 +59,49 @@ export class SpatialLayout extends OptimizerConfig {
         return this
     }
 
+    maximize(opts?:Partial<MaximizeObjective>) {
+        const obj = this.maximizeObjective = 
+            this.maximizeObjective ?? new MaximizeObjective(this)
+        obj.priority = -1000
+        obj.relativeTolerance = 0.99
+        return this.addObjective(obj,opts)
+    }
+    maximizeObjective?:MaximizeObjective
+
     /**
      * Add a relative orientation constraint
      */
     orientation(spec:QuaternionSpec, opts?:Partial<RelativeOrientationConstraint>) {
         const obj = this.orientationConstraint = this.orientationConstraint ?? new RelativeOrientationConstraint(this)
         obj.spec = spec
-        obj.priority = -3
+        obj.priority = -999
         return this.addObjective(obj, opts)
     }
     orientationConstraint?:RelativeOrientationConstraint
 
     /**
-     * Add a relative position constraint
-     */
-    position(spec:Vector3Spec, opts?:Partial<RelativePositionConstraint>) {
-        const obj = this.positionConstraint = this.positionConstraint ?? new RelativePositionConstraint(this)
-        obj.spec = spec
-        obj.priority = -2
+    * Add an aspect-ratio constraint
+    * Constrain normalized world scale to preserve
+    * xyz or xy aspect ratios
+    */
+    keepAspect(mode:'xyz'|'xy'= 'xyz', opts?:Partial<AspectConstraint>) {
+        const obj = this.keepAspectConstraint = this.keepAspectConstraint ?? new AspectConstraint(this)
+        obj.mode = mode
+        obj.priority = -998
         return this.addObjective(obj, opts)
     }
-    positionConstraint?:RelativePositionConstraint
+    keepAspectConstraint?:AspectConstraint
+
+    // /**
+    //  * Add a relative position constraint
+    //  */
+    // position(spec:Vector3Spec, opts?:Partial<RelativePositionConstraint>) {
+    //     const obj = this.positionConstraint = this.positionConstraint ?? new RelativePositionConstraint(this)
+    //     obj.spec = spec
+    //     obj.priority = -2
+    //     return this.addObjective(obj, opts)
+    // }
+    // positionConstraint?:RelativePositionConstraint
 
     /**
      * Add a world scale constraint
@@ -92,18 +114,6 @@ export class SpatialLayout extends OptimizerConfig {
     }
     scaleConstraint?:WorldScaleConstraint
 
-    /**
-    * Add an aspect-ratio constraint
-    * Constrain normalized world scale to preserve
-    * xyz or xy aspect ratios
-    */
-    keepAspect(mode:'xyz'|'xy'= 'xyz', opts?:Partial<AspectConstraint>) {
-        const obj = this.keepAspectConstraint = this.keepAspectConstraint ?? new AspectConstraint(this)
-        obj.mode = mode
-        obj.priority = -1
-        return this.addObjective(obj, opts)
-    }
-    keepAspectConstraint?:AspectConstraint
 
     bounds(spec:SpatialBoundsSpec, opts?:Partial<SpatialBoundsConstraint>) {
         const obj = this.boundsConstraint =  this.boundsConstraint ?? new SpatialBoundsConstraint(this)
@@ -137,15 +147,6 @@ export class SpatialLayout extends OptimizerConfig {
         return this.addObjective(obj, opts)
     }
     magnetizeObjective?:MagnetizeObjective
-
-    maximize(opts?:Partial<MaximizeObjective>) {
-        const obj = this.maximizeObjective = 
-            this.maximizeObjective ?? new MaximizeObjective(this)
-        obj.priority = 1001
-        obj.relativeTolerance = 0
-        return this.addObjective(obj,opts)
-    }
-    maximizeObjective?:MaximizeObjective
 
     avoidOcclusion(opts?:Partial<MinimizeOcclusionObjective>) {
         const obj = this.minimizeOcclusionObjective = 
@@ -207,11 +208,6 @@ export class SpatialLayout extends OptimizerConfig {
      * Update best scores and sort solutions
      */
     sortSolutions() {
-        let best = 0
-        for (let o = 0; o < this.objectives.length; o++) {
-            best = this.solutions[0].scores[o]
-            this.objectives[o].bestScore = best
-        }
         this.solutions.sort(this.compareSolutions)
         this.bestSolution = this.solutions[0]
     }
@@ -261,6 +257,7 @@ export class SpatialLayout extends OptimizerConfig {
 
         let rank = 0
         
+        const bestScores = this.solutions[0].scores
         for (let i = 0; i < objectives.length; i++) {
             const scoreA = a.scores[i] 
             const scoreB = b.scores[i] 
@@ -269,10 +266,9 @@ export class SpatialLayout extends OptimizerConfig {
             const objective = objectives[i]
             const oRelTol = objective.computedRelativeTolerance
             const oAbsTol = objective.computedAbsoluteTolerance
-            const best = objective.bestScore
-            const max = Math.max(scoreA,scoreB)
-            const tolerance = Math.min(max - Math.abs(max) * oRelTol, -oAbsTol)
-            if (best < -oAbsTol || scoreA < tolerance || scoreB < tolerance) {
+            const best = Math.max(bestScores[i], scoreA, scoreB)
+            const tolerance = Math.min(best - Math.abs(best) * oRelTol, -oAbsTol)
+            if (scoreA < tolerance || scoreB < tolerance) {
                 objective.sortBlame++
                 return scoreB - scoreA // rank by highest score
             }

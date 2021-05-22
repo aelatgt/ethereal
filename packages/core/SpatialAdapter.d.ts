@@ -2,23 +2,20 @@ import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem';
 import { SpatialLayout } from './SpatialLayout';
 import { BoundsMeasureType, BoundsMeasureSubType } from './SpatialObjective';
 import { Transitionable, TransitionConfig } from './Transitionable';
-import { Quaternion, Box3 } from './math-utils';
+import { Quaternion, Box3, Vector3 } from './math-utils';
 import { SpatialMetrics } from './SpatialMetrics';
 /**
  * This class enables *spatially adaptive layout* for a single node in a scenegraph.
  *
  * This integrates several core capabilties:
  *
- *  - layout engine: a 3D box-model layout engine, enabling content layout be flexibly specificed
- *      in relation to other content
- *
- *  - metrics engine: performant reactive computation of various spatial metrics,
+ *  - spatial metrics/query engine: performant reactive computation of various spatial metrics,
  *      enabling the straightforward specification of layout constraints and objectives
  *
- *  - optimization engine: a swarm metahueristics engine, enabling layout to be optimized
- *      based on configurable layout constraints/objectives
+ *  - spatial layout/optimization engine: a swarm metahueristics engine, enabling layout to be optimized
+ *      based on configurable spatial/visual layout constraints/objectives
  *
- *  - transition engine: a Finite Impulse Response transition engine w/ configurable hysteresis,
+ *  - spatial transition engine: a Finite Impulse Response transition engine w/ configurable hysteresis,
  *      enabling layout transitions that can be smoothly combined with various easings,
  *      and gauranteed to settle within their individual transition windows
  */
@@ -31,12 +28,6 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      * The wrapped third-party scenegraph nodes
      */
     node: N;
-    static behavior: {
-        fadeOnEnterExit(adapter: SpatialAdapter): void;
-        fadeOnPoseChange(adapter: SpatialAdapter, relativeDifference?: number): void;
-        fadeOnLayoutChange(): void;
-        pauseMotionOnFade(adapter: SpatialAdapter): void;
-    };
     constructor(
     /**
      * The EtherealSystem instance
@@ -57,15 +48,33 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      */
     readonly transition: TransitionConfig;
     /**
-     * The target parent node.
+     * The reference node.
      *
-     * If `undefined`, target parent is the current parent.
+     * If `undefined`, reference is the current parent.
      *
      * if `null`, this node is considered as flagged to be removed.
      */
-    set referenceNode(p: N | null | undefined);
-    get referenceNode(): N | null | undefined;
-    private _referenceNode?;
+    referenceNode: N | null | undefined;
+    /**
+     *
+     */
+    get outerOrigin(): Transitionable<Vector3>;
+    private _outerOrigin;
+    /**
+     *
+     */
+    get outerOrientation(): Transitionable<Quaternion>;
+    private _outerOrientation;
+    /**
+     *
+     */
+    get outerBounds(): Transitionable<Box3>;
+    private _outerBounds;
+    /**
+     *
+     */
+    get outerVisualBounds(): Transitionable<Box3>;
+    private _outerVisualBounds;
     /**
      * The closest ancestor adapter
      */
@@ -77,9 +86,6 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      */
     get orientation(): Transitionable<Quaternion>;
     private _orientation;
-    /**
-     * The relative point of attachment in the outer bounds
-     */
     /**
      * Transitionable spatial bounds
      */
@@ -96,9 +102,13 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      */
     layouts: SpatialLayout[];
     /**
-     * Time spent waiting for feasible layout solution
+     * Time spent since feasible layout solution was found
      */
-    layoutWaitTime: number;
+    layoutFeasibleTime: number;
+    /**
+     * Time spent since last feasible layout solution was found
+     */
+    layoutInfeasibleTime: number;
     get previousLayout(): SpatialLayout | null;
     private _prevLayout;
     set activeLayout(val: SpatialLayout | null);
@@ -120,7 +130,6 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
     private _hasValidContext;
     onUpdate?: () => void;
     onPostUpdate?: () => void;
-    syncWithParentAdapter: boolean;
     private _prevNodeOrientation;
     private _prevNodeBounds;
     _computeHasValidContext(): boolean;

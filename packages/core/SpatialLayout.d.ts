@@ -2,7 +2,8 @@ import { Node3D } from './EtherealLayoutSystem';
 import { Quaternion, Box3 } from './math-utils';
 import { SpatialAdapter } from './SpatialAdapter';
 import { OptimizerConfig } from './SpatialOptimizer';
-import { ObjectiveOptions, Vector3Spec, LocalPositionConstraint, QuaternionSpec, LocalOrientationConstraint, LocalScaleConstraint, AspectConstraint, SpatialBoundsSpec, SpatialBoundsConstraint, VisualBoundsSpec, VisualBoundsConstraint, VisualMaximizeObjective as MaximizeObjective, SpatialObjective, MagnetizeObjective, MinimizeOcclusionObjective } from './SpatialObjective';
+import { ObjectiveOptions, Vector3Spec, //RelativePositionConstraint as RelativePositionConstraint, 
+QuaternionSpec, RelativeOrientationConstraint as RelativeOrientationConstraint, WorldScaleConstraint as WorldScaleConstraint, AspectConstraint, SpatialBoundsSpec, SpatialBoundsConstraint, VisualBoundsSpec, VisualBoundsConstraint, VisualMaximizeObjective as MaximizeObjective, SpatialObjective, MagnetizeObjective, MinimizeOcclusionObjective } from './SpatialObjective';
 /**
  * Defines spatial layout constraints/goals
  */
@@ -24,28 +25,22 @@ export declare class SpatialLayout extends OptimizerConfig {
      */
     objectives: readonly SpatialObjective[];
     /**
-     * The reference node
-     * If `undefined`, the parent node is the reference node
-     * if `null`, this node is considered as flagged to be removed
+     * The reference frame for position and orientation constraints.
+     * if not defined, the parent node becomes the reference frame.
      */
     referenceNode?: Node3D | null;
-    relativeTo(parentNode: Node3D | null | undefined): this;
     /**
-     * Add an orientation constraint
+     * Define a reference frame for position and orientation constraints.
+     * @param reference
      */
-    orientation(spec: QuaternionSpec, opts?: Partial<LocalOrientationConstraint>): this;
-    orientationConstraint?: LocalOrientationConstraint;
+    poseRelativeTo(reference?: Node3D | null): this;
+    maximize(opts?: Partial<MaximizeObjective>): this;
+    maximizeObjective?: MaximizeObjective;
     /**
-     * Add a local position objective
-     * (local units are ambigious due to potential parent scaling).
+     * Add a relative orientation constraint
      */
-    position(spec: Vector3Spec, opts?: Partial<LocalPositionConstraint>): this;
-    positionConstraint?: LocalPositionConstraint;
-    /**
-     * Add a local scale constraint
-     */
-    scale(spec: Vector3Spec, opts?: Partial<LocalScaleConstraint>): this;
-    scaleConstraint?: LocalScaleConstraint;
+    orientation(spec: QuaternionSpec, opts?: Partial<RelativeOrientationConstraint>): this;
+    orientationConstraint?: RelativeOrientationConstraint;
     /**
     * Add an aspect-ratio constraint
     * Constrain normalized world scale to preserve
@@ -53,6 +48,11 @@ export declare class SpatialLayout extends OptimizerConfig {
     */
     keepAspect(mode?: 'xyz' | 'xy', opts?: Partial<AspectConstraint>): this;
     keepAspectConstraint?: AspectConstraint;
+    /**
+     * Add a world scale constraint
+     */
+    scale(spec: Vector3Spec, opts?: Partial<WorldScaleConstraint>): this;
+    scaleConstraint?: WorldScaleConstraint;
     bounds(spec: SpatialBoundsSpec, opts?: Partial<SpatialBoundsConstraint>): this;
     boundsConstraint?: SpatialBoundsConstraint;
     visualOrientation(spec: QuaternionSpec, opts?: ObjectiveOptions): void;
@@ -61,8 +61,6 @@ export declare class SpatialLayout extends OptimizerConfig {
     visualBoundsPixelConstraint?: VisualBoundsConstraint;
     magnetize(opts?: Partial<MagnetizeObjective>): this;
     magnetizeObjective?: MagnetizeObjective;
-    maximize(opts?: Partial<MaximizeObjective>): this;
-    maximizeObjective?: MaximizeObjective;
     avoidOcclusion(opts?: Partial<MinimizeOcclusionObjective>): this;
     minimizeOcclusionObjective?: MagnetizeObjective;
     /**

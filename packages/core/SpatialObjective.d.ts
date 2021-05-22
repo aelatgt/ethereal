@@ -37,7 +37,7 @@ export interface ObjectiveOptions {
     absoluteTolerance?: number | (() => number);
 }
 export declare type BoundsMeasureType = 'spatial' | 'visual' | 'view';
-export declare type BoundsMeasureSubType = 'left' | 'bottom' | 'top' | 'right' | 'front' | 'back' | 'sizex' | 'sizey' | 'sizez' | 'sizediagonal' | 'centerx' | 'centery' | 'centerz';
+export declare type BoundsMeasureSubType = 'left' | 'bottom' | 'top' | 'right' | 'front' | 'back' | 'sizex' | 'sizey' | 'sizez' | 'sizediagonal' | 'centerx' | 'centery' | 'centerz' | 'centerdistance';
 export declare type DiscreteSpec<T> = Exclude<T, any[] | undefined | Partial<{
     gt: any;
     lt: any;
@@ -51,7 +51,7 @@ export declare abstract class SpatialObjective {
     static isContinuousSpec<T>(s: T): s is ContinuousSpec<T>;
     type: keyof typeof SpatialLayout.prototype.absoluteTolerance;
     sortBlame: number;
-    bestScore: number;
+    get bestScore(): number;
     relativeTolerance?: number;
     absoluteTolerance?: number | string;
     priority: number;
@@ -76,17 +76,12 @@ export declare abstract class SpatialObjective {
     /**  Attenuate visual score when out of view */
     protected attenuateVisualScore(score: number): number;
 }
-export declare class LocalPositionConstraint extends SpatialObjective {
-    spec?: Vector3Spec;
-    constructor(layout: SpatialLayout);
-    evaluate(): number;
-}
-export declare class LocalOrientationConstraint extends SpatialObjective {
+export declare class RelativeOrientationConstraint extends SpatialObjective {
     spec?: QuaternionSpec;
     constructor(layout: SpatialLayout);
     evaluate(): number;
 }
-export declare class LocalScaleConstraint extends SpatialObjective {
+export declare class WorldScaleConstraint extends SpatialObjective {
     spec?: Vector3Spec;
     constructor(layout: SpatialLayout);
     evaluate(): number;
@@ -105,15 +100,16 @@ export interface SpatialBoundsSpec {
     /** meters */ front?: OneOrMany<ConstraintSpec>;
     /** meters */ back?: OneOrMany<ConstraintSpec>;
     size?: {
-        /** meters */ x?: OneOrMany<ConstraintSpec>;
-        /** meters */ y?: OneOrMany<ConstraintSpec>;
-        /** meters */ z?: OneOrMany<ConstraintSpec>;
+        /** meters */ x?: OneOrMany<NumberConstraintSpec>;
+        /** meters */ y?: OneOrMany<NumberConstraintSpec>;
+        /** meters */ z?: OneOrMany<NumberConstraintSpec>;
         /** meters */ diagonal?: OneOrMany<ConstraintSpec>;
     };
     center?: {
         /** meters */ x?: OneOrMany<NumberConstraintSpec>;
         /** meters */ y?: OneOrMany<NumberConstraintSpec>;
         /** meters */ z?: OneOrMany<NumberConstraintSpec>;
+        /** meters */ distance?: OneOrMany<ConstraintSpec>;
     };
 }
 export declare class SpatialBoundsConstraint extends SpatialObjective {
@@ -144,7 +140,8 @@ export interface VisualBoundsSpec {
     center?: {
         /** pixels */ x?: OneOrMany<NumberConstraintSpec>;
         /** pixels */ y?: OneOrMany<NumberConstraintSpec>;
-        /** meters */ z?: OneOrMany<NumberConstraintSpec>;
+        /** meters */ z?: OneOrMany<ConstraintSpec>;
+        /** pixels */ distance?: OneOrMany<ConstraintSpec>;
     };
     size?: {
         /** pixels */ x?: OneOrMany<ConstraintSpec>;

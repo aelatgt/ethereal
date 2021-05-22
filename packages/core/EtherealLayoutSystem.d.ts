@@ -38,13 +38,11 @@ export declare class EtherealLayoutSystem<N extends Node3D = Node3D> {
         vw: import("mathjs").Unit | undefined;
         vh: import("mathjs").Unit | undefined;
     };
-    config: {
-        epsillonMeters: number;
-        epsillonRadians: number;
-        epsillonRatio: number;
-        transition: Required<TransitionConfig>;
-        optimize: Required<OptimizerConfig>;
-    };
+    epsillonMeters: number;
+    epsillonRadians: number;
+    epsillonRatio: number;
+    transition: Required<TransitionConfig>;
+    optimize: Required<OptimizerConfig>;
     /**
      *
      */
