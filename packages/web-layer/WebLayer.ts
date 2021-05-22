@@ -1,6 +1,5 @@
 import {WebRenderer} from './WebRenderer'
 import "fast-text-encoding"
-import { Matrix4 } from 'three'
 import {
   addCSSRule,
   traverseChildElements,
@@ -214,8 +213,8 @@ export class WebLayer {
         'html ' + WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE + '="" '
       )
 
-      const [svgPageCSS] = await Promise.all([
-        WebRenderer.getEmbeddedPageCSS(),
+      const [svgCSS] = await Promise.all([
+        WebRenderer.getEmbeddedCSS(this.element),
         WebRenderer.embedExternalResources(this.element)
       ])
       const docString =
@@ -224,7 +223,7 @@ export class WebLayer {
         '" height="' +
         height +
         '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[a[href]{color:#0000EE;text-decoration:underline;}' +
-        svgPageCSS.join('') +
+        svgCSS.join('') +
         ']]></style></defs><foreignObject x="0" y="0" width="' +
         width +
         '" height="' +
@@ -334,6 +333,7 @@ export class WebLayer {
     const opens = []
     const closes = []
     let parent = element.parentElement!
+    if (!parent) parent = document.documentElement
     do {
       let tag = parent.tagName.toLowerCase()
       let attributes = ' '

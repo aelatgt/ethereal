@@ -1,24 +1,3 @@
-// import {
-//   Vector3, 
-//   Group,
-//   Object3D, 
-//   Mesh,
-//   MeshBasicMaterial,
-//   MeshDepthMaterial,
-//   PlaneGeometry,
-//   Geometry,
-//   Camera,
-//   Ray,
-//   Raycaster,
-//   Texture, 
-//   VideoTexture, 
-//   THREE.ClampToEdgeWrapping, 
-//   RGBADepthPacking,
-//   LinearFilter,
-//   Matrix4,
-//   WebGLRenderer
-// } from 'three'
-
 import * as _THREE from 'three'
 
 if (self.THREE) {
@@ -249,7 +228,7 @@ export class WebLayer3DBase extends THREE.Group {
     }
   }
 
-  protected _doUpdate = () => {
+  protected _doUpdate() {
     this.updateLayout()
     this.updateContent()
     if (this.needsRefresh && this.options.autoRefresh) 
@@ -482,7 +461,9 @@ export class WebLayer3D extends WebLayer3DBase {
       }
     })
     if (this.options.onLayerCreate) this.options.onLayerCreate(this)
+
     this.refresh(true)
+    this.update()
   }
 
   /**

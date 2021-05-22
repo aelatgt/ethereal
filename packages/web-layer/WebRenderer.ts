@@ -1,6 +1,6 @@
 import {EventCallback, WebLayer} from './WebLayer'
 import { addCSSRule } from './dom-utils'
-import { Matrix4 } from 'three'
+import { Matrix4 } from 'three/src/math/Matrix4'
 import { ResizeObserver as Polyfill } from '@juggle/resize-observer'
 const ResizeObserver:typeof Polyfill = (self as any).ResizeObserver || Polyfill
 
@@ -24,17 +24,20 @@ declare function cancelIdleCallback(handle: RequestIdleCallbackHandle) : void
 
 function ensureElementIsInDocument(element: Element): Element {
   const document = element.ownerDocument!
-  if (document.contains(element)) {
+  const root = element.getRootNode() as ShadowRoot
+  if (document.contains(element) || document.contains(root?.host)) {
     return element
   }
-  const container = document.createElement('div')
+  const container = root.host as HTMLElement||document.createElement('div')
   container.setAttribute(WebRenderer.RENDERING_CONTAINER_ATTRIBUTE, '')
   container.style.position = 'fixed'
   container.style.width = '100%'
   container.style.height = '100%'
   container.style.top = '-100000px'
   container.style['contain' as any] = 'strict'
-  container.appendChild(element)
+  // const containerShadow = container.attachShadow({mode: 'open'})
+  // containerShadow.appendChild(element)
+  if (!root.host) container.appendChild(element)
   document.documentElement.appendChild(container)
   // document.body.appendChild(container)
   return element
@@ -95,17 +98,18 @@ export class WebRenderer {
     )
   }
 
-  static documentObserver : MutationObserver
-  static _didInit = false
-  static _init() {
-    if (this._didInit) return
-    this._didInit = true
+  static rootNodeObservers = new Map<Document|ShadowRoot, MutationObserver>()
+  // static documentObserver : MutationObserver
+  // static _didInit = false
 
-    // const inputStyles = document.createElement("style")
-    // inputStyles.innerHTML = "input, select,textarea{border: 1px solid #000000;margin: 0;background-color: #ffffff;-webkit-appearance: none;}:-webkit-autofill {color: #fff !important;}input[type='checkbox']{width: 20px;height: 20px;display: inline-block;}input[type='radio']{width: 20px;height: 20px;display: inline-block;border-radius: 50%;}input[type='checkbox'][checked],input[type='radio'][checked]{background-color: #555555;}"
-    // document.head.insertBefore(inputStyles, document.head.firstChild)
+  static initRootNodeObservation(element:Element) {
+    const document = element.ownerDocument
+    const rootNode = element.getRootNode() as ShadowRoot|Document
+    const styleRoot = 'head' in rootNode ? rootNode.head : rootNode
+    if (this.rootNodeObservers.get(rootNode)) return
+    
     const style = document.createElement('style')
-    document.head.append(style)
+    styleRoot.append(style)
     const sheet = style.sheet as CSSStyleSheet
     let i = 0
     addCSSRule(
@@ -152,38 +156,40 @@ export class WebRenderer {
       i++
     )
 
-    let previousHash = ''
-    const onHashChange = () => {
-      if (previousHash != window.location.hash) {
-        if (window.location.hash) {
-          try {
-            // @ts-ignore()
-            this.targetElement = document.querySelector(window.location.hash)
-          } catch {}
+    if (rootNode === document) {
+      let previousHash = ''
+      const onHashChange = () => {
+        if (previousHash != window.location.hash) {
+          if (window.location.hash) {
+            try {
+              // @ts-ignore()
+              this.targetElement = rootNode.querySelector(window.location.hash)
+            } catch {}
+          }
         }
+        previousHash = window.location.hash
       }
-      previousHash = window.location.hash
+      window.addEventListener('hashchange', onHashChange, false)
+      onHashChange()
+  
+      window.addEventListener('focusin', (evt) => {
+        // @ts-ignore
+        this.focusElement = evt.target
+      }, false)
+  
+      window.addEventListener('focusout', (evt) => {
+        // @ts-ignore
+        this.focusElement = null
+      }, false)
+      
+      window.addEventListener('load', (event) => {
+        setNeedsRefreshOnAllLayers()
+      })
     }
-    window.addEventListener('hashchange', onHashChange, false)
-    onHashChange()
-
-    window.addEventListener('focusin', (evt) => {
-      // @ts-ignore
-      this.focusElement = evt.target
-    }, false)
-
-    window.addEventListener('focusout', (evt) => {
-      // @ts-ignore
-      this.focusElement = null
-    }, false)
 
     const setNeedsRefreshOnAllLayers = () => {
       for (const [e,l] of this.layers) l.needsRefresh = true
     }
-    
-    window.addEventListener('load', (event) => {
-      setNeedsRefreshOnAllLayers()
-    })
 
     const setNeedsRefreshOnStyleLoad = (node:Node) => {
       var nodeName = node.nodeName.toUpperCase()
@@ -192,16 +198,16 @@ export class WebRenderer {
     }
 
     const STYLE_NODES = ["STYLE", "LINK"];
-    this.documentObserver = new MutationObserver((mutations) => {
+    const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         if (STYLE_NODES.indexOf(m.target.nodeName.toUpperCase()) !== -1) {
           setNeedsRefreshOnAllLayers()
-          this.embeddedPageCSS.delete(m.target as Element)
+          this.embeddedCSS.get(document)?.delete(m.target as Element)
         }
         for (const node of m.addedNodes) setNeedsRefreshOnStyleLoad(node)
       }
     })
-    this.documentObserver.observe(document, {
+    observer.observe(document, {
       childList: true,
       attributes: true,
       characterData: true,
@@ -209,6 +215,8 @@ export class WebRenderer {
       attributeOldValue: true,
       characterDataOldValue: true
     })
+
+    this.rootNodeObservers.set(rootNode, observer)
   }
 
   static addToSerializeQueue(layer: WebLayer) {
@@ -282,8 +290,8 @@ export class WebRenderer {
     if (WebRenderer.getClosestLayer(element))
       throw new Error('A root WebLayer for the given element already exists')
 
-    WebRenderer._init()
     ensureElementIsInDocument(element)
+    WebRenderer.initRootNodeObservation(element)
 
     const observer = new MutationObserver(WebRenderer._handleMutations)
     this.mutationObservers.set(element, observer)
@@ -485,8 +493,8 @@ export class WebRenderer {
     }
   }
 
-  private static _addDynamicPseudoClassRulesToPage() {
-    const sheets = document.styleSheets
+  private static _addDynamicPseudoClassRules(doc:Document|ShadowRoot) {
+    const sheets = doc.styleSheets
     for (let i = 0; i < sheets.length; i++) {
       try {
         const sheet = sheets[i] as CSSStyleSheet
@@ -585,13 +593,17 @@ export class WebRenderer {
     })
   }
 
-  private static embeddedPageCSS = new Map<Element, Promise<string>>()
+  private static embeddedCSS = new Map<ShadowRoot|Document, Map<Element, Promise<string>>>()
 
-  static async getEmbeddedPageCSS() {
-    const embedded = this.embeddedPageCSS
+  static async getEmbeddedCSS(el:Element) {
+    const rootNode = el.getRootNode() as ShadowRoot|Document
+    const embedded = this.embeddedCSS.get(rootNode) || new Map<Element, Promise<string>>()
+    this.embeddedCSS.set(rootNode, embedded)
+
     const styleElements = Array.from(
-      document.querySelectorAll("style, link[type='text/css'], link[rel='stylesheet']")
+      rootNode.querySelectorAll("style, link[type='text/css'], link[rel='stylesheet']")
     )
+
     let foundNewStyles = false
     for (const element of styleElements) {
       if (!embedded.has(element)) {
@@ -608,7 +620,7 @@ export class WebRenderer {
             element,
             this.getURL(element.getAttribute('href')!).then(xhr => {
               if (!xhr.response) return ''
-              this._addDynamicPseudoClassRulesToPage()
+              this._addDynamicPseudoClassRules(rootNode)
               var css = textDecoder.decode(xhr.response)
               return this.generateEmbeddedCSS(window.location.href, css)
             })
@@ -616,7 +628,7 @@ export class WebRenderer {
         }
       }
     }
-    if (foundNewStyles) this._addDynamicPseudoClassRulesToPage()
+    if (foundNewStyles) this._addDynamicPseudoClassRules(rootNode)
     return Promise.all(embedded.values())
   }
 

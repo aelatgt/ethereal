@@ -101,7 +101,6 @@ export function getBounds(
   referenceElement?: Element
 ) {
   const doc = element.ownerDocument!
-  const defaultView = element.ownerDocument!.defaultView!
   const docEl = doc.documentElement
   const body = doc.body
 
@@ -117,6 +116,7 @@ export function getBounds(
     return
   }
 
+  const defaultView = element.ownerDocument!.defaultView!
   let el: HTMLElement | null = element as HTMLElement
 
   let computedStyle
@@ -137,7 +137,7 @@ export function getBounds(
   }
 
   while (
-    (el = el.parentNode as HTMLElement) &&
+    (el = el.parentElement) &&
     el !== body &&
     el !== docEl &&
     el !== referenceElement

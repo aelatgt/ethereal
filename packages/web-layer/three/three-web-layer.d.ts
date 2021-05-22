@@ -76,7 +76,7 @@ export declare class WebLayer3DBase extends THREE.Group {
     protected refresh(recurse?: boolean): void;
     private updateLayout;
     private updateContent;
-    protected _doUpdate: () => void;
+    protected _doUpdate(): void;
     update(recurse?: boolean): void;
     querySelector(selector: string): WebLayer3DBase | undefined;
     traverseLayerAncestors(each: (layer: WebLayer3DBase) => void): void;

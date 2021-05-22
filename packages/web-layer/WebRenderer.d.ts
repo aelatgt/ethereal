@@ -1,5 +1,5 @@
 import { EventCallback, WebLayer } from './WebLayer';
-import { Matrix4 } from 'three';
+import { Matrix4 } from 'three/src/math/Matrix4';
 export declare type RequestIdleCallbackDeadline = {
     readonly didTimeout: boolean;
     timeRemaining: () => number;
@@ -32,9 +32,8 @@ export declare class WebRenderer {
     static readonly activeElement: Element | null;
     static readonly targetElement: Element | null;
     static getPsuedoAttributes(states: typeof WebLayer.prototype.psuedoStates): string;
-    static documentObserver: MutationObserver;
-    static _didInit: boolean;
-    static _init(): void;
+    static rootNodeObservers: Map<Document | ShadowRoot, MutationObserver>;
+    static initRootNodeObservation(element: Element): void;
     static addToSerializeQueue(layer: WebLayer): void;
     static addToRasterizeQueue(layer: WebLayer): void;
     static addToRenderQueue(layer: WebLayer): void;
@@ -56,14 +55,14 @@ export declare class WebRenderer {
     private static startMutationObserver;
     private static _handleMutations;
     private static _triggerRefresh;
-    private static _addDynamicPseudoClassRulesToPage;
+    private static _addDynamicPseudoClassRules;
     static arrayBufferToBase64(bytes: Uint8Array): string;
     static attributeCSS(name: string, value?: string): string;
     static attributeHTML(name: string, value?: string): string;
     static generateEmbeddedCSS(url: string, css: string): Promise<string>;
     static getURL(url: string): Promise<XMLHttpRequest>;
-    private static embeddedPageCSS;
-    static getEmbeddedPageCSS(): Promise<string[]>;
+    private static embeddedCSS;
+    static getEmbeddedCSS(el: Element): Promise<string[]>;
     static getDataURL(url: string): Promise<string>;
     static updateInputAttributes(element: Element): void;
     static _updateInputAttribute(inputElement: HTMLInputElement): void;
