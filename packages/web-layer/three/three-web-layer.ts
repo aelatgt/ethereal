@@ -261,14 +261,14 @@ export class WebLayer3DBase extends THREE.Group {
     const parentLayer = this.parentWebLayer
     if (parentLayer) {
       parentLayer.traverseLayerAncestors(each)
-      each(parentLayer)
+      each.call(this, parentLayer)
     }
   }
 
   traverseLayersPreOrder(
     each: (layer: WebLayer3DBase) => boolean|void
   ) {
-    if (each(this) === false) return false
+    if (each.call(this, this) === false) return false
     for (const child of this.childWebLayers) {
       if (child.traverseLayersPreOrder(each) === false) return false
     }
@@ -281,7 +281,7 @@ export class WebLayer3DBase extends THREE.Group {
     for (const child of this.childWebLayers) {
       if (child.traverseLayersPostOrder(each) === false) return false
     }
-    return each(this) || true
+    return each.call(this, this) || true
   }
 
   dispose() {
