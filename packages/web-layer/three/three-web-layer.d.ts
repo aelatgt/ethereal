@@ -7,6 +7,8 @@ export interface WebLayer3DOptions {
     autoRefresh?: boolean;
     onLayerCreate?(layer: WebLayer3DBase): void;
     onAfterRasterize?(layer: WebLayer3DBase): void;
+    textureEncoding?: number;
+    renderOrderOffset?: number;
 }
 export { THREE };
 declare type Intersection = THREE.Intersection & {

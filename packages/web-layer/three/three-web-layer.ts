@@ -16,7 +16,9 @@ export interface WebLayer3DOptions {
   layerSeparation?: number
   autoRefresh?: boolean
   onLayerCreate?(layer: WebLayer3DBase): void
-  onAfterRasterize?(layer: WebLayer3DBase): void
+  onAfterRasterize?(layer: WebLayer3DBase): void,
+  textureEncoding?: number,
+  renderOrderOffset?: number
 }
 
 export {THREE}
@@ -45,6 +47,7 @@ export class WebLayer3DBase extends THREE.Group {
     this.matrixAutoUpdate = true
 
     this.contentMesh.matrixAutoUpdate = true
+    this.contentMesh.material.toneMapped = false
     this.contentMesh.visible = false
     this.contentMesh['customDepthMaterial'] = this.depthMaterial
 
@@ -67,6 +70,7 @@ export class WebLayer3DBase extends THREE.Group {
         t.wrapS = THREE.ClampToEdgeWrapping
         t.wrapT = THREE.ClampToEdgeWrapping
         t.minFilter = THREE.LinearFilter
+        if (this.options.textureEncoding) t.encoding = this.options.textureEncoding
         this.textures.set(video, t)
       }
       return t
@@ -80,6 +84,7 @@ export class WebLayer3DBase extends THREE.Group {
       t.wrapS = THREE.ClampToEdgeWrapping
       t.wrapT = THREE.ClampToEdgeWrapping
       t.minFilter = THREE.LinearFilter
+      if (this.options.textureEncoding) t.encoding = this.options.textureEncoding
       this.textures.set(canvas, t)
     } else if (this.textureNeedsUpdate) {
       this.textureNeedsUpdate = false
@@ -229,7 +234,7 @@ export class WebLayer3DBase extends THREE.Group {
       this.depthMaterial['map'] = texture
       this.depthMaterial.needsUpdate = true
       material.depthWrite = false
-      this.renderOrder = this.depth + this.index * 0.001
+      this.renderOrder = this.depth + this.index * 0.001 + (this.options.renderOrderOffset || 0)
       material.needsUpdate = true
     }
   }
