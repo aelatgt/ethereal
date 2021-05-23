@@ -31,11 +31,12 @@ export default class AppBase {
 
     scene = new THREE.Scene
     camera = new THREE.PerspectiveCamera
+    uiView = new THREE.PerspectiveCamera
 
     renderer = new THREE.WebGLRenderer(<any>{
         desynchronized: true,
         antialias: false,
-        alpha: true,
+        alpha: true
     })
 
     clock = new THREE.Clock

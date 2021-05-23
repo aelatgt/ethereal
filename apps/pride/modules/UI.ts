@@ -14,10 +14,13 @@ export default class UI {
     augmentations: {[name: string]: THREE.Object3D} = {}
 
     state = createState()
+
     prideVue = createApp(PrideVue).provide(STATE, this.state).mount(document.createElement('div'))
 
     pride = this.app.createWebLayerTree( this.prideVue.$el, {
-        layerSeparation: 0.002,
+        // init: () => {
+        //     this.pride
+        // },
         onLayerCreate: (layer) => {
             const adapter = this.app.system.getAdapter(layer)
             adapter.onUpdate = () => {
@@ -68,6 +71,7 @@ export default class UI {
                     back: '-10m',
                     center: {x:0,y:0}
                 })
+                .maximize()
 
             const flatLayout = adapter.createLayout()
                 .poseRelativeTo(this.app.camera) // attach the UI to the camera
@@ -75,9 +79,10 @@ export default class UI {
                 .keepAspect()
                 .visualBounds({
                     back: '-4m',
-                    size: {y: '100 vh', diagonal:{gt:'50vh'}},
+                    size: {y: '100 vh'},//, diagonal:{gt:'50vh'}},
                     center: {x: '0 vdeg', y:'0 vdeg'}
                 })
+                .maximize()
 
 
             adapter.onUpdate = () => {
@@ -193,9 +198,10 @@ export default class UI {
                 .poseRelativeTo(this.app.treadmill.snubber)
                 .keepAspect('xyz')
                 .orientation(Q_IDENTITY)
+                // .position({magnitude: {lt: '1m'}})
                 .bounds({
-                    // center: {magnitude: {lt: '100%'}},
-                    size: {diagonal: {lt: '100%'}}
+                    center: {distance: {lt: '1m'}},
+                    // size: {diagonal: {lt: '100%'}}
                 })
                 .visualBounds({
                     absolute: {

@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import * as ethereal from 'ethereal'
 
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh'
+import { PerspectiveCamera } from 'three'
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree
 THREE.Mesh.prototype.raycast = acceleratedRaycast
@@ -20,7 +21,7 @@ declare module 'three/src/core/BufferGeometry' {
 // TODO: switch to A-Frame
 export class App extends AppBase {
     pride = PrideAPI
-    system = ethereal.createLayoutSystem(this.camera)
+    system = ethereal.createLayoutSystem(new PerspectiveCamera)
     treadmill = new Treadmill(this)
     ui = new UI(this)
     ethereal = ethereal
@@ -28,7 +29,6 @@ export class App extends AppBase {
 
 const app = new App({
     onUpdate: (event) => {
-        app.system.viewFrustum.setFromPerspectiveProjectionMatrix(app.camera.projectionMatrix)
         app.renderer.getSize(app.system.viewResolution)
         app.system.update(event.deltaTime, event.elapsedTime)
     },
@@ -38,8 +38,9 @@ const app = new App({
     }
 })
 
-app.system.transition.duration = 1
-app.system.transition.debounce = 0//0.4
+app.system.transition.duration = 0.4
+app.system.transition.delay = 0
+app.system.transition.maxWait = 4
 app.system.transition.easing = ethereal.easing.easeOut
 
 app.start().catch((e: Error) => {

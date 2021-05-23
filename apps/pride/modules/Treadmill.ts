@@ -25,7 +25,7 @@ export default class Treadmill {
     )
 
     snubberAnchor = new THREE.Object3D()
-    snubberAnchorPosition = new THREE.Vector3().set(-0.33, 0.82, 0.18)
+    snubberAnchorPosition = new THREE.Vector3().set(-0.33, 0.92, 0.18)
     // snubberAnchorPosition = new THREE.Vector3().set(0.033, -0.062, 0.018)
 
     snubberMesh?: THREE.Mesh
