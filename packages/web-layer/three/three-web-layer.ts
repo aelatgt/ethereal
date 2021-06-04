@@ -230,10 +230,10 @@ export class WebLayer3DContent extends THREE.Object3D {
     }
     this.contentMesh.position.set(0,0,0)
     this.contentMesh.scale.copy(this.domSize)
-    this.contentMesh.quaternion.identity()
+    this.contentMesh.quaternion.set(0,0,0,1)
     this._boundsMesh.position.set(0,0,0)
     this._boundsMesh.scale.copy(this.domSize)
-    this._boundsMesh.quaternion.identity()
+    this._boundsMesh.quaternion.set(0,0,0,1)
     // handle layer visibiltiy or removal
     const mesh = this.contentMesh
     const mat = mesh.material as THREE.MeshBasicMaterial
