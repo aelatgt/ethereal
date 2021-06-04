@@ -44,7 +44,7 @@ export class NodeState<N extends Node3D=Node3D> {
     private _cachedLocalMatrix = this._cache.memoize(() => {
         this._localMatrix.decompose(this._localPosition, this._localOrientation, this._localScale)
         this._localOrientation.normalize()
-        this._localOrientationInverse.copy(this._localOrientation).inverse()
+        this._localOrientationInverse.copy(this._localOrientation).invert()
         this._localRotation.makeRotationFromQuaternion(this._localOrientation)
         this._localRotationInverse.makeRotationFromQuaternion(this._localOrientationInverse)
         return this._localMatrix
@@ -55,7 +55,7 @@ export class NodeState<N extends Node3D=Node3D> {
         if (!this._localMatrix.equals(val)) {
             this.invalidate()
             this._localMatrix.copy(val)
-            this._localMatrixInverse.getInverse(this._localMatrix)
+            this._localMatrixInverse.copy(this._localMatrix).invert()
         }
     }
 
@@ -116,8 +116,8 @@ export class NodeState<N extends Node3D=Node3D> {
             matrix.premultiply(parentState.worldMatrix)
         }
         matrix.decompose(this._worldPosition, this._worldOrientation, this._worldScale)
-        this._worldMatrixInverse.getInverse(this._worldMatrix)
-        this._worldOrientationInverse.copy(this._worldOrientation).inverse()
+        this._worldMatrixInverse.copy(this._worldMatrix).invert()
+        this._worldOrientationInverse.copy(this._worldOrientation).invert()
         this._worldRotation.makeRotationFromQuaternion(this._worldOrientation)
         this._worldRotationInverse.makeRotationFromQuaternion(this._worldOrientationInverse)
         return matrix
@@ -194,9 +194,9 @@ export class NodeState<N extends Node3D=Node3D> {
      */
     private _cachedSpatialMatrix = this._cache.memoize(() => {
         const spatialMatrix = this._spatialMatrix.compose(this.outerOrigin, this.worldOrientation, V_111) 
-        this._spatialMatrixInverse.getInverse(this._spatialMatrix)
+        this._spatialMatrixInverse.copy(this._spatialMatrix).invert()
         this._localFromSpatial.multiplyMatrices(this.worldMatrixInverse, spatialMatrix)
-        this._spatialFromLocal.getInverse(this._localFromSpatial)
+        this._spatialFromLocal.copy(this._localFromSpatial).invert()
         const reference = this.referenceState
         if (reference) {
             this._spatialFromReference.multiplyMatrices(this._spatialMatrixInverse, reference.worldMatrix)
@@ -404,7 +404,7 @@ export class NodeState<N extends Node3D=Node3D> {
      * Convert to parent frame from spatial frame
      */
     get spatialFromView() {
-        return this._spatialFromView.getInverse(this.viewFromSpatial)
+        return this._spatialFromView.copy(this.viewFromSpatial).invert()
     }
     private _spatialFromView = new Matrix4
 
@@ -462,7 +462,7 @@ export class NodeState<N extends Node3D=Node3D> {
     private _cachedVisualBounds = this._cache.memoize(() => {
         const system = this.metrics.system
         const projection = system.viewFrustum.perspectiveProjectionMatrix
-        const inverseProjection = this._inverseProjection.getInverse(projection)
+        const inverseProjection = this._inverseProjection.copy(projection).invert()
         const bounds = this._visualBounds.copy(this.ndcBounds)
         const v = this._v1
         const nearMeters = v.set(0,0,bounds.min.z).applyMatrix4(inverseProjection).z

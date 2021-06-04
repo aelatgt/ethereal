@@ -275,7 +275,8 @@ export default class AppBase {
         const l = new WebLayer3D(el, options)
         l.interactionRays = this.interactionRays
         this.webLayers.add(l)
-        return l
+        this.scene.add(l)
+        return l.rootLayer
     }
 
     // requestVuforiaTrackableFromDataSet() {}

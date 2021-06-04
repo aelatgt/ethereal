@@ -28,7 +28,7 @@ export declare const DIRECTION: {
 export { Vector2, Vector3, Vector4, Quaternion, Euler, Color, Box2, Box3, Ray, Line3, Plane, };
 export * from 'three/src/math/Matrix3';
 export * from 'three/src/math/Matrix4';
-export * from 'three/src/math/MathUtils';
+export * as MathUtils from 'three/src/math/MathUtils';
 export declare function computeRelativeDifference<T extends MathType = MathType>(start: T, end: T): number;
 export declare type MathType = number | Vector2 | Vector3 | Color | Quaternion | Box3;
 /**

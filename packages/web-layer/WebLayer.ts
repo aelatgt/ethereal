@@ -65,7 +65,7 @@ export class WebLayer {
   childLayers = [] as WebLayer[]
   pixelRatio?: number
 
-//   cssTransform = new Matrix4()
+  cssTransform:THREE.Matrix4|undefined
 
   cachedBounds: Map<string, Bounds> = new Map()
   cachedMargin: Map<string, Edges> = new Map()
@@ -197,7 +197,8 @@ export class WebLayer {
       // create svg markup
       const elementAttribute = WebRenderer.attributeHTML(WebRenderer.ELEMENT_UID_ATTRIBUTE,''+this.id)
       const layerElement = this.element as HTMLElement
-      const needsInlineBlock = getComputedStyle(layerElement).display === 'inline'
+      const computedStyle = getComputedStyle(layerElement)
+      const needsInlineBlock = computedStyle.display === 'inline'
       WebRenderer.updateInputAttributes(layerElement)
       const layerHTML = WebRenderer.serializer
         .serializeToString(layerElement)
@@ -212,6 +213,13 @@ export class WebLayer {
         'html',
         'html ' + WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE + '="" '
       )
+
+      if (computedStyle.transform) {
+        this.cssTransform = this.cssTransform || new THREE.Matrix4
+        WebRenderer.parseCSSTransform(computedStyle.transform, computedStyle.transformOrigin,this.cssTransform)
+      } else {
+        this.cssTransform = undefined
+      }
 
       const [svgCSS] = await Promise.all([
         WebRenderer.getEmbeddedCSS(this.element),

@@ -48,7 +48,7 @@ export default defineComponent({
         min-height: 100%;
         /* background-color:rgba(255,255,255,0.7); */
         font-family: 'Inconsolata', monospace;
-        background: linear-gradient(#bef67dcc, #7aece2cc);
+        background: linear-gradient(#bef67d, #7aece2);
         overflow: hidden;
         box-sizing: border-box;
         position: relative;

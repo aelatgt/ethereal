@@ -18,14 +18,9 @@ export default class UI {
     prideVue = createApp(PrideVue).provide(STATE, this.state).mount(document.createElement('div'))
 
     pride = this.app.createWebLayerTree( this.prideVue.$el, {
-        // init: () => {
-        //     this.pride
-        // },
         onLayerCreate: (layer) => {
             const adapter = this.app.system.getAdapter(layer)
-            adapter.onUpdate = () => {
-                layer.update()
-            }
+            adapter.onUpdate = () => layer.update()
         }
     })
     procedure = this.pride.querySelector('#procedure')!
@@ -61,7 +56,6 @@ export default class UI {
         }
 
         const setupPrideLayer = () => {
-            this.app.scene.add(this.pride)
             const adapter = this.app.system.getAdapter(this.pride)
 
             const immersiveLayout = adapter.createLayout()
@@ -99,7 +93,6 @@ export default class UI {
 
 
             const adapterContent = this.app.system.getAdapter(this.pride.contentMesh)
-            adapterContent.transition.duration = 1
             adapterContent.bounds.enabled = true
             adapterContent.onUpdate = () => {
                 if (this.state.immersiveMode) {
@@ -134,7 +127,6 @@ export default class UI {
             this.app.scene.add(this.snubberBox)
 
             const adapter = app.system.getAdapter(snubber)
-            adapter.transition.duration = 1
             adapter.transition.maxWait = 10
             
             const flatLayout = adapter.createLayout()
@@ -283,9 +275,9 @@ export default class UI {
                 this.augmentations[name] = augmentation
             }
             augmentation.position.copy(prideObject.position as any).multiplyScalar(0.01)
-            augmentation.rotation.x = prideObject.rotation.x * THREE.MathUtils.DEG2RAD
-            augmentation.rotation.y = prideObject.rotation.y * THREE.MathUtils.DEG2RAD
-            augmentation.rotation.z = prideObject.rotation.z * THREE.MathUtils.DEG2RAD
+            augmentation.rotation.x = prideObject.rotation.x * THREE.DEG2RAD
+            augmentation.rotation.y = prideObject.rotation.y * THREE.DEG2RAD
+            augmentation.rotation.z = prideObject.rotation.z * THREE.DEG2RAD
         }
     }
 

@@ -5,8 +5,8 @@ export interface WebLayer3DOptions {
     pixelRatio?: number;
     layerSeparation?: number;
     autoRefresh?: boolean;
-    onLayerCreate?(layer: WebLayer3DBase): void;
-    onAfterRasterize?(layer: WebLayer3DBase): void;
+    onLayerCreate?(layer: WebLayer3DContent): void;
+    onAfterRasterize?(layer: WebLayer3DContent): void;
     textureEncoding?: number;
     renderOrderOffset?: number;
 }
@@ -15,15 +15,21 @@ declare type Intersection = THREE.Intersection & {
     groupOrder: number;
 };
 export declare type WebLayerHit = ReturnType<typeof WebLayer3D.prototype.hitTest> & {};
-export declare class WebLayer3DBase extends THREE.Group {
-    options: WebLayer3DOptions;
+declare const ON_BEFORE_UPDATE: unique symbol;
+export declare class WebLayer3DContent extends THREE.Object3D {
     element: Element;
-    constructor(elementOrHTML: Element | string, options?: WebLayer3DOptions);
+    options: WebLayer3DOptions;
+    isRoot: boolean;
+    private _camera?;
+    constructor(element: Element, options?: WebLayer3DOptions);
     protected _webLayer: WebLayer;
+    private _localZ;
+    private _viewZ;
+    private _renderZ;
     textures: Map<HTMLCanvasElement | HTMLVideoElement, _THREE.Texture>;
     get currentTexture(): _THREE.Texture;
     textureNeedsUpdate: boolean;
-    contentMesh: _THREE.Mesh<_THREE.Geometry, _THREE.MeshBasicMaterial>;
+    contentMesh: _THREE.Mesh<_THREE.PlaneGeometry, _THREE.MeshBasicMaterial>;
     /**
      * This non-visible mesh ensures that an adapted layer retains
      * its innerBounds, even if the content mesh is
@@ -31,6 +37,9 @@ export declare class WebLayer3DBase extends THREE.Group {
      */
     private _boundsMesh;
     cursor: _THREE.Object3D;
+    /**
+     * Allows correct shadow maps
+     */
     depthMaterial: _THREE.MeshDepthMaterial;
     domLayout: _THREE.Object3D;
     domSize: _THREE.Vector3;
@@ -56,8 +65,8 @@ export declare class WebLayer3DBase extends THREE.Group {
     /** If true, this layer needs to be removed from the scene */
     get needsRemoval(): boolean;
     get bounds(): Bounds;
-    get parentWebLayer(): WebLayer3DBase | undefined;
-    childWebLayers: WebLayer3DBase[];
+    get parentWebLayer(): WebLayer3DContent | undefined;
+    childWebLayers: WebLayer3DContent[];
     /**
      * Specifies whether or not the DOM layout should be applied.
      *
@@ -75,15 +84,18 @@ export declare class WebLayer3DBase extends THREE.Group {
     /**
      * Refresh from DOM
      */
-    protected refresh(recurse?: boolean): void;
+    refresh(recurse?: boolean): void;
     private updateLayout;
     private updateContent;
+    get rootWebLayer(): WebLayer3DContent;
+    /** INTERNAL */
+    private [ON_BEFORE_UPDATE];
     protected _doUpdate(): void;
     update(recurse?: boolean): void;
-    querySelector(selector: string): WebLayer3DBase | undefined;
-    traverseLayerAncestors(each: (layer: WebLayer3DBase) => void): void;
-    traverseLayersPreOrder(each: (layer: WebLayer3DBase) => boolean | void): boolean;
-    traverseLayersPostOrder(each: (layer: WebLayer3DBase) => boolean | void): boolean;
+    querySelector(selector: string): WebLayer3DContent | undefined;
+    traverseLayerAncestors(each: (layer: WebLayer3DContent) => void): void;
+    traverseLayersPreOrder(each: (layer: WebLayer3DContent) => boolean | void): boolean;
+    traverseLayersPostOrder(each: (layer: WebLayer3DContent) => boolean | void): boolean;
     dispose(): void;
     private _refreshVideoBounds;
     private _refreshDOMLayout;
@@ -107,16 +119,16 @@ export declare class WebLayer3DBase extends THREE.Group {
  * Default dimensions: 1px = 0.001 world dimensions = 1mm (assuming meters)
  *     e.g., 500px width means 0.5meters
  */
-export declare class WebLayer3D extends WebLayer3DBase {
+export declare class WebLayer3D extends THREE.Object3D {
     options: WebLayer3DOptions;
-    static layersByElement: WeakMap<Element, WebLayer3DBase>;
-    static layersByMesh: WeakMap<_THREE.Mesh<_THREE.Geometry | _THREE.BufferGeometry, _THREE.Material | _THREE.Material[]>, WebLayer3DBase>;
+    static layersByElement: WeakMap<Element, WebLayer3DContent>;
+    static layersByMesh: WeakMap<_THREE.Mesh<_THREE.BufferGeometry, _THREE.Material | _THREE.Material[]>, WebLayer3DContent>;
     static DEFAULT_LAYER_SEPARATION: number;
     static DEFAULT_PIXELS_PER_UNIT: number;
-    static GEOMETRY: _THREE.Geometry;
+    static GEOMETRY: _THREE.PlaneGeometry;
     static computeNaturalDistance(projection: THREE.Matrix4 | THREE.Camera, renderer: THREE.WebGLRenderer): number;
-    static shouldApplyDOMLayout(layer: WebLayer3DBase): boolean;
-    get parentWebLayer(): WebLayer3DBase;
+    static shouldApplyDOMLayout(layer: WebLayer3DContent): boolean;
+    rootLayer: WebLayer3DContent;
     private _interactionRays;
     private _raycaster;
     private _hitIntersections;
@@ -128,19 +140,29 @@ export declare class WebLayer3D extends WebLayer3DBase {
     get interactionRays(): Array<THREE.Ray | THREE.Object3D>;
     set interactionRays(rays: Array<THREE.Ray | THREE.Object3D>);
     /**
-     * Update this layer, optionally recursively
+     * Run a query selector on the root layer
+     * @param selector
      */
-    update(recurse?: boolean): void;
+    querySelector(selector: string): WebLayer3DContent | undefined;
+    /**
+     * Refresh all layers, recursively
+     */
+    refresh(): void;
+    /**
+     * Update all layers, recursively
+     */
+    update(): void;
+    /** Get the content mesh of the root layer */
+    get contentMesh(): _THREE.Mesh<_THREE.PlaneGeometry, _THREE.MeshBasicMaterial>;
     private _previousHoverLayers;
     private _contentMeshes;
     private _prepareHitTest;
-    private _intersectionGetGroupOrder;
     private _intersectionSort;
     private _updateInteractions;
-    static getLayerForQuery(selector: string): WebLayer3DBase | undefined;
-    static getClosestLayerForElement(element: Element): WebLayer3DBase | undefined;
+    static getLayerForQuery(selector: string): WebLayer3DContent | undefined;
+    static getClosestLayerForElement(element: Element): WebLayer3DContent | undefined;
     hitTest(ray: THREE.Ray): {
-        layer: WebLayer3DBase;
+        layer: WebLayer3DContent;
         intersection: Intersection;
         target: HTMLElement;
     } | undefined;

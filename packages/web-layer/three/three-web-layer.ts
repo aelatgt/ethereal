@@ -15,8 +15,8 @@ export interface WebLayer3DOptions {
   pixelRatio?: number
   layerSeparation?: number
   autoRefresh?: boolean
-  onLayerCreate?(layer: WebLayer3DBase): void
-  onAfterRasterize?(layer: WebLayer3DBase): void,
+  onLayerCreate?(layer: WebLayer3DContent): void
+  onAfterRasterize?(layer: WebLayer3DContent): void,
   textureEncoding?: number,
   renderOrderOffset?: number
 }
@@ -27,16 +27,22 @@ type Intersection = THREE.Intersection & {groupOrder:number}
 
 export type WebLayerHit = ReturnType<typeof WebLayer3D.prototype.hitTest> & {}
 
+const scratchMatrix = new THREE.Matrix4
 const scratchVector = new THREE.Vector3()
 const scratchVector2 = new THREE.Vector3()
 const scratchBounds = new Bounds()
 const scratchBounds2 = new Bounds()
 
-export class WebLayer3DBase extends THREE.Group {
-  public element:Element
-  constructor(elementOrHTML: Element|string, public options: WebLayer3DOptions = {}) {
+const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE')
+
+export class WebLayer3DContent extends THREE.Object3D {
+
+  public isRoot = false
+
+  private _camera?:THREE.PerspectiveCamera
+
+  constructor(public element: Element, public options: WebLayer3DOptions = {}) {
     super()
-    const element = this.element = typeof elementOrHTML === 'string' ? DOM(elementOrHTML) : elementOrHTML
     this.name = element.id
     this._webLayer = WebRenderer.getClosestLayer(element)!
 
@@ -47,9 +53,11 @@ export class WebLayer3DBase extends THREE.Group {
     this.matrixAutoUpdate = true
 
     this.contentMesh.matrixAutoUpdate = true
-    this.contentMesh.material.toneMapped = false
     this.contentMesh.visible = false
     this.contentMesh['customDepthMaterial'] = this.depthMaterial
+    this.contentMesh.onBeforeRender = (renderer, scene, camera) => {
+      this._camera = camera as THREE.PerspectiveCamera
+    }
 
     this._boundsMesh.matrixAutoUpdate = true
 
@@ -58,6 +66,10 @@ export class WebLayer3DBase extends THREE.Group {
   }
 
   protected _webLayer : WebLayer
+
+  private _localZ = 0
+  private _viewZ = 0
+  private _renderZ = 0
 
   textures = new Map<HTMLCanvasElement | HTMLVideoElement, THREE.Texture>()
 
@@ -99,6 +111,7 @@ export class WebLayer3DBase extends THREE.Group {
   contentMesh = new THREE.Mesh(
     WebLayer3D.GEOMETRY,
     new THREE.MeshBasicMaterial({
+      side: THREE.DoubleSide,
       transparent: true,
       alphaTest: 0.001,
       opacity: 1
@@ -119,9 +132,12 @@ export class WebLayer3DBase extends THREE.Group {
 
   cursor = new THREE.Object3D()
 
+  /**
+   * Allows correct shadow maps
+   */
   depthMaterial = new THREE.MeshDepthMaterial({
     depthPacking: THREE.RGBADepthPacking,
-    alphaTest: 0.01
+    alphaTest: 0.001
   })
 
   domLayout = new THREE.Object3D()
@@ -165,14 +181,14 @@ export class WebLayer3DBase extends THREE.Group {
     return this._webLayer.bounds
   }
 
-  get parentWebLayer(): WebLayer3DBase | undefined {
+  get parentWebLayer(): WebLayer3DContent | undefined {
     return (
       this._webLayer.parentLayer &&
       WebLayer3D.layersByElement.get(this._webLayer.parentLayer.element)
     )
   }
 
-  childWebLayers: WebLayer3DBase[] = []
+  childWebLayers: WebLayer3DContent[] = []
 
   /**
    * Specifies whether or not the DOM layout should be applied.
@@ -192,7 +208,7 @@ export class WebLayer3DBase extends THREE.Group {
   /**
    * Refresh from DOM
    */
-  protected refresh(recurse=false) {
+  public refresh(recurse=false) {
     this._webLayer.refresh()
     this.childWebLayers.length = 0
     for (const c of this._webLayer.childLayers) {
@@ -209,10 +225,15 @@ export class WebLayer3DBase extends THREE.Group {
     this.position.copy(this.domLayout.position)
     this.quaternion.copy(this.domLayout.quaternion)
     this.scale.copy(this.domLayout.scale)
-    // this.contentMesh.position.set(0,0,0)
+    if (this._webLayer.cssTransform) {
+      this.applyMatrix4(this._webLayer.cssTransform)
+    }
+    this.contentMesh.position.set(0,0,0)
     this.contentMesh.scale.copy(this.domSize)
-    // this._boundsMesh.position.set(0,0,0)
+    this.contentMesh.quaternion.identity()
+    this._boundsMesh.position.set(0,0,0)
     this._boundsMesh.scale.copy(this.domSize)
+    this._boundsMesh.quaternion.identity()
     // handle layer visibiltiy or removal
     const mesh = this.contentMesh
     const mat = mesh.material as THREE.MeshBasicMaterial
@@ -231,15 +252,43 @@ export class WebLayer3DBase extends THREE.Group {
     const material = mesh.material as THREE.MeshBasicMaterial
     if (texture.image && material.map !== texture) {
       material.map = texture
+      material.depthWrite = false
+      material.needsUpdate = true
       this.depthMaterial['map'] = texture
       this.depthMaterial.needsUpdate = true
-      material.depthWrite = false
-      this.renderOrder = this.depth + this.index * 0.001 + (this.options.renderOrderOffset || 0)
-      material.needsUpdate = true
     }
+    material.transparent = true
+
+    if (!this._camera) return
+
+    this._localZ =
+      scratchVector.setFromMatrixPosition(this.matrix).z + 
+      scratchVector.setFromMatrixPosition(this.contentMesh.matrix).z
+    this._viewZ = this.contentMesh.getWorldPosition(scratchVector)
+      .distanceTo(this._camera.getWorldPosition(scratchVector2))
+    
+    let parentRenderZ = this.parentWebLayer ? this.parentWebLayer._renderZ : this._viewZ
+    
+    if (Math.abs(this._localZ) < 1e-8) { // coplanar? use parent renderZ
+      this._renderZ = parentRenderZ
+    } else {
+      this._renderZ = this._viewZ
+    }
+
+    this.contentMesh.renderOrder = (this.options.renderOrderOffset || 0) + 
+      (this._renderZ / this._camera.far)*0.001 +
+      (this.depth + this.index * 0.001)*0.00001
   }
 
+  get rootWebLayer() {
+    return WebLayer3D.layersByElement.get(this._webLayer.rootLayer.element)!
+  }
+
+  /** INTERNAL */
+  private [ON_BEFORE_UPDATE]() {}
+
   protected _doUpdate() {
+    this[ON_BEFORE_UPDATE]()
     this.updateLayout()
     this.updateContent()
     if (this.needsRefresh && this.options.autoRefresh) 
@@ -252,7 +301,7 @@ export class WebLayer3DBase extends THREE.Group {
     else this._doUpdate()
   }
 
-  querySelector(selector: string): WebLayer3DBase | undefined {
+  querySelector(selector: string): WebLayer3DContent | undefined {
     const element = this.element.querySelector(selector)
     if (element) {
       return WebLayer3D.layersByElement.get(element)
@@ -261,7 +310,7 @@ export class WebLayer3DBase extends THREE.Group {
   }
 
   traverseLayerAncestors(
-    each: (layer: WebLayer3DBase) => void
+    each: (layer: WebLayer3DContent) => void
   ) {
     const parentLayer = this.parentWebLayer
     if (parentLayer) {
@@ -271,7 +320,7 @@ export class WebLayer3DBase extends THREE.Group {
   }
 
   traverseLayersPreOrder(
-    each: (layer: WebLayer3DBase) => boolean|void
+    each: (layer: WebLayer3DContent) => boolean|void
   ) {
     if (each.call(this, this) === false) return false
     for (const child of this.childWebLayers) {
@@ -281,7 +330,7 @@ export class WebLayer3DBase extends THREE.Group {
   }
 
   traverseLayersPostOrder(
-    each: (layer: WebLayer3DBase) => boolean|void
+    each: (layer: WebLayer3DContent) => boolean|void
   ) : boolean {
     for (const child of this.childWebLayers) {
       if (child.traverseLayersPostOrder(each) === false) return false
@@ -371,7 +420,7 @@ export class WebLayer3DBase extends THREE.Group {
     if (!WebLayer3D.shouldApplyDOMLayout(this)) return
 
     const parentBounds =
-      this.parentWebLayer instanceof WebLayer3DBase
+      this.parentWebLayer instanceof WebLayer3DContent
         ? this.parentWebLayer.bounds
         : getViewportBounds(scratchBounds)
     const parentWidth = parentBounds.width
@@ -380,7 +429,7 @@ export class WebLayer3DBase extends THREE.Group {
     const leftEdge = -parentWidth / 2 + width / 2
     const topEdge = parentHeight / 2 - height / 2
 
-    const sep = this.options.layerSeparation || WebLayer3D.DEFAULT_LAYER_SEPARATION
+    // const sep = this.options.layerSeparation || WebLayer3D.DEFAULT_LAYER_SEPARATION
     
     this.domLayout.position.set(
       pixelSize * (leftEdge + bounds.left),
@@ -412,14 +461,14 @@ export class WebLayer3DBase extends THREE.Group {
  * Default dimensions: 1px = 0.001 world dimensions = 1mm (assuming meters)
  *     e.g., 500px width means 0.5meters
  */
-export class WebLayer3D extends WebLayer3DBase {
+export class WebLayer3D extends THREE.Object3D {
 
-  static layersByElement = new WeakMap<Element, WebLayer3DBase>()
-  static layersByMesh = new WeakMap<THREE.Mesh, WebLayer3DBase>()
+  static layersByElement = new WeakMap<Element, WebLayer3DContent>()
+  static layersByMesh = new WeakMap<THREE.Mesh, WebLayer3DContent>()
 
   static DEFAULT_LAYER_SEPARATION = 0.001
   static DEFAULT_PIXELS_PER_UNIT = 1000
-  static GEOMETRY = new THREE.PlaneGeometry(1, 1, 2, 2) as THREE.Geometry
+  static GEOMETRY = new THREE.PlaneGeometry(1, 1, 2, 2)
 
   static computeNaturalDistance(
     projection: THREE.Matrix4 | THREE.Camera,
@@ -437,30 +486,34 @@ export class WebLayer3D extends WebLayer3DBase {
     return naturalDistance
   }
   
-  static shouldApplyDOMLayout(layer: WebLayer3DBase) {
+  static shouldApplyDOMLayout(layer: WebLayer3DContent) {
     const should = layer.shouldApplyDOMLayout
     if ((should as any) === 'always' || should === true) return true
     if ((should as any) === 'never' || should === false) return false
     if (should === 'auto' && layer.parentWebLayer && layer.parent === layer.parentWebLayer) return true
     return false
   }
-
-  get parentWebLayer() {
-    return super.parentWebLayer!
-  }
+  
+  public rootLayer!:WebLayer3DContent
 
   private _interactionRays = [] as Array<THREE.Ray | THREE.Object3D>
   private _raycaster = new THREE.Raycaster()
   private _hitIntersections = [] as Intersection[]
 
   constructor(elementOrHTML: Element|string, public options: WebLayer3DOptions = {}) {
-    super(elementOrHTML, options)
+    super()
 
-    this._webLayer = WebRenderer.createLayerTree(this.element, (event, { target }) => {
+    const element = typeof elementOrHTML === 'string' ? DOM(elementOrHTML) : elementOrHTML
+
+    WebRenderer.createLayerTree(element, (event, { target }) => {
       if (event === 'layercreated') {
-        if (target === this.element) return
-        const layer = new WebLayer3DBase(target, this.options)
-        layer.parentWebLayer?.add(layer)
+        const layer = new WebLayer3DContent(target, this.options)
+        if (target === element) {
+          layer[ON_BEFORE_UPDATE] = () => this._updateInteractions()
+          layer.isRoot = true
+          this.rootLayer = layer
+          this.add(layer)
+        } else layer.parentWebLayer?.add(layer)
         if (this.options.onLayerCreate) this.options.onLayerCreate(layer)
       } else if (event === 'layerpainted') {
         const layer = WebRenderer.layers.get(target)!
@@ -471,9 +524,8 @@ export class WebLayer3D extends WebLayer3DBase {
         layer.parentWebLayer?.add(layer)
       }
     })
-    if (this.options.onLayerCreate) this.options.onLayerCreate(this)
 
-    this.refresh(true)
+    this.refresh()
     this.update()
   }
 
@@ -489,39 +541,57 @@ export class WebLayer3D extends WebLayer3DBase {
   }
 
   /**
-   * Update this layer, optionally recursively
+   * Run a query selector on the root layer
+   * @param selector 
    */
-  update(recurse=false) {
-    this._updateInteractions()
-    super.update(recurse)
+  querySelector(selector:string) : WebLayer3DContent|undefined {
+    return this.rootLayer.querySelector(selector)
   }
 
-  private _previousHoverLayers = new Set<WebLayer3DBase>()
+  /**
+   * Refresh all layers, recursively
+   */
+  refresh() {
+    this.rootLayer.refresh(true)
+  }
+
+  /**
+   * Update all layers, recursively
+   */
+  update() {
+    this.rootLayer.update(true)
+  }
+
+  /** Get the content mesh of the root layer */
+  get contentMesh() {
+    return this.rootLayer.contentMesh
+  }
+
+  private _previousHoverLayers = new Set<WebLayer3DContent>()
   private _contentMeshes = [] as THREE.Mesh[]
 
-  private _prepareHitTest = (layer:WebLayer3DBase) => {
+  private _prepareHitTest = (layer:WebLayer3DContent) => {
     if (layer.pseudoStates.hover) this._previousHoverLayers.add(layer)
     layer.cursor.visible = false
     layer.pseudoStates.hover = false
     this._contentMeshes.push(layer.contentMesh)
   }
 
-  private _intersectionGetGroupOrder(i:Intersection) {
-    let o = i.object as THREE.Group&THREE.Object3D
-    while (o.parent && !o.isGroup) {
-      o = o.parent as THREE.Group&THREE.Object3D
-    }
-    i.groupOrder = o.renderOrder
-  }
+  // private _intersectionGetGroupOrder(i:Intersection) {
+  //   let o = i.object as THREE.Group&THREE.Object3D
+  //   while (o.parent && !o.isGroup) {
+  //     o = o.parent as THREE.Group&THREE.Object3D
+  //   }
+  //   i.groupOrder = o.renderOrder
+  // }
 
   private _intersectionSort(a:Intersection,b:Intersection) {
-    if ( a.groupOrder !== b.groupOrder ) {
-		  return b.groupOrder - a.groupOrder
-	  } else if ( a.object.renderOrder !== b.object.renderOrder ) {
-      return b.object.renderOrder - a.object.renderOrder
-    } else {
-      return a.distance - b.distance
+    const aLayer = a.object.parent as WebLayer3DContent
+    const bLayer = b.object.parent as WebLayer3DContent
+    if (aLayer.depth !== bLayer.depth) {
+      return bLayer.depth - aLayer.depth
     }
+    return bLayer.index - aLayer.index
   }
 
   private _updateInteractions() {
@@ -530,7 +600,7 @@ export class WebLayer3D extends WebLayer3DBase {
     const prevHover = this._previousHoverLayers
     prevHover.clear()
     this._contentMeshes.length = 0
-    this.traverseLayersPreOrder(this._prepareHitTest)
+    this.rootLayer.traverseLayersPreOrder(this._prepareHitTest)
 
     for (const ray of this._interactionRays) {
       if (ray instanceof THREE.Ray) this._raycaster.ray.copy(ray)
@@ -541,11 +611,11 @@ export class WebLayer3D extends WebLayer3DBase {
         )
       this._hitIntersections.length = 0
       const intersections = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections) as Intersection[]
-      intersections.forEach(this._intersectionGetGroupOrder)
+      // intersections.forEach(this._intersectionGetGroupOrder)
       intersections.sort(this._intersectionSort)
       const intersection = intersections[0]
       if (intersection) {
-        const layer = intersection.object.parent as WebLayer3DBase
+        const layer = intersection.object.parent as WebLayer3DContent
         layer.cursor.position.copy(intersection.point)
         layer.cursor.visible = true
         layer.pseudoStates.hover = true
@@ -562,12 +632,12 @@ export class WebLayer3D extends WebLayer3DBase {
     }
   }
 
-  static getLayerForQuery(selector: string): WebLayer3DBase | undefined {
+  static getLayerForQuery(selector: string): WebLayer3DContent | undefined {
     const element = document.querySelector(selector)!
     return WebLayer3D.layersByElement.get(element)
   }
 
-  static getClosestLayerForElement(element: Element): WebLayer3DBase | undefined {
+  static getClosestLayerForElement(element: Element): WebLayer3DContent | undefined {
     const closestLayerElement =
       element && (element.closest(`[${WebRenderer.LAYER_ATTRIBUTE}]`) as HTMLElement)
     return WebLayer3D.layersByElement.get(closestLayerElement)
@@ -580,7 +650,7 @@ export class WebLayer3D extends WebLayer3DBase {
     raycaster.ray.copy(ray)
     intersections.length = 0
     raycaster.intersectObject(this, true, intersections)
-    intersections.forEach(this._intersectionGetGroupOrder)
+    // intersections.forEach(this._intersectionGetGroupOrder)
     intersections.sort(this._intersectionSort)
     for (const intersection of intersections) {
       const layer = meshMap!.get(intersection.object as any)
@@ -631,7 +701,7 @@ const _getFovsVector = new THREE.Vector3()
 const FORWARD = new THREE.Vector3(0, 0, -1)
 function getFovs(projectionMatrix: THREE.Matrix4) {
   const out = _fovs
-  const invProjection = _getFovsMatrix.getInverse(projectionMatrix)
+  const invProjection = _getFovsMatrix.getInverse(projectionMatrix) as THREE.Matrix4
   const vec = _getFovsVector
   out.left = vec
     .set(-1, 0, -1)

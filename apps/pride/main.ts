@@ -21,7 +21,7 @@ declare module 'three/src/core/BufferGeometry' {
 // TODO: switch to A-Frame
 export class App extends AppBase {
     pride = PrideAPI
-    system = ethereal.createLayoutSystem(new PerspectiveCamera)
+    system = ethereal.createLayoutSystem(this.camera)
     treadmill = new Treadmill(this)
     ui = new UI(this)
     ethereal = ethereal
@@ -38,9 +38,9 @@ const app = new App({
     }
 })
 
-app.system.transition.duration = 0.4
-app.system.transition.delay = 0
-app.system.transition.maxWait = 4
+app.system.transition.duration = 0
+// app.system.transition.delay = 0
+// app.system.transition.maxWait = 4
 app.system.transition.easing = ethereal.easing.easeOut
 
 app.start().catch((e: Error) => {

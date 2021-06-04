@@ -345,13 +345,11 @@ export class WebRenderer {
     return this.layers.get(closestLayerElement!)
   }
 
-  static getCSSTransformForElement(element: Element, out = new Matrix4()) {
-    const styles = getComputedStyle(element)
-    var transformcss = styles['transform']
-    if (transformcss.indexOf('matrix(') == 0) {
+  static parseCSSTransform(transform: string, transformOrigin:string, out = new Matrix4()) {
+    if (transform.indexOf('matrix(') == 0) {
       out.identity()
-      var mat = transformcss
-        .substring(7, transformcss.length - 1)
+      var mat = transform
+        .substring(7, transform.length - 1)
         .split(', ')
         .map(parseFloat)
       out.elements[0] = mat[0]
@@ -360,9 +358,9 @@ export class WebRenderer {
       out.elements[5] = mat[3]
       out.elements[12] = mat[4]
       out.elements[13] = mat[5]
-    } else if (transformcss.indexOf('matrix3d(') == 0) {
-      var mat = transformcss
-        .substring(9, transformcss.length - 1)
+    } else if (transform.indexOf('matrix3d(') == 0) {
+      var mat = transform
+        .substring(9, transform.length - 1)
         .split(', ')
         .map(parseFloat)
       out.fromArray(mat)
@@ -370,11 +368,11 @@ export class WebRenderer {
       return out.identity()
     }
 
-    var origincss = styles.transformOrigin.split(' ').map(parseFloat)
+    var origin = transformOrigin.split(' ').map(parseFloat)
 
-    var ox = origincss[0]
-    var oy = origincss[1]
-    var oz = origincss[2] || 0
+    var ox = origin[0]
+    var oy = origin[1]
+    var oz = origin[2] || 0
 
     var T1 = scratchMat1.identity().makeTranslation(-ox, -oy, -oz)
     var T2 = scratchMat2.identity().makeTranslation(ox, oy, oz)

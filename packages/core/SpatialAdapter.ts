@@ -343,28 +343,31 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         this.outerVisualBounds.update()
 
         if (this.onUpdate) {       
-            let nodeState = metrics.raw
-            const previousNodeParent = nodeState.parent
-            const previousNodeOrientation = this._prevNodeOrientation.copy(nodeState.localOrientation)
-            const previousNodeBounds = this._prevNodeBounds.copy(nodeState.spatialBounds)
+            // let nodeState = metrics.raw
+            // const previousNodeParent = nodeState.parent
+            // const previousNodeOrientation = this._prevNodeOrientation.copy(nodeState.localOrientation)
+            // const previousNodeBounds = this._prevNodeBounds.copy(nodeState.spatialBounds)
             this.onUpdate()
             metrics.invalidateIntrinsicBounds()
             metrics.invalidateInnerBounds()
             metrics.invalidateStates()
-            nodeState = metrics.raw // recompute
+            const rawState = metrics.raw // recompute
             if (!this.system.optimizer.update(this)) {
-                const orientation = nodeState.localOrientation
-                const bounds = nodeState.spatialBounds
-                if (previousNodeParent !== nodeState.parent) {
+                const differentParent = metrics.target.parent !== rawState.parent
+                if (differentParent) {
                     this.referenceNode = undefined
                 }
-                if (previousNodeParent !== nodeState.parent ||
-                    previousNodeOrientation.angleTo(orientation) > this.system.epsillonRadians) {
+                const targetOrientation = metrics.target.localOrientation
+                const orientation = rawState.localOrientation
+                if (differentParent ||
+                    targetOrientation.angleTo(orientation) > this.system.epsillonRadians) {
                     this.orientation.target = orientation
                 }
-                if (previousNodeParent !== nodeState.parent || 
-                    previousNodeBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||
-                    previousNodeBounds.max.distanceTo(bounds.max) > this.system.epsillonMeters) {
+                const targetBounds = metrics.target.spatialBounds
+                const bounds = rawState.spatialBounds
+                if (differentParent || 
+                    targetBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||
+                    targetBounds.max.distanceTo(bounds.max) > this.system.epsillonMeters) {
                     this.bounds.target = bounds
                 }
             }

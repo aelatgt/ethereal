@@ -7,11 +7,12 @@
     ]
   },
   "dependencies": {
+    "@types/three": "^0.129.0",
     "@vue/compiler-sfc": "^3.0.11",
     "ethereal": "file:packages/ethereal",
     "sass": "^1.32.12",
-    "three": "^0.122.0",
-    "three-mesh-bvh": "^0.2.0",
+    "three": "^0.129.0",
+    "three-mesh-bvh": "^0.3.7",
     "vue": "^3.0.11"
   },
   "devDependencies": {

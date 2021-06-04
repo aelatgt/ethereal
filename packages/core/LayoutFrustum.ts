@@ -221,7 +221,7 @@ export class LayoutFrustum {
     private _fullNDC = new Box3(new Vector3(-1,-1,-1), new Vector3(1,1,1))
     
     setFromPerspectiveProjectionMatrix(projectionMatrix: Matrix4, ndcBounds:Box3=this._fullNDC) {
-        const inverseProjection = this._inverseProjection.getInverse(projectionMatrix)
+        const inverseProjection = this._inverseProjection.copy(projectionMatrix).invert()
         const v = this._v1
         const forward = this._forwardDirection
         const leftDegrees   = Math.sign(ndcBounds.min.x) * v.set(ndcBounds.min.x,0,-1).applyMatrix4(inverseProjection).angleTo(forward) * MathUtils.RAD2DEG

@@ -9,6 +9,7 @@ import {Box3} from 'three/src/math/Box3'
 import {Ray} from 'three/src/math/Ray'
 import {Line3} from 'three/src/math/Line3'
 import {Plane} from 'three/src/math/Plane'
+
 // import {Matrix3} from 'three/src/math/Matrix3'
 // import {Matrix4} from 'three/src/math/Matrix4'
 
@@ -165,7 +166,7 @@ export {
 
 export * from 'three/src/math/Matrix3'
 export * from 'three/src/math/Matrix4'
-export * from 'three/src/math/MathUtils'
+export * as MathUtils from 'three/src/math/MathUtils'
 
 /*
 * The relative difference is a unitless scalar measure of the difference

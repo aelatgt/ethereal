@@ -6,7 +6,7 @@ import {
     Box3
 } from "@etherealjs/core/mod"
 
-export {WebLayer3D, WebLayer3DBase, WebRenderer, THREE, DOM as toDOM} from '@etherealjs/web-layer/mod'
+export {WebLayer3D, WebLayer3DContent, WebRenderer, THREE, DOM as toDOM} from '@etherealjs/web-layer/mod'
 export type {WebLayer3DOptions} from '@etherealjs/web-layer/mod'
 
 declare module 'three/src/core/Object3D' {

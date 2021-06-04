@@ -224,6 +224,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         
         if (this.queue.length > 0) {
             const t = this.queue[this.queue.length-1]
+            if (t.duration === 0) return 0
             return t.elapsed / t.duration
         }
         
@@ -423,7 +424,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
     private _blackColor = new Color(0,0,0)
 
     private _addTransitionToCurrent = (current:TransitionableType<T>, start:TransitionableType<T>, transition:Required<Transition<T>>) => {
-        const alpha = transition.easing( Math.min(transition.elapsed / transition.duration, 1) )
+        const alpha = transition.duration > 0 ? transition.easing( Math.min(transition.elapsed / transition.duration, 1) ) : 1
         const target = transition.target
 
         if (typeof target === 'number') {
@@ -453,7 +454,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const c = current as THREE.Quaternion
             const s = start as THREE.Quaternion
             const e = target as THREE.Quaternion
-            const amount = this._scratchQ.copy(s).inverse().multiply(e).slerp(Q_IDENTITY, 1-alpha)
+            const amount = this._scratchQ.copy(s).invert().multiply(e).slerp(Q_IDENTITY, 1-alpha)
             this._current = c.multiply(amount).normalize() as any
             return
         } 
