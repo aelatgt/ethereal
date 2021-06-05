@@ -226,7 +226,11 @@ export class WebLayer3DContent extends THREE.Object3D {
     this.quaternion.copy(this.domLayout.quaternion)
     this.scale.copy(this.domLayout.scale)
     if (this._webLayer.cssTransform) {
-      this.applyMatrix4(this._webLayer.cssTransform)
+        if (this.applyMatrix) {
+            this.applyMatrix(this._webLayer.cssTransform)
+        } else {
+            this.applyMatrix4(this._webLayer.cssTransform)
+        }
     }
     this.contentMesh.position.set(0,0,0)
     this.contentMesh.scale.copy(this.domSize)
@@ -276,8 +280,9 @@ export class WebLayer3DContent extends THREE.Object3D {
     }
 
     this.contentMesh.renderOrder = (this.options.renderOrderOffset || 0) + 
-      (this._renderZ / this._camera.far)*0.001 +
-      (this.depth + this.index * 0.001)*0.00001
+      (1 - Math.log(this._renderZ + 1) / Math.log(this._camera.far + 1))+
+      //(1- this._renderZ / this._camera.far) +
+      (this.depth + this.index * 0.001)*0.000001
   }
 
   get rootWebLayer() {
