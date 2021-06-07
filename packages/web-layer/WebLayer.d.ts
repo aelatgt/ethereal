@@ -28,7 +28,6 @@ export declare class WebLayer {
     parentLayer?: WebLayer;
     childLayers: WebLayer[];
     pixelRatio?: number;
-    cssTransform: THREE.Matrix4 | undefined;
     cachedBounds: Map<string, Bounds>;
     cachedMargin: Map<string, Edges>;
     private _dynamicAttributes;

@@ -48,7 +48,7 @@ export declare class WebRenderer {
     static createLayerTree(element: Element, eventCallback: EventCallback): WebLayer;
     static disposeLayer(layer: WebLayer): void;
     static getClosestLayer(element: Element | null): WebLayer | undefined;
-    static parseCSSTransform(transform: string, transformOrigin: string, out?: Matrix4): Matrix4;
+    static parseCSSTransform(computedStyle: CSSStyleDeclaration, width: number, height: number, pixelSize: number, out?: Matrix4): Matrix4 | null;
     static embedExternalResources(element: Element): Promise<void[]>;
     static pauseMutationObservers(): void;
     static resumeMutationObservers(): void;

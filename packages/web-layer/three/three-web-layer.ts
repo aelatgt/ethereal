@@ -225,9 +225,6 @@ export class WebLayer3DContent extends THREE.Object3D {
     this.position.copy(this.domLayout.position)
     this.quaternion.copy(this.domLayout.quaternion)
     this.scale.copy(this.domLayout.scale)
-    if (this._webLayer.cssTransform) {
-      this.applyMatrix4(this._webLayer.cssTransform)
-    }
     this.contentMesh.position.set(0,0,0)
     this.contentMesh.scale.copy(this.domSize)
     this.contentMesh.quaternion.set(0,0,0,1)
@@ -291,7 +288,7 @@ export class WebLayer3DContent extends THREE.Object3D {
     this[ON_BEFORE_UPDATE]()
     this.updateLayout()
     this.updateContent()
-    if (this.needsRefresh && this.options.autoRefresh) 
+    if (this.needsRefresh && this.options.autoRefresh !== false) 
       this.refresh()
     WebRenderer.scheduleTasksIfNeeded()
   }
@@ -435,10 +432,17 @@ export class WebLayer3DContent extends THREE.Object3D {
       pixelSize * (leftEdge + bounds.left),
       pixelSize * (topEdge - bounds.top),
       0
-      // this.depth * sep +
-      //   (this.parentWebLayer ? this.parentWebLayer.index * sep * 0.01 : 0) +
-      //   this.index * sep * 0.001
     )
+
+    const computedStyle = getComputedStyle(this.element)
+    if (computedStyle.transform) {
+      const cssTransform = WebRenderer.parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix)
+      if (cssTransform) {
+        this.domLayout.updateMatrix()
+        this.domLayout.matrix.multiply(cssTransform)
+        this.domLayout.matrix.decompose(this.domLayout.position, this.domLayout.quaternion, this.domLayout.scale)
+      }
+    }
   }
 }
 

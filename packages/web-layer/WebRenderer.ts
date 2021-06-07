@@ -345,7 +345,10 @@ export class WebRenderer {
     return this.layers.get(closestLayerElement!)
   }
 
-  static parseCSSTransform(transform: string, transformOrigin:string, out = new Matrix4()) {
+  static parseCSSTransform(computedStyle:CSSStyleDeclaration, width:number, height:number, pixelSize:number, out = new Matrix4()) {
+    const transform = computedStyle.transform
+    const transformOrigin = computedStyle.transformOrigin
+
     if (transform.indexOf('matrix(') == 0) {
       out.identity()
       var mat = transform
@@ -365,17 +368,27 @@ export class WebRenderer {
         .map(parseFloat)
       out.fromArray(mat)
     } else {
-      return out.identity()
+      return null
     }
+
+    if (out.elements[0] === 0) out.elements[0] = 1e-15
+    if (out.elements[5] === 0) out.elements[5] = 1e-15
+    if (out.elements[10] === 0) out.elements[10] = 1e-15
+    out.elements[12] *= pixelSize
+    out.elements[13] *= pixelSize
 
     var origin = transformOrigin.split(' ').map(parseFloat)
 
-    var ox = origin[0]
-    var oy = origin[1]
+    var ox = (origin[0] - width/2) * pixelSize
+    var oy = (origin[1] - height/2) * pixelSize
     var oz = origin[2] || 0
 
     var T1 = scratchMat1.identity().makeTranslation(-ox, -oy, -oz)
     var T2 = scratchMat2.identity().makeTranslation(ox, oy, oz)
+
+    for (const e of out.elements) {
+      if (isNaN(e)) return null
+    }
 
     return out.premultiply(T2).multiply(T1)
   }

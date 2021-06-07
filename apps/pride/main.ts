@@ -38,7 +38,7 @@ const app = new App({
     }
 })
 
-app.system.transition.duration = 0
+app.system.transition.duration = 1
 // app.system.transition.delay = 0
 // app.system.transition.maxWait = 4
 app.system.transition.easing = ethereal.easing.easeOut

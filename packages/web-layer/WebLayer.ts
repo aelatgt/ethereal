@@ -65,8 +65,6 @@ export class WebLayer {
   childLayers = [] as WebLayer[]
   pixelRatio?: number
 
-  cssTransform:THREE.Matrix4|undefined
-
   cachedBounds: Map<string, Bounds> = new Map()
   cachedMargin: Map<string, Edges> = new Map()
 
@@ -213,13 +211,6 @@ export class WebLayer {
         'html',
         'html ' + WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE + '="" '
       )
-
-      if (computedStyle.transform) {
-        this.cssTransform = this.cssTransform || new THREE.Matrix4
-        WebRenderer.parseCSSTransform(computedStyle.transform, computedStyle.transformOrigin,this.cssTransform)
-      } else {
-        this.cssTransform = undefined
-      }
 
       const [svgCSS] = await Promise.all([
         WebRenderer.getEmbeddedCSS(this.element),
