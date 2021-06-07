@@ -273,8 +273,9 @@ export class WebLayer3DContent extends THREE.Object3D {
     }
 
     this.contentMesh.renderOrder = (this.options.renderOrderOffset || 0) + 
-      (this._renderZ / this._camera.far)*0.001 +
-      (this.depth + this.index * 0.001)*0.00001
+      (1 - Math.log(this._renderZ + 1) / Math.log(this._camera.far + 1))+
+      //(1- this._renderZ / this._camera.far) +
+      (this.depth + this.index * 0.001)*0.000001
   }
 
   get rootWebLayer() {
@@ -474,21 +475,21 @@ export class WebLayer3D extends THREE.Object3D {
   static DEFAULT_PIXELS_PER_UNIT = 1000
   static GEOMETRY = new THREE.PlaneGeometry(1, 1, 2, 2)
 
-  static computeNaturalDistance(
-    projection: THREE.Matrix4 | THREE.Camera,
-    renderer: THREE.WebGLRenderer
-  ) {
-    let projectionMatrix = projection as  THREE.Matrix4
-    if ((projection as THREE.Camera).isCamera) {
-      projectionMatrix = (projection as THREE.Camera).projectionMatrix
-    }
-    const pixelRatio = renderer.getPixelRatio()
-    const widthPixels = renderer.domElement.width / pixelRatio
-    const width = WebLayer3D.DEFAULT_PIXELS_PER_UNIT * widthPixels
-    const horizontalFOV = getFovs(projectionMatrix).horizontal
-    const naturalDistance = width / 2 / Math.tan(horizontalFOV / 2)
-    return naturalDistance
-  }
+  // static computeNaturalDistance(
+  //   projection: THREE.Matrix4 | THREE.Camera,
+  //   renderer: THREE.WebGLRenderer
+  // ) {
+  //   let projectionMatrix = projection as  THREE.Matrix4
+  //   if ((projection as THREE.Camera).isCamera) {
+  //     projectionMatrix = (projection as THREE.Camera).projectionMatrix
+  //   }
+  //   const pixelRatio = renderer.getPixelRatio()
+  //   const widthPixels = renderer.domElement.width / pixelRatio
+  //   const width = WebLayer3D.DEFAULT_PIXELS_PER_UNIT * widthPixels
+  //   const horizontalFOV = getFovs(projectionMatrix).horizontal
+  //   const naturalDistance = width / 2 / Math.tan(horizontalFOV / 2)
+  //   return naturalDistance
+  // }
   
   static shouldApplyDOMLayout(layer: WebLayer3DContent) {
     const should = layer.shouldApplyDOMLayout
@@ -690,40 +691,40 @@ export class WebLayer3D extends THREE.Object3D {
 
 }
 
-class CameraFOVs {
-  top = 0
-  left = 0
-  bottom = 0
-  right = 0
-  horizontal = 0
-  vertical = 0
-}
+// class CameraFOVs {
+//   top = 0
+//   left = 0
+//   bottom = 0
+//   right = 0
+//   horizontal = 0
+//   vertical = 0
+// }
 
-const _fovs = new CameraFOVs()
-const _getFovsMatrix = new THREE.Matrix4()
-const _getFovsVector = new THREE.Vector3()
-const FORWARD = new THREE.Vector3(0, 0, -1)
-function getFovs(projectionMatrix: THREE.Matrix4) {
-  const out = _fovs
-  const invProjection = _getFovsMatrix.getInverse(projectionMatrix) as THREE.Matrix4
-  const vec = _getFovsVector
-  out.left = vec
-    .set(-1, 0, -1)
-    .applyMatrix4(invProjection)
-    .angleTo(FORWARD)
-  out.right = vec
-    .set(1, 0, -1)
-    .applyMatrix4(invProjection)
-    .angleTo(FORWARD)
-  out.top = vec
-    .set(0, 1, -1)
-    .applyMatrix4(invProjection)
-    .angleTo(FORWARD)
-  out.bottom = vec
-    .set(0, -1, -1)
-    .applyMatrix4(invProjection)
-    .angleTo(FORWARD)
-  out.horizontal = out.right + out.left
-  out.vertical = out.top + out.bottom
-  return out
-}
+// const _fovs = new CameraFOVs()
+// const _getFovsMatrix = new THREE.Matrix4()
+// const _getFovsVector = new THREE.Vector3()
+// const FORWARD = new THREE.Vector3(0, 0, -1)
+// function getFovs(projectionMatrix: THREE.Matrix4) {
+//   const out = _fovs
+//   const invProjection = _getFovsMatrix.getInverse(projectionMatrix) as THREE.Matrix4
+//   const vec = _getFovsVector
+//   out.left = vec
+//     .set(-1, 0, -1)
+//     .applyMatrix4(invProjection)
+//     .angleTo(FORWARD)
+//   out.right = vec
+//     .set(1, 0, -1)
+//     .applyMatrix4(invProjection)
+//     .angleTo(FORWARD)
+//   out.top = vec
+//     .set(0, 1, -1)
+//     .applyMatrix4(invProjection)
+//     .angleTo(FORWARD)
+//   out.bottom = vec
+//     .set(0, -1, -1)
+//     .applyMatrix4(invProjection)
+//     .angleTo(FORWARD)
+//   out.horizontal = out.right + out.left
+//   out.vertical = out.top + out.bottom
+//   return out
+// }

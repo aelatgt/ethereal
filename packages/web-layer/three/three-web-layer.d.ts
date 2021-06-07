@@ -126,7 +126,6 @@ export declare class WebLayer3D extends THREE.Object3D {
     static DEFAULT_LAYER_SEPARATION: number;
     static DEFAULT_PIXELS_PER_UNIT: number;
     static GEOMETRY: _THREE.PlaneGeometry;
-    static computeNaturalDistance(projection: THREE.Matrix4 | THREE.Camera, renderer: THREE.WebGLRenderer): number;
     static shouldApplyDOMLayout(layer: WebLayer3DContent): boolean;
     rootLayer: WebLayer3DContent;
     private _interactionRays;
