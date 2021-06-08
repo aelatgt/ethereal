@@ -147,7 +147,7 @@ export class WebLayer3DContent extends THREE.Object3D {
    * Get the hover state
    */
   get pseudoStates() {
-    return this._webLayer.psuedoStates
+    return this._webLayer.pseudoStates
   }
 
   /**
@@ -261,8 +261,7 @@ export class WebLayer3DContent extends THREE.Object3D {
     this._localZ =
       scratchVector.setFromMatrixPosition(this.matrix).z + 
       scratchVector.setFromMatrixPosition(this.contentMesh.matrix).z
-    this._viewZ = this.contentMesh.getWorldPosition(scratchVector)
-      .distanceTo(this._camera.getWorldPosition(scratchVector2))
+    this._viewZ = this.contentMesh.getWorldPosition(scratchVector).applyMatrix4(this._camera.matrixWorldInverse).z
     
     let parentRenderZ = this.parentWebLayer ? this.parentWebLayer._renderZ : this._viewZ
     
@@ -274,8 +273,7 @@ export class WebLayer3DContent extends THREE.Object3D {
 
     this.contentMesh.renderOrder = (this.options.renderOrderOffset || 0) + 
       (1 - Math.log(this._renderZ + 1) / Math.log(this._camera.far + 1))+
-      //(1- this._renderZ / this._camera.far) +
-      (this.depth + this.index * 0.001)*0.000001
+      (this.depth + this.index * 0.001)*0.0000001
   }
 
   get rootWebLayer() {
@@ -436,7 +434,8 @@ export class WebLayer3DContent extends THREE.Object3D {
     )
 
     const computedStyle = getComputedStyle(this.element)
-    if (computedStyle.transform) {
+    const transform = computedStyle.transform
+    if (transform && transform !== 'none') {
       const cssTransform = WebRenderer.parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix)
       if (cssTransform) {
         this.domLayout.updateMatrix()

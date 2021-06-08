@@ -296,7 +296,7 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
     /**
      * Add a layout with an associated behavior.
      */
-    createLayout() {
+    createLayout() : SpatialLayout {
         const layout = new SpatialLayout(this)
         this.layouts.push(layout)
         return layout
@@ -357,13 +357,13 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
                 if (differentParent) {
                     this.referenceNode = undefined
                 }
-                const targetOrientation = metrics.target.localOrientation
+                const targetOrientation = this.orientation.target // metrics.target.localOrientation
                 const orientation = rawState.localOrientation
                 if (differentParent ||
                     targetOrientation.angleTo(orientation) > this.system.epsillonRadians) {
                     this.orientation.target = orientation
                 }
-                const targetBounds = metrics.target.spatialBounds
+                const targetBounds = this.bounds.target // metrics.target.spatialBounds
                 const bounds = rawState.spatialBounds
                 if (differentParent || 
                     targetBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||

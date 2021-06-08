@@ -31,7 +31,7 @@ export declare class WebRenderer {
     static readonly focusElement: HTMLElement | null;
     static readonly activeElement: Element | null;
     static readonly targetElement: Element | null;
-    static getPsuedoAttributes(states: typeof WebLayer.prototype.psuedoStates): string;
+    static getPsuedoAttributes(states: typeof WebLayer.prototype.pseudoStates): string;
     static rootNodeObservers: Map<Document | ShadowRoot, MutationObserver>;
     static initRootNodeObservation(element: Element): void;
     static addToSerializeQueue(layer: WebLayer): void;

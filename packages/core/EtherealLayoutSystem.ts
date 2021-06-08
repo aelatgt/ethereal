@@ -85,7 +85,7 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
         maxInfeasibleTime: 10,
         relativeTolerance: 0.6, 
         maxIterationsPerFrame: 30, // iterations per frame per layout
-        swarmSize: 40, // solutions per layout
+        swarmSize: 10, // solutions per layout
         pulseFrequencyMin: 0, // minimal exploitation pulse
         pulseFrequencyMax: 1, // maximal exploitation pulse
         pulseRate: 0.1, // The ratio of directed exploitation vs random exploration,
@@ -210,7 +210,7 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
             this.mathScope.vdeg = this.math.unit(this.viewResolution.y/this.viewFrustum.sizeDegrees.y,'px')
             this.mathScope.vw = this.math.unit(this.viewResolution.x/100,'px')
             this.mathScope.vh = this.math.unit(this.viewResolution.y/100,'px')
-            this.measureNumberCache.clear()
+            this.measureNumberCache = {}
         }
         this._prevResolution.copy(this.viewResolution)
         this._prevSize.copy(this.viewFrustum.sizeDegrees)
@@ -245,11 +245,11 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
 
     }
 
-    private measureNumberCache = new Map<string, number>()
+    private measureNumberCache = {} as {[measure:string]:number}
 
     measureNumber(measure:string|number, unit?:string|math.Unit) {
         if (typeof measure === 'number') return measure
-        if (this.measureNumberCache?.has(measure)) return this.measureNumberCache.get(measure)!
+        if (measure in this.measureNumberCache) return this.measureNumberCache[measure]
 
         if (!this.mathCompiledExpressions.has(measure)) {
             const node = this.math.parse(measure)
@@ -260,7 +260,7 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
         const result = code.evaluate(this.mathScope)
         const value = typeof result === 'number' ? result :
             this.math.number(code.evaluate(this.mathScope), unit!)
-        this.measureNumberCache?.set(measure, value)
+        this.measureNumberCache[measure] = value
         return value
     }
 }

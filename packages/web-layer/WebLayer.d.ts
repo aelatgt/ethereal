@@ -14,7 +14,7 @@ export declare class WebLayer {
     constructor(element: Element, eventCallback: EventCallback);
     needsRefresh: boolean;
     needsRemoval: boolean;
-    psuedoStates: {
+    pseudoStates: {
         hover: boolean;
         active: boolean;
         focus: boolean;
@@ -46,6 +46,7 @@ export declare class WebLayer {
     refresh(): void;
     private _updateParentAndChildLayers;
     private _tryConvertElementToWebLayer;
+    serializationReplacer: (node: Node) => string | undefined;
     serialize(): Promise<void>;
     rasterize(): Promise<void>;
     render(): void;

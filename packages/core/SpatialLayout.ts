@@ -196,9 +196,18 @@ export class SpatialLayout extends OptimizerConfig {
 
     /** stable-sort objectives by priority */
     sortObjectives() {
+        const sys = this.adapter.system
         const objectives = this.objectives as Array<SpatialObjective>
         let index = 0
-        for (const o of objectives) o.index = index++
+        for (const o of objectives) {
+            o.index = index++
+            o.computedAbsoluteTolerance = o.absoluteTolerance !== undefined ? 
+                sys.measureNumber(o.absoluteTolerance, sys.mathScope[o.type]) :
+                this.getComputedAbsoluteTolerance(o.type)
+            o.computedRelativeTolerance = o.relativeTolerance ??
+                this.relativeTolerance ??
+                this.adapter.system.optimize.relativeTolerance
+        }
         objectives.sort(this._prioritySort)
     }
 
@@ -241,10 +250,10 @@ export class SpatialLayout extends OptimizerConfig {
      */
     compareSolutions = (a:LayoutSolution, b:LayoutSolution) => {
 
-        const aMin = a.bounds.min
-        const aMax = a.bounds.max
-        if (isNaN(aMin.x)||isNaN(aMin.y)||isNaN(aMin.z)||isNaN(aMax.x)||isNaN(aMax.y)||isNaN(aMax.z))
-            return 1
+        // const aMin = a.bounds.min
+        // const aMax = a.bounds.max
+        // if (isNaN(aMin.x)||isNaN(aMin.y)||isNaN(aMin.z)||isNaN(aMax.x)||isNaN(aMax.y)||isNaN(aMax.z))
+        //     return 1
 
         const objectives = this.objectives
         if (a.scores.length < objectives.length) return 1
@@ -526,7 +535,7 @@ export class LayoutSolution {
         adapter.referenceNode = layout.referenceNode
         adapter.orientation.target = this.orientation
         adapter.bounds.target = this.bounds
-        adapter.metrics.invalidateStates()
+        adapter.metrics.invalidateStates(false)
         if (evaluate) {
             this.isFeasible = true
             for (let i=0; i < layout.objectives.length; i++) {

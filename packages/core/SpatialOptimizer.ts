@@ -145,6 +145,7 @@ export class SpatialOptimizer<N extends Node3D> {
     private _updateLayout(adapter:SpatialAdapter<any>, layout:SpatialLayout) {
         adapter.measureBoundsCache.clear()
 
+        layout.sortObjectives()
         const solutions = layout.solutions
         const c = this._config
         const newSolution = this._scratchSolution
@@ -161,14 +162,16 @@ export class SpatialOptimizer<N extends Node3D> {
         this._manageSolutionPopulation(adapter, layout, c.swarmSize, c.stepSizeStart)
 
         // rescore previous best solution (in case the score changed)
-        // solutions[0].apply()
-        for (const s of solutions) s.apply()
-        layout.sortSolutions()
+        solutions[0].apply()
+        // for (const s of solutions) s.apply()
+        // layout.sortSolutions()
 
         // optimize solutions
         for (let i=0; i< iterations; i++) {
             layout.iteration++
             bestSolution.copy(solutions[0])
+            
+            let changed = false
 
             // update solutions
             for (let j=0; j < solutions.length; j++) {
@@ -207,6 +210,7 @@ export class SpatialOptimizer<N extends Node3D> {
                     if (solution !== solutions[0] && layout.compareSolutions(solution, solutions[0]) < 0) {
                         solutions[0].copy(solution)
                     }
+                    changed = true
                 }
            
                 // adapt step size
@@ -221,6 +225,7 @@ export class SpatialOptimizer<N extends Node3D> {
                             layout.restartRate = 0.001 + (1-0.001) * layout.restartRate
                             solution.randomize(1)
                             solution.apply()
+                            changed = true
                         }
                         // solution.bestScores.length = 0
                         // for (const s of solution.scores) solution.bestScores.push(s)
@@ -236,7 +241,7 @@ export class SpatialOptimizer<N extends Node3D> {
             }
 
             // best solution may have changed
-            layout.sortSolutions()
+            if (changed) layout.sortSolutions()
             if (layout.compareSolutions(bestSolution, solutions[0]) <= 0) {
                 layout.successRate = (1-0.005) * layout.successRate
             } else {

@@ -54,10 +54,10 @@ export declare abstract class SpatialObjective {
     get bestScore(): number;
     relativeTolerance?: number;
     absoluteTolerance?: number | string;
+    computedAbsoluteTolerance: number;
+    computedRelativeTolerance: number;
     priority: number;
     index: number;
-    get computedRelativeTolerance(): number;
-    get computedAbsoluteTolerance(): number;
     layout: SpatialLayout;
     constructor(layout: SpatialLayout);
     abstract evaluate(): number;

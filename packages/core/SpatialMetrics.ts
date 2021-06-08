@@ -2,6 +2,7 @@
 import { Box3, Vector3, Quaternion, Matrix4, V_000, DIRECTION, V_111, Box2, Vector2, Q_IDENTITY } from './math-utils'
 import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem'
 import { MemoizationCache } from './MemoizationCache'
+import { SpatialAdapter } from './SpatialAdapter'
 
 const InternalRawState = Symbol("raw")
 const InternalCurrentState = Symbol("current")
@@ -33,8 +34,7 @@ export class NodeState<N extends Node3D=Node3D> {
     private _parent : N|null = null
 
     get parentState() {
-        const parentMetrics = this.parent && this.metrics.system.getMetrics(this.parent)
-        return parentMetrics?.[this.mode]
+        return this.metrics.parentMetrics?.[this.mode]
     }
     
     get referenceState() {
@@ -643,6 +643,12 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
     
     needsUpdate = true
 
+    parentNode! : N|null
+    parentMetrics! : SpatialMetrics<N>|null
+    referenceMetrics? : SpatialMetrics<N>|null
+
+    private _adapter? : SpatialAdapter<N>
+
     /**
      * Update metrics, if necessary
      */
@@ -650,13 +656,18 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         if (this.needsUpdate) {
             this.needsUpdate = false
 
-            this.previousTarget.parent = this.target.parent
-            this.previousTarget.localMatrix = this.target.localMatrix
+            // this.previousTarget.parent = this.target.parent
+            // this.previousTarget.localMatrix = this.target.localMatrix
+
+            const adapter = this._adapter = this.system.nodeAdapters.get(this.node)
+
+            this.parentNode = this.raw.parent
+            this.parentMetrics = this.parentNode && this.system.getMetrics(this.parentNode)
+            this.referenceMetrics = adapter?.referenceNode && this.system.getMetrics(adapter.referenceNode)
 
             this.parentMetrics?.update()
             this.referenceMetrics?.update()
 
-            const adapter = this.system.nodeAdapters.get(this.node)
 
             if (adapter) {
 
@@ -676,11 +687,10 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         if (this.node !== this.system.viewNode) {
             inner.copy(this.intrinsicBounds)
             const childBounds = this._childBounds
-            for (const c of this.boundsChildren) {
-                const childMetrics = this.system.getMetrics(c)
-                childMetrics.invalidateStates()
-                childBounds.copy(childMetrics.innerBounds)
-                childBounds.applyMatrix4(childMetrics.raw.localMatrix)
+            for (const c of this.boundingChildMetrics) {
+                c.invalidateStates()
+                childBounds.copy(c.innerBounds)
+                childBounds.applyMatrix4(c.raw.localMatrix)
                 inner.union(childBounds)
             }
         }
@@ -758,9 +768,8 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
      */
     invalidateIntrinsicBounds() {
         this._intrinsicBoundsNeedsUpdate = true
-        for (const c of this.boundsChildren) {
-            const childMetrics = this.system.getMetrics(c)
-            childMetrics.invalidateIntrinsicBounds()
+        for (const c of this.boundingChildMetrics) {
+            c.invalidateIntrinsicBounds()
         }
     }
 
@@ -769,9 +778,8 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         this._cachedNodeChildren.needsUpdate = true
         this._cachedBoundsChildren.needsUpdate = true
         this._cachedInnerBounds.needsUpdate = true
-        for (const c of this.boundsChildren) {
-            const childMetrics = this.system.getMetrics(c)
-            childMetrics.invalidateInnerBounds()
+        for (const c of this.boundingChildMetrics) {
+            c.invalidateInnerBounds()
         }
     }
 
@@ -835,7 +843,7 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         return function computeState(this:SpatialMetrics<N>, state:NodeState<N>) {
 
             const useCurrent = state.mode === 'current'
-            const adapter = this.system.nodeAdapters.get(this.node)
+            const adapter = this._adapter
 
             localOrientation.copy( 
                 ( useCurrent ? 
@@ -897,11 +905,13 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         }
     })()
 
-    invalidateStates() {
-        this._cachedRawState.needsUpdate = true
+    invalidateStates(includeRaw=true) {
+        if (includeRaw) {
+            this._cachedRawState.needsUpdate = true
+            this[InternalRawState].invalidate()
+        }
         this._cachedCurrentState.needsUpdate = true
         this._cachedTargetState.needsUpdate = true
-        this[InternalRawState].invalidate()
         this[InternalCurrentState].invalidate()
         this[InternalTargetState].invalidate()
     }
@@ -952,58 +962,25 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
     }
     [InternalPreviousTargetState]:NodeState<N> = new NodeState('target', this)
 
-    /**
-     * The reference node 
-     */
-    get referenceNode() {
-        this.update()
-        const adapter = this.system.nodeAdapters.get(this.node)
-        return adapter?.referenceNode === undefined ? 
-            this.parentNode : adapter.referenceNode
-    }
-    
-    get referenceMetrics() : SpatialMetrics<N> | null {    
-        const adapter = this.system.nodeAdapters.get(this.node)
-        if (adapter?.referenceNode) return this.system.getMetrics(adapter.referenceNode)
-        let metrics = this.parentNode ? this.system.getMetrics(this.parentNode) : null
-        return metrics
-    }
-
-    /** 
-     * The parent node
-     */
-    get parentNode() : N|null {
-        this.update()
-        return this.raw.parent 
-    }
-    
-    /**
-     * The parent metrics
-     */
-    get parentMetrics() {
-        const parent = this.parentNode
-        if (!parent) return null
-        return this.system.getMetrics(parent)
-    }
 
     /**
      * The child nodes that are included in this bounding context
      */
-    get boundsChildren() : ReadonlyArray<N> {
+    get boundingChildMetrics() : ReadonlyArray<SpatialMetrics<N>> {
         return this._cachedBoundsChildren()
     }
     private _cachedBoundsChildren = this._cache.memoize(() => {
         const nodeChildren = this.nodeChildren
-        const children = this._children
+        const children = this._boundingChildren
         children.length = 0
         for (const child of nodeChildren) {
             const metrics = this.system.getMetrics(child)
             if (metrics.isAdaptive) continue
-            children.push(child)
+            children.push(metrics)
         }
         return children
     })
-    private _children = [] as N[]
+    private _boundingChildren = [] as SpatialMetrics<N>[]
 
     /**
      * 

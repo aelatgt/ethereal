@@ -251,6 +251,10 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     constructor(system: EtherealLayoutSystem<N>, node: N);
     private _cache;
     needsUpdate: boolean;
+    parentNode: N | null;
+    parentMetrics: SpatialMetrics<N> | null;
+    referenceMetrics?: SpatialMetrics<N> | null;
+    private _adapter?;
     /**
      * Update metrics, if necessary
      */
@@ -298,7 +302,7 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * Compute spatial state from spatial orientation & bounds
      */
     private _computeState;
-    invalidateStates(): void;
+    invalidateStates(includeRaw?: boolean): void;
     /**
      * The raw node state, before any update, with ancestor target states
      */
@@ -323,24 +327,11 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
     get previousTarget(): NodeState<N>;
     [InternalPreviousTargetState]: NodeState<N>;
     /**
-     * The reference node
-     */
-    get referenceNode(): N | null;
-    get referenceMetrics(): SpatialMetrics<N> | null;
-    /**
-     * The parent node
-     */
-    get parentNode(): N | null;
-    /**
-     * The parent metrics
-     */
-    get parentMetrics(): SpatialMetrics<N> | null;
-    /**
      * The child nodes that are included in this bounding context
      */
-    get boundsChildren(): ReadonlyArray<N>;
+    get boundingChildMetrics(): ReadonlyArray<SpatialMetrics<N>>;
     private _cachedBoundsChildren;
-    private _children;
+    private _boundingChildren;
     /**
      *
      */

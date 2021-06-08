@@ -13,6 +13,8 @@ import {
 import { LRUMap } from 'lru_map'
 import * as sha256 from 'fast-sha256'
 
+import {serializeToString, serializeAttribute} from './xml-serializer'
+
 export type EventCallback = (
   event:
     | 'layerpainted'
@@ -47,7 +49,7 @@ export class WebLayer {
   needsRefresh = true
   needsRemoval = false
 
-  psuedoStates = {
+  pseudoStates = {
     hover: false,
     active: false,
     focus: false,
@@ -177,6 +179,31 @@ export class WebLayer {
     return true
   }
 
+  serializationReplacer = (node:Node) => {
+    if (this.element === node) return
+    const element = node as Element
+    const layer = WebRenderer.layers.get(element)
+    if (layer) {      
+      const bounds = layer.bounds
+      let attributes = ''
+      const extraStyle = `min-width:${bounds.width};min-height:${bounds.height};visibility:hidden`
+      let addedStyle = false
+      for (const attr of layer.element.attributes) {
+        if (attr.name == 'style') {
+          attributes += serializeAttribute(attr.name, attr.value + ';' + extraStyle)
+          addedStyle = true
+        } else {
+          attributes += serializeAttribute(attr.name, attr.value)
+        }
+      }
+      if (!addedStyle) {
+        attributes += serializeAttribute('style', extraStyle)
+      }
+      const tag = element.tagName.toLowerCase()
+      return `<${tag} ${attributes}></${tag}>`
+    }
+  }
+
   async serialize() {
     if (this.element.nodeName === 'VIDEO') return
 
@@ -198,14 +225,20 @@ export class WebLayer {
       const computedStyle = getComputedStyle(layerElement)
       const needsInlineBlock = computedStyle.display === 'inline'
       WebRenderer.updateInputAttributes(layerElement)
-      const layerHTML = WebRenderer.serializer
-        .serializeToString(layerElement)
-        .replace(
+      const layerHTML = serializeToString(layerElement, this.serializationReplacer).replace(
           elementAttribute,
             `${elementAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
             `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
-            WebRenderer.getPsuedoAttributes(this.psuedoStates)
-        )
+            WebRenderer.getPsuedoAttributes(this.pseudoStates)
+      )
+      // const layerHTML = WebRenderer.serializer
+      //   .serializeToString(layerElement)
+      //   .replace(
+      //     elementAttribute,
+      //       `${elementAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
+      //       `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
+      //       WebRenderer.getPsuedoAttributes(this.pseudoStates)
+      //   )
       const parentsHTML = this._getParentsHTML(layerElement)
       parentsHTML[0] = parentsHTML[0].replace(
         'html',
@@ -267,7 +300,7 @@ export class WebLayer {
 
   render() {
     const svgDoc = this._rasterizingDocument
-    // const src = this.svgImage.currentSrc
+
     if (!this.cachedBounds.has(svgDoc) || !this.cachedMargin.has(svgDoc)) {
       this.needsRefresh = true
       return
@@ -289,13 +322,13 @@ export class WebLayer {
     hctx.imageSmoothingEnabled = false
     hctx.drawImage(this.svgImage, left, top, width, height, 0, 0, hw, hh)
     const hashData = hctx.getImageData(0, 0, hw, hh).data
-    const newHash =
+    const hash =
       WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData))) +
       '?w=' +
       width +
       ';h=' +
       height
-    WebLayer.canvasHashes.set(svgDoc, newHash)
+    WebLayer.canvasHashes.set(svgDoc, hash)
 
     const blankRetryCount = WebLayer.blankRetryCounts.get(svgDoc)||0
     if (WebRenderer.isBlankImage(hashData) && blankRetryCount < 10) {
@@ -304,8 +337,8 @@ export class WebLayer {
       return
     }
 
-    if (WebLayer.cachedCanvases.has(newHash)) {
-      this.canvas = WebLayer.cachedCanvases.get(newHash)!
+    if (WebLayer.cachedCanvases.has(hash)) {
+      this.canvas = WebLayer.cachedCanvases.get(hash)!
       return
     }
 
@@ -323,7 +356,7 @@ export class WebLayer {
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, w, h)
     ctx.drawImage(this.svgImage, left, top, width, height, 0, 0, w, h)
-    WebLayer.cachedCanvases.set(newHash, newCanvas)
+    WebLayer.cachedCanvases.set(hash, newCanvas)
     this.canvas = newCanvas
   }
 
@@ -338,6 +371,7 @@ export class WebLayer {
       let attributes = ' '
       for (const a of parent.attributes) {
         if (a.name === 'style') continue
+
         attributes += `${a.name}="${a.value}" `
       }
       const open =

@@ -78,8 +78,8 @@ function getThreeOpacity(metrics:SpatialMetrics) : number|undefined {
             if ('opacity' in node.material) return node.material.opacity
         }
     }
-    for (const child of metrics.boundsChildren) {
-        const opacity = getThreeOpacity(metrics.system.getMetrics(child))
+    for (const child of metrics.boundingChildMetrics) {
+        const opacity = getThreeOpacity(child)
         if (opacity !== undefined) return opacity
     }
     return undefined
@@ -96,8 +96,8 @@ function applyThreeOpacity(metrics:SpatialMetrics, opacity:number) {
         }
         else (node.material as THREE.MeshBasicMaterial).opacity = opacity
     }
-    for (const child of metrics.boundsChildren) {
-        applyThreeOpacity(metrics.system.getMetrics(child), opacity)
+    for (const child of metrics.boundingChildMetrics) {
+        applyThreeOpacity(child, opacity)
     }
 }
 

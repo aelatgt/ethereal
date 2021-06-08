@@ -59,22 +59,11 @@ export abstract class SpatialObjective {
 
     relativeTolerance ?: number = undefined
     absoluteTolerance ?: number|string = undefined
+    computedAbsoluteTolerance : number = -Infinity
+    computedRelativeTolerance : number = -Infinity
 
     priority = 0
     index = -1
-
-    get computedRelativeTolerance () {
-        return this.relativeTolerance ??
-        this.layout.relativeTolerance ??
-        this.layout.adapter.system.optimize.relativeTolerance
-    }
-
-    get computedAbsoluteTolerance () {
-        const sys = this.layout.adapter.system
-        return this.absoluteTolerance !== undefined ? 
-            sys.measureNumber(this.absoluteTolerance, sys.mathScope[this.type]) :
-            this.layout.getComputedAbsoluteTolerance(this.type)
-    }
 
     layout:SpatialLayout
 
