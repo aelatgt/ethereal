@@ -231,16 +231,6 @@ export class WebLayer3DContent extends THREE.Object3D {
     this._boundsMesh.position.set(0,0,0)
     this._boundsMesh.scale.copy(this.domSize)
     this._boundsMesh.quaternion.set(0,0,0,1)
-    // handle layer visibiltiy or removal
-    const mesh = this.contentMesh
-    const mat = mesh.material as THREE.MeshBasicMaterial
-    const isHidden = mat.opacity < 0.005
-    if (isHidden) mesh.visible = false
-    else if (mesh.material.map) mesh.visible = true
-    if (this.needsRemoval && isHidden) {
-      if (this.parent) this.parent.remove(this)
-      this.dispose()
-    }
   }
 
   private updateContent() {
@@ -256,16 +246,26 @@ export class WebLayer3DContent extends THREE.Object3D {
     }
     material.transparent = true
 
+    // handle layer visibiltiy or removal
+    const mat = mesh.material as THREE.MeshBasicMaterial
+    const isHidden = mat.opacity < 0.005
+    if (isHidden) mesh.visible = false
+    else if (mesh.material.map) mesh.visible = true
+    if (this.needsRemoval && isHidden) {
+      if (this.parent) this.parent.remove(this)
+      this.dispose()
+    }
+
     if (!this._camera) return
 
-    this._localZ =
+    this._localZ = Math.abs(
       scratchVector.setFromMatrixPosition(this.matrix).z + 
-      scratchVector.setFromMatrixPosition(this.contentMesh.matrix).z
-    this._viewZ = this.contentMesh.getWorldPosition(scratchVector).applyMatrix4(this._camera.matrixWorldInverse).z
+      scratchVector.setFromMatrixPosition(this.contentMesh.matrix).z)
+    this._viewZ = Math.abs(this.contentMesh.getWorldPosition(scratchVector).applyMatrix4(this._camera.matrixWorldInverse).z)
     
     let parentRenderZ = this.parentWebLayer ? this.parentWebLayer._renderZ : this._viewZ
     
-    if (Math.abs(this._localZ) < 1e-8) { // coplanar? use parent renderZ
+    if (this._localZ < 1e-8) { // coplanar? use parent renderZ
       this._renderZ = parentRenderZ
     } else {
       this._renderZ = this._viewZ
@@ -285,8 +285,8 @@ export class WebLayer3DContent extends THREE.Object3D {
 
   protected _doUpdate() {
     this[ON_BEFORE_UPDATE]()
-    this.updateLayout()
     this.updateContent()
+    this.updateLayout()
     if (this.needsRefresh && this.options.autoRefresh !== false) 
       this.refresh()
     WebRenderer.scheduleTasksIfNeeded()

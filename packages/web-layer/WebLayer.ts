@@ -186,7 +186,7 @@ export class WebLayer {
     if (layer) {      
       const bounds = layer.bounds
       let attributes = ''
-      const extraStyle = `min-width:${bounds.width};min-height:${bounds.height};visibility:hidden`
+      const extraStyle = `min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
       let addedStyle = false
       for (const attr of layer.element.attributes) {
         if (attr.name == 'style') {
