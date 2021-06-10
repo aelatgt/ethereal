@@ -7,16 +7,23 @@ class State {
     pride = {...PrideAPI.data}
     immersiveMode = false
 
-    async getPrideData() {
+    async get() {
         await PrideAPI.get()
         this.pride = {...PrideAPI.data}
     }
 
+    async back() {
+        await PrideAPI.back()
+        this.get()
+    }
+
+    async done(message?:string) {
+        await PrideAPI.done(message)
+        this.get()
+    }
+
     start() {
-        this.getPrideData()
-        // setInterval(() => {
-        //     this.getPrideData()
-        // }, 10000)
+        this.get()
         return this
     }
 }

@@ -220,28 +220,23 @@ export default class UI {
         setupSnubberModel()
 
         this.backButton.element.addEventListener('click', async () => {
-            await PrideAPI.back()
-            PrideAPI.get()
+            this.state.back()
         })
 
         this.doneButton.element.addEventListener('click', async () => {
-            await PrideAPI.done()
-            PrideAPI.get()
+            this.state.done()
         })
 
         this.recordButton.element.addEventListener('click', async () => {
-            await PrideAPI.done()
-            PrideAPI.get()
+            this.state.done()
         })
 
         this.yesButton.element.addEventListener('click', async () => {
-            await PrideAPI.done('yes')
-            PrideAPI.get()
+            this.state.done('yes')
         })
 
         this.noButton.element.addEventListener('click', async () => {
-            await PrideAPI.done('no')
-            PrideAPI.get()
+            this.state.done('no')
         })
 
         this.immersiveButton.element.addEventListener('click', async () => {
