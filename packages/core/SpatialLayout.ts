@@ -532,7 +532,6 @@ export class LayoutSolution {
     apply(evaluate=true) {
         const layout = this.layout
         const adapter = layout.adapter   
-        adapter.referenceNode = layout.referenceNode
         adapter.orientation.target = this.orientation
         adapter.bounds.target = this.bounds
         adapter.metrics.invalidateStates(false)

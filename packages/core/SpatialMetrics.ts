@@ -663,7 +663,8 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
 
             this.parentNode = this.raw.parent
             this.parentMetrics = this.parentNode && this.system.getMetrics(this.parentNode)
-            this.referenceMetrics = adapter?.referenceNode && this.system.getMetrics(adapter.referenceNode)
+            const reference = adapter?.activeLayout?.referenceNode || adapter?.referenceNode || this.parentNode
+            this.referenceMetrics = reference && this.system.getMetrics(reference as N)
 
             this.parentMetrics?.update()
             this.referenceMetrics?.update()

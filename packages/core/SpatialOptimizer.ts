@@ -86,6 +86,8 @@ export class SpatialOptimizer<N extends Node3D> {
 
     /**
      * Optimize the layouts defined on this adapter
+     * 
+     * @returns false if there are no layouts
      */
     update(adapter:SpatialAdapter<any>) {
 
@@ -94,7 +96,6 @@ export class SpatialOptimizer<N extends Node3D> {
             return false
         }
 
-        const prevReference = adapter.referenceNode
         const prevOrientation = this._prevOrientation.copy(adapter.orientation.target)
         const prevBounds = this._prevBounds.copy(adapter.bounds.target)
         const prevLayout = adapter.activeLayout
@@ -129,7 +130,6 @@ export class SpatialOptimizer<N extends Node3D> {
             bestSolution!.apply()
             adapter.activeLayout = bestLayout!
         } else {
-            adapter.referenceNode = prevReference
             adapter.orientation.target = prevOrientation
             adapter.bounds.target = prevBounds
             adapter.activeLayout = prevLayout

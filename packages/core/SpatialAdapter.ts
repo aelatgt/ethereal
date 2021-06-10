@@ -165,14 +165,13 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
     readonly transition = new TransitionConfig
 
     /**
-     * The reference node.
+     * The reference node. If a layout is assigned, it's reference frame takes precedence.
      * 
      * If `undefined`, reference is the current parent.
      * 
      * if `null`, this node is considered as flagged to be removed.
      */
     referenceNode = undefined as N|null|undefined
-
 
     /**
      * 
@@ -352,21 +351,15 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             metrics.invalidateInnerBounds()
             metrics.invalidateStates()
             const rawState = metrics.raw // recompute
-            if (!this.system.optimizer.update(this)) {
-                const differentParent = metrics.target.parent !== rawState.parent
-                if (differentParent) {
-                    this.referenceNode = undefined
-                }
+            if (!this.system.optimizer.update(this)) { // no layouts?
                 const targetOrientation = this.orientation.target // metrics.target.localOrientation
                 const orientation = rawState.localOrientation
-                if (differentParent ||
-                    targetOrientation.angleTo(orientation) > this.system.epsillonRadians) {
+                if (targetOrientation.angleTo(orientation) > this.system.epsillonRadians) {
                     this.orientation.target = orientation
                 }
                 const targetBounds = this.bounds.target // metrics.target.spatialBounds
                 const bounds = rawState.spatialBounds
-                if (differentParent || 
-                    targetBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||
+                if (targetBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||
                     targetBounds.max.distanceTo(bounds.max) > this.system.epsillonMeters) {
                     this.bounds.target = bounds
                 }

@@ -189,6 +189,7 @@ export class WebLayer {
       const extraStyle = `min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
       let addedStyle = false
       for (const attr of layer.element.attributes) {
+        if (attr.name === 'src') continue
         if (attr.name == 'style') {
           attributes += serializeAttribute(attr.name, attr.value + ';' + extraStyle)
           addedStyle = true

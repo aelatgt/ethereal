@@ -98,20 +98,17 @@ export class WebLayer3DContent extends THREE.Object3D {
       t.minFilter = THREE.LinearFilter
       if (this.options.textureEncoding) t.encoding = this.options.textureEncoding
       this.textures.set(canvas, t)
-    } else if (this.textureNeedsUpdate) {
-      this.textureNeedsUpdate = false
-      t.needsUpdate = true
     }
     return t
   }
 
   textureNeedsUpdate = false
 
-  // content = new Object3D()
   contentMesh = new THREE.Mesh(
     WebLayer3D.GEOMETRY,
     new THREE.MeshBasicMaterial({
       side: THREE.DoubleSide,
+      depthWrite: false,
       transparent: true,
       alphaTest: 0.001,
       opacity: 1
@@ -222,15 +219,27 @@ export class WebLayer3DContent extends THREE.Object3D {
   }
 
   private updateLayout() {
-    this.position.copy(this.domLayout.position)
-    this.quaternion.copy(this.domLayout.quaternion)
-    this.scale.copy(this.domLayout.scale)
-    this.contentMesh.position.set(0,0,0)
-    this.contentMesh.scale.copy(this.domSize)
-    this.contentMesh.quaternion.set(0,0,0,1)
-    this._boundsMesh.position.set(0,0,0)
-    this._boundsMesh.scale.copy(this.domSize)
-    this._boundsMesh.quaternion.set(0,0,0,1)
+
+    if (this._camera) {
+
+      this._localZ = Math.abs(
+        scratchVector.setFromMatrixPosition(this.matrix).z + 
+        scratchVector.setFromMatrixPosition(this.contentMesh.matrix).z)
+      this._viewZ = Math.abs(this.contentMesh.getWorldPosition(scratchVector).applyMatrix4(this._camera.matrixWorldInverse).z)
+      
+      let parentRenderZ = this.parentWebLayer ? this.parentWebLayer._renderZ : this._viewZ
+      
+      if (this._localZ < 1e-3) { // coplanar? use parent renderZ
+        this._renderZ = parentRenderZ
+      } else {
+        this._renderZ = this._viewZ
+      }
+  
+      this.contentMesh.renderOrder = (this.options.renderOrderOffset || 0) + 
+        (1 - Math.log(this._renderZ + 1) / Math.log(this._camera.far + 1))+
+        (this.depth + this.index * 0.001)*0.0000001
+  
+    }
   }
 
   private updateContent() {
@@ -238,11 +247,19 @@ export class WebLayer3DContent extends THREE.Object3D {
     const texture = this.currentTexture
     const material = mesh.material as THREE.MeshBasicMaterial
     if (texture.image && material.map !== texture) {
-      material.map = texture
-      material.depthWrite = false
-      material.needsUpdate = true
-      this.depthMaterial['map'] = texture
-      this.depthMaterial.needsUpdate = true
+      const contentScale = this.contentMesh.scale
+      const aspect = Math.abs(contentScale.x * this.scale.x / contentScale.y * this.scale.y)
+      const targetAspect = this.domSize.x / this.domSize.y
+      if (Math.abs(targetAspect-aspect) < 1e3) {
+        material.map = texture
+        this.depthMaterial['map'] = texture
+        if (this.textureNeedsUpdate) {
+          this.textureNeedsUpdate = false
+          material.needsUpdate = true
+          texture.needsUpdate = true
+          this.depthMaterial.needsUpdate = true
+        }
+      }
     }
     material.transparent = true
 
@@ -255,25 +272,6 @@ export class WebLayer3DContent extends THREE.Object3D {
       if (this.parent) this.parent.remove(this)
       this.dispose()
     }
-
-    if (!this._camera) return
-
-    this._localZ = Math.abs(
-      scratchVector.setFromMatrixPosition(this.matrix).z + 
-      scratchVector.setFromMatrixPosition(this.contentMesh.matrix).z)
-    this._viewZ = Math.abs(this.contentMesh.getWorldPosition(scratchVector).applyMatrix4(this._camera.matrixWorldInverse).z)
-    
-    let parentRenderZ = this.parentWebLayer ? this.parentWebLayer._renderZ : this._viewZ
-    
-    if (this._localZ < 1e-8) { // coplanar? use parent renderZ
-      this._renderZ = parentRenderZ
-    } else {
-      this._renderZ = this._viewZ
-    }
-
-    this.contentMesh.renderOrder = (this.options.renderOrderOffset || 0) + 
-      (1 - Math.log(this._renderZ + 1) / Math.log(this._camera.far + 1))+
-      (this.depth + this.index * 0.001)*0.0000001
   }
 
   get rootWebLayer() {
@@ -285,8 +283,20 @@ export class WebLayer3DContent extends THREE.Object3D {
 
   protected _doUpdate() {
     this[ON_BEFORE_UPDATE]()
+    // content must update before layout
     this.updateContent()
     this.updateLayout()
+
+    this.position.copy(this.domLayout.position)
+    this.quaternion.copy(this.domLayout.quaternion)
+    this.scale.copy(this.domLayout.scale)
+    this.contentMesh.position.set(0,0,0)
+    this.contentMesh.scale.copy(this.domSize)
+    this.contentMesh.quaternion.set(0,0,0,1)
+    this._boundsMesh.position.set(0,0,0)
+    this._boundsMesh.scale.copy(this.domSize)
+    this._boundsMesh.quaternion.set(0,0,0,1)
+
     if (this.needsRefresh && this.options.autoRefresh !== false) 
       this.refresh()
     WebRenderer.scheduleTasksIfNeeded()
