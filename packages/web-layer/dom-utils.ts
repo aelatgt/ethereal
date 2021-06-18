@@ -43,18 +43,23 @@ export function hash(el: HTMLElement) {
 }
 
 export function traverseChildElements(
-  node: Node,
-  each: (node: Element, level: number) => boolean,
+  element: Element,
+  each: (element: Element, level: number) => boolean,
   bind?: any,
   level = 0
 ) {
   level++
-  for (let child: Node | null = node.firstChild; child; child = child.nextSibling) {
-    if (child.nodeType === Node.ELEMENT_NODE) {
-      const el = child as Element
-      if (each.call(bind, el, level)) {
-        traverseChildElements(el, each, bind, level)
+  element = (element.shadowRoot || element) as Element
+  for (let child: Element | null = element.firstElementChild; child; child = child.nextElementSibling) {
+    if ((child as HTMLElement).assignedSlot) continue
+    const assignedElements = (child as HTMLSlotElement).assignedElements?.({flatten:true})
+    if (assignedElements) for (const assigned of assignedElements) {
+      if (each.call(bind, assigned, level)) {
+        traverseChildElements(child, each, bind, level)
       }
+    }
+    if (each.call(bind, child, level)) {
+      traverseChildElements(child, each, bind, level)
     }
   }
 }

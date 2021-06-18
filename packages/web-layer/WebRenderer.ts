@@ -4,6 +4,16 @@ import { Matrix4 } from 'three/src/math/Matrix4'
 import { ResizeObserver as Polyfill } from '@juggle/resize-observer'
 const ResizeObserver:typeof Polyfill = (self as any).ResizeObserver || Polyfill
 
+export interface WebLayerOptions {
+  /**
+   * Inject and apply only these stylesheets.
+   * This only has an effect when passing a detached DOM element
+   * as the root of the Layer tree. This dom element will be
+   * hosted inside an iframe, along with the provided stylesheets,
+   * for style isolation.
+   */
+  styleSheetURLs?: string[]
+}
 
 type RequestIdleCallbackHandle = any
 type RequestIdleCallbackOptions = {
@@ -22,24 +32,23 @@ declare function requestIdleCallback (
 declare function cancelIdleCallback(handle: RequestIdleCallbackHandle) : void
 
 
-function ensureElementIsInDocument(element: Element): Element {
-  const document = element.ownerDocument!
-  const root = element.getRootNode() as ShadowRoot
-  if (document.contains(element) || document.contains(root?.host)) {
+function ensureElementIsInDocument(element: Element, options:WebLayerOptions): Element {
+  if (document.contains(element)) {
     return element
   }
-  const container = root.host as HTMLElement||document.createElement('div')
+  const container = document.createElement('div')
   container.setAttribute(WebRenderer.RENDERING_CONTAINER_ATTRIBUTE, '')
   container.style.position = 'fixed'
   container.style.width = '100%'
   container.style.height = '100%'
-  container.style.top = '-100000px'
+  container.style.top = '0px'
+  container.style.visibility = 'hidden'
+  container.style.pointerEvents = 'none'
+  container.style.touchAction = 'none'
   container.style['contain' as any] = 'strict'
-  // const containerShadow = container.attachShadow({mode: 'open'})
-  // containerShadow.appendChild(element)
-  if (!root.host) container.appendChild(element)
+  const containerShadow = container.attachShadow({mode: 'open'})
+  containerShadow.appendChild(element)
   document.documentElement.appendChild(container)
-  // document.body.appendChild(container)
   return element
 }
 
@@ -102,60 +111,64 @@ export class WebRenderer {
   // static documentObserver : MutationObserver
   // static _didInit = false
 
+  static renderingStyleElement : HTMLStyleElement
+
   static initRootNodeObservation(element:Element) {
     const document = element.ownerDocument
     const rootNode = element.getRootNode() as ShadowRoot|Document
     const styleRoot = 'head' in rootNode ? rootNode.head : rootNode
     if (this.rootNodeObservers.get(rootNode)) return
     
-    const style = document.createElement('style')
-    styleRoot.append(style)
-    const sheet = style.sheet as CSSStyleSheet
-    let i = 0
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] *`,
-      'transform: none !important;',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_ATTRIBUTE}], [${WebRenderer.RENDERING_ATTRIBUTE}] *`,
-      'visibility: visible !important;',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}], [${
-        WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}] *`,
-      'visibility: hidden !important;',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_ATTRIBUTE}]`,
-      'position: relative; top: 0 !important; left: 0 !important; float: none; box-sizing:border-box; min-width:var(--x-width); min-height:var(--x-height); display:block !important;',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_INLINE_ATTRIBUTE}]`,
-      'top: var(--x-inline-top) !important; width:auto !important',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]`,
-      'transform: none !important; left: 0 !important; top: 0 !important; margin: 0 !important; border:0 !important; border-radius:0 !important; height:100% !important; padding:0 !important; position:static !important; display:block !important; background: rgba(0,0,0,0) none !important; box-shadow:none !important',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::before, [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::after`,
-      'content:none !important; box-shadow:none !important;',
-      i++
-    )
-
+    if (!this.renderingStyleElement) {
+      const style = this.renderingStyleElement = document.createElement('style')
+      styleRoot.append(style) // otherwise stylesheet is not created
+      const sheet = style.sheet as CSSStyleSheet
+      let i = 0
+      addCSSRule(
+        sheet,
+        `[${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] *`,
+        'transform: none !important;',
+        i++
+      )
+      addCSSRule(
+        sheet,
+        `[${WebRenderer.RENDERING_ATTRIBUTE}], [${WebRenderer.RENDERING_ATTRIBUTE}] *`,
+        'visibility: visible !important;',
+        i++
+      )
+      addCSSRule(
+        sheet,
+        `[${WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}], [${
+          WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}] *`,
+        'visibility: hidden !important;',
+        i++
+      )
+      addCSSRule(
+        sheet,
+        `[${WebRenderer.RENDERING_ATTRIBUTE}]`,
+        'position: relative; top: 0 !important; left: 0 !important; float: none; box-sizing:border-box; min-width:var(--x-width); min-height:var(--x-height); display:block !important;',
+        i++
+      )
+      addCSSRule(
+        sheet,
+        `[${WebRenderer.RENDERING_INLINE_ATTRIBUTE}]`,
+        'top: var(--x-inline-top) !important; width:auto !important',
+        i++
+      )
+      addCSSRule(
+        sheet,
+        `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]`,
+        'transform: none !important; left: 0 !important; top: 0 !important; margin: 0 !important; border:0 !important; border-radius:0 !important; height:100% !important; padding:0 !important; position:static !important; display:block !important; background: rgba(0,0,0,0) none !important; box-shadow:none !important',
+        i++
+      )
+      addCSSRule(
+        sheet,
+        `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::before, [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::after`,
+        'content:none !important; box-shadow:none !important;',
+        i++
+      )
+    }
+    
     if (rootNode === document) {
       let previousHash = ''
       const onHashChange = () => {
@@ -169,6 +182,7 @@ export class WebRenderer {
         }
         previousHash = window.location.hash
       }
+      
       window.addEventListener('hashchange', onHashChange, false)
       onHashChange()
   
@@ -286,11 +300,11 @@ export class WebRenderer {
     layer.needsRefresh = true
   }
 
-  static createLayerTree(element: Element, eventCallback: EventCallback) {
+  static createLayerTree(element: Element, hostingOptions:WebLayerOptions, eventCallback: EventCallback) {
     if (WebRenderer.getClosestLayer(element))
       throw new Error('A root WebLayer for the given element already exists')
 
-    ensureElementIsInDocument(element)
+    ensureElementIsInDocument(element, hostingOptions)
     WebRenderer.initRootNodeObservation(element)
 
     const observer = new MutationObserver(WebRenderer._handleMutations)
@@ -339,9 +353,15 @@ export class WebRenderer {
     }
   }
 
-  static getClosestLayer(element: Element|null): WebLayer | undefined {
-    const closestLayerElement =
-      element && (element.closest(`[${WebRenderer.LAYER_ATTRIBUTE}]`) as HTMLElement)
+  static getClosestLayer(element: Element, inclusive=true): WebLayer | undefined {
+    let targetElement = inclusive ? element : element.parentElement
+    const closestLayerElement = targetElement?.closest(`[${WebRenderer.LAYER_ATTRIBUTE}]`) as HTMLElement
+    if (!closestLayerElement) {
+      const host = (element?.getRootNode() as ShadowRoot).host
+      if (host) {
+        return this.getClosestLayer(host, inclusive)
+      }
+    }
     return this.layers.get(closestLayerElement!)
   }
 
@@ -396,6 +416,7 @@ export class WebRenderer {
   static async embedExternalResources(element: Element) {
     const promises = []
     const elements = element.querySelectorAll('*')
+    // TODO: just save the serialized resources without modifying the original elements
     for (const element of elements) {
       const link = element.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
       if (link) {
@@ -583,12 +604,13 @@ export class WebRenderer {
     return css
   }
 
-  static async getURL(url:string): Promise<XMLHttpRequest> {
+  static async getURL(url:string, accept?:string): Promise<XMLHttpRequest> {
     url = new URL(url, window.location.href).href
     return new Promise<XMLHttpRequest>(resolve => {
       var xhr = new XMLHttpRequest()
 
       xhr.open('GET', url, true)
+      if (accept) xhr.setRequestHeader('accept', accept)
 
       xhr.responseType = 'arraybuffer'
 
@@ -606,7 +628,7 @@ export class WebRenderer {
 
   private static embeddedCSS = new Map<ShadowRoot|Document, Map<Element, Promise<string>>>()
 
-  static async getEmbeddedCSS(el:Element) {
+  static async getRenderingCSS(el:Element) {
     const rootNode = el.getRootNode() as ShadowRoot|Document
     const embedded = this.embeddedCSS.get(rootNode) || new Map<Element, Promise<string>>()
     this.embeddedCSS.set(rootNode, embedded)
@@ -614,22 +636,27 @@ export class WebRenderer {
     const styleElements = Array.from(
       rootNode.querySelectorAll("style, link[type='text/css'], link[rel='stylesheet']")
     )
+    styleElements.push(this.renderingStyleElement)
 
     let foundNewStyles = false
     for (const element of styleElements) {
       if (!embedded.has(element)) {
+        // if it's inside shadow dom, we have to clone into light dom to load fonts in Chrome/Firefox
+        if (element.getRootNode() instanceof ShadowRoot) {
+          document.head.appendChild(element.cloneNode())
+        }
         foundNewStyles = true
         if (element.tagName == 'STYLE') {
           const sheet = (element as HTMLStyleElement).sheet as CSSStyleSheet
           let cssText = ''
           for (const rule of sheet.cssRules) {
-            cssText += rule.cssText + '\n'
+            cssText += '\n\n' + rule.cssText
           }
           embedded.set(element, this.generateEmbeddedCSS(window.location.href, cssText))
         } else {
           embedded.set(
             element,
-            this.getURL(element.getAttribute('href')!).then(xhr => {
+            this.getURL(element.getAttribute('href')!, 'text/css').then(xhr => {
               if (!xhr.response) return ''
               this._addDynamicPseudoClassRules(rootNode)
               var css = textDecoder.decode(xhr.response)

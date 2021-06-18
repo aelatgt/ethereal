@@ -39,7 +39,7 @@ export class WebLayer {
     this.id = element.getAttribute(WebRenderer.ELEMENT_UID_ATTRIBUTE) ||  WebRenderer.generateElementUID()
     element.setAttribute(WebRenderer.ELEMENT_UID_ATTRIBUTE, this.id)
     element.setAttribute(WebRenderer.LAYER_ATTRIBUTE,'')
-    this.parentLayer = WebRenderer.getClosestLayer(this.element.parentElement)
+    this.parentLayer = WebRenderer.getClosestLayer(this.element, false)
     this.eventCallback('layercreated', { target: element })
     WebLayer.cachedCanvases.limit = WebRenderer.layers.size * WebLayer.DEFAULT_CACHE_SIZE
     this._hashingCanvas.width = 20
@@ -141,7 +141,7 @@ export class WebLayer {
     const oldChildLayers = childLayers.slice()
 
     const previousParentLayer = this.parentLayer
-    this.parentLayer = WebRenderer.getClosestLayer(this.element.parentElement)
+    this.parentLayer = WebRenderer.getClosestLayer(this.element, false)
     if (previousParentLayer !== this.parentLayer) {
       this.parentLayer && this.parentLayer.childLayers.push(this)
       this.eventCallback('layermoved', { target: element })
@@ -151,7 +151,7 @@ export class WebLayer {
     traverseChildElements(element, this._tryConvertElementToWebLayer, this)
 
     for (const child of oldChildLayers) {
-      const parentLayer = WebRenderer.getClosestLayer(child.element.parentElement)
+      const parentLayer = WebRenderer.getClosestLayer(child.element, false)
       if (!parentLayer) {
         child.needsRemoval = true
         childLayers.push(child)
@@ -232,14 +232,6 @@ export class WebLayer {
             `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
             WebRenderer.getPsuedoAttributes(this.pseudoStates)
       )
-      // const layerHTML = WebRenderer.serializer
-      //   .serializeToString(layerElement)
-      //   .replace(
-      //     elementAttribute,
-      //       `${elementAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
-      //       `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
-      //       WebRenderer.getPsuedoAttributes(this.pseudoStates)
-      //   )
       const parentsHTML = this._getParentsHTML(layerElement)
       parentsHTML[0] = parentsHTML[0].replace(
         'html',
@@ -247,7 +239,7 @@ export class WebLayer {
       )
 
       const [svgCSS] = await Promise.all([
-        WebRenderer.getEmbeddedCSS(this.element),
+        WebRenderer.getRenderingCSS(this.element),
         WebRenderer.embedExternalResources(this.element)
       ])
       const docString =
@@ -255,8 +247,8 @@ export class WebLayer {
         width +
         '" height="' +
         height +
-        '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[a[href]{color:#0000EE;text-decoration:underline;}' +
-        svgCSS.join('') +
+        '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
+        svgCSS.join('\n') +
         ']]></style></defs><foreignObject x="0" y="0" width="' +
         width +
         '" height="' +
@@ -365,7 +357,7 @@ export class WebLayer {
   private _getParentsHTML(element: Element) {
     const opens = []
     const closes = []
-    let parent = element.parentElement!
+    let parent = element.parentElement
     if (!parent) parent = document.documentElement
     do {
       let tag = parent.tagName.toLowerCase()
@@ -391,7 +383,7 @@ export class WebLayer {
       const close = '</' + tag + '>'
       closes.push(close)
       if (tag == 'html') break
-    } while ((parent = parent.parentElement!))
+    } while ((parent = parent !== document.documentElement ? parent.parentElement || document.documentElement : null))
     return [opens.join(''), closes.join('')]
   }
 }

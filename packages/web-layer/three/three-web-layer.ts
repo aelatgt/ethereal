@@ -7,11 +7,11 @@ if (self.THREE) {
 }
 
 import { WebLayer} from '../WebLayer'
-import { WebRenderer } from '../WebRenderer'
+import { WebRenderer, WebLayerOptions } from '../WebRenderer'
 
 import {Bounds, getBounds, getViewportBounds, traverseChildElements, DOM } from '../dom-utils'
 
-export interface WebLayer3DOptions {
+export interface WebLayer3DOptions extends WebLayerOptions {
   pixelRatio?: number
   layerSeparation?: number
   autoRefresh?: boolean
@@ -209,7 +209,8 @@ export class WebLayer3DContent extends THREE.Object3D {
     this._webLayer.refresh()
     this.childWebLayers.length = 0
     for (const c of this._webLayer.childLayers) {
-      const child = WebLayer3D.getClosestLayerForElement(c.element)
+      const child = WebLayer3D.layersByElement
+        .get(WebRenderer.getClosestLayer(c.element)?.element!)
       if (!child) continue
       this.childWebLayers.push(child)
       if (recurse) child.refresh(recurse)
@@ -308,7 +309,8 @@ export class WebLayer3DContent extends THREE.Object3D {
   }
 
   querySelector(selector: string): WebLayer3DContent | undefined {
-    const element = this.element.querySelector(selector)
+    const element = this.element.querySelector(selector) || 
+                    this.element.shadowRoot?.querySelector(selector)
     if (element) {
       return WebLayer3D.layersByElement.get(element)
     }
@@ -519,7 +521,7 @@ export class WebLayer3D extends THREE.Object3D {
 
     const element = typeof elementOrHTML === 'string' ? DOM(elementOrHTML) : elementOrHTML
 
-    WebRenderer.createLayerTree(element, (event, { target }) => {
+    WebRenderer.createLayerTree(element, options, (event, { target }) => {
       if (event === 'layercreated') {
         const layer = new WebLayer3DContent(target, this.options)
         if (target === element) {
@@ -644,17 +646,6 @@ export class WebLayer3D extends THREE.Object3D {
         layer.setNeedsRefresh()
       }
     }
-  }
-
-  static getLayerForQuery(selector: string): WebLayer3DContent | undefined {
-    const element = document.querySelector(selector)!
-    return WebLayer3D.layersByElement.get(element)
-  }
-
-  static getClosestLayerForElement(element: Element): WebLayer3DContent | undefined {
-    const closestLayerElement =
-      element && (element.closest(`[${WebRenderer.LAYER_ATTRIBUTE}]`) as HTMLElement)
-    return WebLayer3D.layersByElement.get(closestLayerElement)
   }
 
   /**
