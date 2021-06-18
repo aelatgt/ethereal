@@ -137,14 +137,9 @@ export default class AppBase {
             })
             controller.add(new THREE.AxesHelper(1))
             this.immersiveRays.add(controller)
-            const rayPosition = new THREE.Vector3
-            const rayDirection = new THREE.Vector3
             const onSelect = () => {
-                controller.getWorldPosition(rayPosition)
-                controller.getWorldDirection(rayDirection)
-                this.raycaster.ray.set(rayPosition, rayDirection)
                 for (const layer of this.webLayers) {
-                    const hit = layer.hitTest(this.raycaster.ray)
+                    const hit = layer.hitTest(controller)
                     if (hit) {
                         hit.target.click()
                         hit.target.focus()

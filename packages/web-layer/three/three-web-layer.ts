@@ -621,7 +621,7 @@ export class WebLayer3D extends THREE.Object3D {
       else
         this._raycaster.ray.set(
           ray.getWorldPosition(scratchVector),
-          ray.getWorldDirection(scratchVector2)
+          ray.getWorldDirection(scratchVector2).negate()
         )
       this._hitIntersections.length = 0
       const intersections = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections) as Intersection[]
@@ -657,11 +657,20 @@ export class WebLayer3D extends THREE.Object3D {
     return WebLayer3D.layersByElement.get(closestLayerElement)
   }
 
-  hitTest(ray: THREE.Ray) {
+  /**
+   * Perform hit test with ray, or with -Z direction of an Object3D
+   * @param ray 
+   */
+  hitTest(ray: THREE.Ray|THREE.Object3D) {
     const raycaster = this._raycaster
     const intersections = this._hitIntersections
     const meshMap = WebLayer3D.layersByMesh
-    raycaster.ray.copy(ray)
+    if (ray instanceof THREE.Ray) 
+      this._raycaster.ray.copy(ray)
+    else this._raycaster.ray.set(
+      ray.getWorldPosition(scratchVector),
+      ray.getWorldDirection(scratchVector2).negate()
+    )
     intersections.length = 0
     raycaster.intersectObject(this, true, intersections)
     // intersections.forEach(this._intersectionGetGroupOrder)
