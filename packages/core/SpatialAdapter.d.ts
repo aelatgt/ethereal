@@ -48,7 +48,7 @@ export declare class SpatialAdapter<N extends Node3D = Node3D> {
      */
     readonly transition: TransitionConfig;
     /**
-     * The reference node.
+     * The reference node. If a layout is assigned, it's reference frame takes precedence.
      *
      * If `undefined`, reference is the current parent.
      *

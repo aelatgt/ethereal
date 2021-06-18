@@ -1,5 +1,15 @@
 import { EventCallback, WebLayer } from './WebLayer';
 import { Matrix4 } from 'three/src/math/Matrix4';
+export interface WebLayerOptions {
+    /**
+     * Inject and apply only these stylesheets.
+     * This only has an effect when passing a detached DOM element
+     * as the root of the Layer tree. This dom element will be
+     * hosted inside an iframe, along with the provided stylesheets,
+     * for style isolation.
+     */
+    styleSheetURLs?: string[];
+}
 export declare type RequestIdleCallbackDeadline = {
     readonly didTimeout: boolean;
     timeRemaining: () => number;
@@ -33,6 +43,7 @@ export declare class WebRenderer {
     static readonly targetElement: Element | null;
     static getPsuedoAttributes(states: typeof WebLayer.prototype.pseudoStates): string;
     static rootNodeObservers: Map<Document | ShadowRoot, MutationObserver>;
+    static renderingStyleElement: HTMLStyleElement;
     static initRootNodeObservation(element: Element): void;
     static addToSerializeQueue(layer: WebLayer): void;
     static addToRasterizeQueue(layer: WebLayer): void;
@@ -45,9 +56,9 @@ export declare class WebRenderer {
     static scheduleTasksIfNeeded(): void;
     static scheduleIdle(cb: (deadline?: RequestIdleCallbackDeadline) => any): void;
     static setLayerNeedsRefresh(layer: WebLayer): void;
-    static createLayerTree(element: Element, eventCallback: EventCallback): WebLayer;
+    static createLayerTree(element: Element, hostingOptions: WebLayerOptions, eventCallback: EventCallback): WebLayer;
     static disposeLayer(layer: WebLayer): void;
-    static getClosestLayer(element: Element | null): WebLayer | undefined;
+    static getClosestLayer(element: Element, inclusive?: boolean): WebLayer | undefined;
     static parseCSSTransform(computedStyle: CSSStyleDeclaration, width: number, height: number, pixelSize: number, out?: Matrix4): Matrix4 | null;
     static embedExternalResources(element: Element): Promise<void[]>;
     static pauseMutationObservers(): void;
@@ -60,9 +71,9 @@ export declare class WebRenderer {
     static attributeCSS(name: string, value?: string): string;
     static attributeHTML(name: string, value?: string): string;
     static generateEmbeddedCSS(url: string, css: string): Promise<string>;
-    static getURL(url: string): Promise<XMLHttpRequest>;
+    static getURL(url: string, accept?: string): Promise<XMLHttpRequest>;
     private static embeddedCSS;
-    static getEmbeddedCSS(el: Element): Promise<string[]>;
+    static getRenderingCSS(el: Element): Promise<string[]>;
     static getDataURL(url: string): Promise<string>;
     static updateInputAttributes(element: Element): void;
     static _updateInputAttribute(inputElement: HTMLInputElement): void;

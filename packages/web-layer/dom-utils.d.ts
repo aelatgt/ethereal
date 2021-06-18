@@ -1,6 +1,6 @@
 export declare function path(el: HTMLElement, rootNode?: HTMLElement): string;
 export declare function hash(el: HTMLElement): void;
-export declare function traverseChildElements(node: Node, each: (node: Element, level: number) => boolean, bind?: any, level?: number): void;
+export declare function traverseChildElements(element: Element, each: (element: Element, level: number) => boolean, bind?: any, level?: number): void;
 export declare function addCSSRule(sheet: any, selector: string, rules: string, index: number): void;
 export declare class Bounds {
     left: number;

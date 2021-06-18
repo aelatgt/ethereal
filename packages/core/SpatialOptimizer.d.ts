@@ -53,6 +53,8 @@ export declare class SpatialOptimizer<N extends Node3D> {
     private _prevBounds;
     /**
      * Optimize the layouts defined on this adapter
+     *
+     * @returns false if there are no layouts
      */
     update(adapter: SpatialAdapter<any>): boolean;
     private _scratchSolution;

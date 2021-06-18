@@ -1,7 +1,8 @@
 import * as _THREE from 'three';
 import { WebLayer } from '../WebLayer';
+import { WebLayerOptions } from '../WebRenderer';
 import { Bounds } from '../dom-utils';
-export interface WebLayer3DOptions {
+export interface WebLayer3DOptions extends WebLayerOptions {
     pixelRatio?: number;
     layerSeparation?: number;
     autoRefresh?: boolean;
@@ -158,9 +159,11 @@ export declare class WebLayer3D extends THREE.Object3D {
     private _prepareHitTest;
     private _intersectionSort;
     private _updateInteractions;
-    static getLayerForQuery(selector: string): WebLayer3DContent | undefined;
-    static getClosestLayerForElement(element: Element): WebLayer3DContent | undefined;
-    hitTest(ray: THREE.Ray): {
+    /**
+     * Perform hit test with ray, or with -Z direction of an Object3D
+     * @param ray
+     */
+    hitTest(ray: THREE.Ray | THREE.Object3D): {
         layer: WebLayer3DContent;
         intersection: Intersection;
         target: HTMLElement;
