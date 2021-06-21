@@ -26,6 +26,8 @@ export type EventCallback = (
   data: { target: Element }
 ) => void
 
+const encoder = new TextEncoder();
+
 export class WebLayer {
   static DEFAULT_CACHE_SIZE = 4
   private static blankRetryCounts: Map<string, number> = new Map
@@ -71,8 +73,9 @@ export class WebLayer {
   cachedMargin: Map<string, Edges> = new Map()
 
   private _dynamicAttributes = ''
+  private _svgHash = ''
   private _svgDocument = ''
-  private _rasterizingDocument = ''
+  private _svgHashRasterizing = ''
   private _svgSrc = ''
   private _hashingCanvas = document.createElement('canvas')
 
@@ -259,18 +262,19 @@ export class WebLayer {
         parentsHTML[1] +
         '</foreignObject></svg>'
       const svgDoc = this._svgDocument = docString
+      const svgHash = this._svgHash = WebRenderer.arrayBufferToBase64(sha256.hash(encoder.encode(svgDoc)))
       // const svgSrc = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(docString))
 
       // check for existing canvas
-      const canvasHash = WebLayer.canvasHashes.get(svgDoc)
+      const canvasHash = WebLayer.canvasHashes.get(svgHash)
       if (canvasHash && WebLayer.cachedCanvases.has(canvasHash)) {
         this.canvas = WebLayer.cachedCanvases.get(canvasHash)!
         return
       }
 
       // rasterize the svg document if no existing canvas matches
-      this.cachedBounds.set(svgDoc, new Bounds().copy(this.bounds))
-      this.cachedMargin.set(svgDoc, new Edges().copy(this.margin))
+      this.cachedBounds.set(svgHash, new Bounds().copy(this.bounds))
+      this.cachedMargin.set(svgHash, new Edges().copy(this.margin))
       WebRenderer.addToRasterizeQueue(this)
     }
   }
@@ -281,7 +285,7 @@ export class WebLayer {
         WebRenderer.addToRenderQueue(this)
         resolve()
       }
-      this._rasterizingDocument = this._svgDocument
+      this._svgHashRasterizing = this._svgHash
       this.svgImage.src = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(this._svgDocument))
       if (this.svgImage.complete && this.svgImage.currentSrc === this.svgImage.src) {
         WebRenderer.addToRenderQueue(this)
@@ -292,9 +296,9 @@ export class WebLayer {
   }
 
   render() {
-    const svgDoc = this._rasterizingDocument
+    const svgHash = this._svgHashRasterizing
 
-    if (!this.cachedBounds.has(svgDoc) || !this.cachedMargin.has(svgDoc)) {
+    if (!this.cachedBounds.has(svgHash) || !this.cachedMargin.has(svgHash)) {
       this.needsRefresh = true
       return
     }
@@ -304,8 +308,8 @@ export class WebLayer {
       return
     }
 
-    let { width, height } = this.cachedBounds.get(svgDoc)!
-    let { left, top } = this.cachedMargin.get(svgDoc)!
+    let { width, height } = this.cachedBounds.get(svgHash)!
+    let { left, top } = this.cachedMargin.get(svgHash)!
 
     const hashingCanvas = this._hashingCanvas
     let hw = hashingCanvas.width
@@ -315,23 +319,23 @@ export class WebLayer {
     hctx.imageSmoothingEnabled = false
     hctx.drawImage(this.svgImage, left, top, width, height, 0, 0, hw, hh)
     const hashData = hctx.getImageData(0, 0, hw, hh).data
-    const hash =
+    const canvasHash =
       WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData))) +
       '?w=' +
       width +
       ';h=' +
       height
-    WebLayer.canvasHashes.set(svgDoc, hash)
+    WebLayer.canvasHashes.set(svgHash, canvasHash)
 
-    const blankRetryCount = WebLayer.blankRetryCounts.get(svgDoc)||0
+    const blankRetryCount = WebLayer.blankRetryCounts.get(svgHash)||0
     if (WebRenderer.isBlankImage(hashData) && blankRetryCount < 10) {
-      WebLayer.blankRetryCounts.set(svgDoc,blankRetryCount+1)
+      WebLayer.blankRetryCounts.set(svgHash,blankRetryCount+1)
       setTimeout(() => WebRenderer.addToRenderQueue(this), 500)
       return
     }
 
-    if (WebLayer.cachedCanvases.has(hash)) {
-      this.canvas = WebLayer.cachedCanvases.get(hash)!
+    if (WebLayer.cachedCanvases.has(canvasHash)) {
+      this.canvas = WebLayer.cachedCanvases.get(canvasHash)!
       return
     }
 
@@ -349,7 +353,7 @@ export class WebLayer {
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, w, h)
     ctx.drawImage(this.svgImage, left, top, width, height, 0, 0, w, h)
-    WebLayer.cachedCanvases.set(hash, newCanvas)
+    WebLayer.cachedCanvases.set(canvasHash, newCanvas)
     this.canvas = newCanvas
   }
 

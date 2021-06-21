@@ -635,38 +635,56 @@ export class WebRenderer {
 
     const styleElements = Array.from(
       rootNode.querySelectorAll("style, link[type='text/css'], link[rel='stylesheet']")
-    )
+    ) as (HTMLStyleElement|HTMLLinkElement)[]
     styleElements.push(this.renderingStyleElement)
+    
+    // if we are inside shadow dom, we have to clone the fonts into the light dom to load fonts in Chrome/Firefox
+    const inShadow = el.getRootNode() instanceof ShadowRoot
+
+    function processSheetRules(rules:CSSRuleList) {
+      let allRules = ''
+      let fontRules = ''
+      for (const rule of rules) {
+        if (rule.type === CSSRule.FONT_FACE_RULE) {
+          fontRules += '\n\n' + rule.cssText
+        }
+        allRules += '\n\n' + rule.cssText
+      }
+      return {allRules, fontRules}
+    }
 
     let foundNewStyles = false
     for (const element of styleElements) {
       if (!embedded.has(element)) {
-        // if it's inside shadow dom, we have to clone into light dom to load fonts in Chrome/Firefox
-        if (element.getRootNode() instanceof ShadowRoot) {
-          document.head.appendChild(element.cloneNode())
-        }
         foundNewStyles = true
-        if (element.tagName == 'STYLE') {
-          const sheet = (element as HTMLStyleElement).sheet as CSSStyleSheet
-          let cssText = ''
-          for (const rule of sheet.cssRules) {
-            cssText += '\n\n' + rule.cssText
-          }
-          embedded.set(element, this.generateEmbeddedCSS(window.location.href, cssText))
-        } else {
-          embedded.set(
-            element,
-            this.getURL(element.getAttribute('href')!, 'text/css').then(xhr => {
-              if (!xhr.response) return ''
+        embedded.set(element, new Promise<string>(resolve => {
+          const loading = setInterval(() => {
+            if (element.sheet) {
+              clearInterval(loading)
+              const result = processSheetRules(element.sheet.rules)
+              if (inShadow && result.fontRules) {
+                const fontStyles = document.createElement('style')
+                fontStyles.innerHTML = result.fontRules
+                document.head.appendChild(fontStyles)
+                embedded.set(fontStyles, Promise.resolve(''))
+              }
               this._addDynamicPseudoClassRules(rootNode)
-              var css = textDecoder.decode(xhr.response)
-              return this.generateEmbeddedCSS(window.location.href, css)
-            })
-          )
-        }
+              resolve(result.allRules)
+            }
+          },10)
+        }).then((cssText) => this.generateEmbeddedCSS(window.location.href, cssText)))
+        //   embedded.set(
+        //     element,
+        //     this.getURL(element.getAttribute('href')!, 'text/css').then(xhr => {
+        //       if (!xhr.response) return ''
+        //       this._addDynamicPseudoClassRules(rootNode)
+        //       var css = textDecoder.decode(xhr.response)
+        //       return this.generateEmbeddedCSS(window.location.href, css)
+        //     })
+        //   )
       }
     }
-    if (foundNewStyles) this._addDynamicPseudoClassRules(rootNode)
+    // if (foundNewStyles) this._addDynamicPseudoClassRules(rootNode)
     return Promise.all(embedded.values())
   }
 

@@ -31,8 +31,9 @@ export declare class WebLayer {
     cachedBounds: Map<string, Bounds>;
     cachedMargin: Map<string, Edges>;
     private _dynamicAttributes;
+    private _svgHash;
     private _svgDocument;
-    private _rasterizingDocument;
+    private _svgHashRasterizing;
     private _svgSrc;
     private _hashingCanvas;
     _canvas: HTMLCanvasElement;
