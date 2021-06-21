@@ -703,7 +703,27 @@ export class WebRenderer {
         return ''
       }
     } else {
-      return 'data:' + contentType + ';base64,' + this.arrayBufferToBase64(arr)
+      const dataURL = 'data:' + contentType + ';base64,' + this.arrayBufferToBase64(arr)
+      if (contentType?.startsWith('image')) {
+        // make the browser pre-process the image data
+        const loader = document.createElement('img')
+        let resolveRendered:() => void
+        const onRendered = new Promise(resolve => {
+          resolveRendered = resolve
+          loader.onload = () => {
+            requestAnimationFrame(loaded)
+          }
+        })
+        function loaded() {
+          requestAnimationFrame(rendered)
+        }
+        function rendered() {
+          resolveRendered()
+        }
+        loader.src = dataURL
+        await onRendered
+      }
+      return dataURL
     }
   }
 
