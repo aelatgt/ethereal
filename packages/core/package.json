@@ -1,9 +1,11 @@
 {
   "name": "@etherealjs/core",
-  "version": "2.0.0",
-  "devDependencies": {
+  "version": "2.0.1",
+  "dependencies": {
     "@popmotion/easing": "latest",
-    "@types/mathjs": "^6.0.9",
+    "@types/mathjs": "^6.0.9"
+  },
+  "devDependencies": {
     "mathjs": "^8.1.1"
   },
   "peerDependencies": {

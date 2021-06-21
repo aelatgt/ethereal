@@ -1,7 +1,8 @@
 {
   "name": "ethereal-example-web-layer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Gheric Speiginer",
+  "private": true,
   "dependencies": {
     "@types/dat.gui": "^0.7.2",
     "dat.gui": "^0.7.5",

@@ -1,7 +1,7 @@
 {
   "name": "ethereal",
-  "description": "A Spatial Adaptivity Engine for the Immersive Web! ",
-  "version": "2.0.0",
+  "description": "An Engine for Web-Based Immersive UI!",
+  "version": "2.0.2",
   "author": "Gheric Speiginer",
   "bugs": "https://github.com/aelatgt/ethereal/issues",
   "dependencies": {
