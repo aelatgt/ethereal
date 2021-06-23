@@ -7,7 +7,7 @@ export declare class WebLayer {
     element: Element;
     eventCallback: EventCallback;
     static DEFAULT_CACHE_SIZE: number;
-    private static blankRetryCounts;
+    private static retryCount;
     private static canvasHashes;
     private static cachedCanvases;
     id: string;
@@ -28,6 +28,7 @@ export declare class WebLayer {
     parentLayer?: WebLayer;
     childLayers: WebLayer[];
     pixelRatio?: number;
+    rasterizationCount: Map<string, number>;
     cachedBounds: Map<string, Bounds>;
     cachedMargin: Map<string, Edges>;
     private _dynamicAttributes;

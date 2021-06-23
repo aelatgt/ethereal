@@ -74,6 +74,7 @@ export declare class WebRenderer {
     static getURL(url: string, accept?: string): Promise<XMLHttpRequest>;
     private static embeddedCSS;
     static getRenderingCSS(el: Element): Promise<string[]>;
+    static dataURLMap: Map<string, Promise<string>>;
     static getDataURL(url: string): Promise<string>;
     static updateInputAttributes(element: Element): void;
     static _updateInputAttribute(inputElement: HTMLInputElement): void;

@@ -7,7 +7,7 @@
     ]
   },
   "dependencies": {
-    "@types/three": "^0.129.0",
+    "@types/three": "^0.129.1",
     "@vue/compiler-sfc": "^3.0.11",
     "ethereal": "file:packages/ethereal",
     "sass": "^1.32.12",

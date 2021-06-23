@@ -3,5 +3,5 @@ interface Options {
     depth: number;
     replacer?: (node: Node) => string | void;
 }
-export declare function serializeToString(node: Element, replacer: Options['replacer']): string;
+export declare function serializeToString(node: Element, replacer: Options['replacer']): Promise<string>;
 export {};

@@ -270,9 +270,9 @@ export default class UI {
                 this.augmentations[name] = augmentation
             }
             augmentation.position.copy(prideObject.position as any).multiplyScalar(0.01)
-            augmentation.rotation.x = prideObject.rotation.x * THREE.DEG2RAD
-            augmentation.rotation.y = prideObject.rotation.y * THREE.DEG2RAD
-            augmentation.rotation.z = prideObject.rotation.z * THREE.DEG2RAD
+            augmentation.rotation.x = prideObject.rotation.x * THREE.MathUtils.DEG2RAD
+            augmentation.rotation.y = prideObject.rotation.y * THREE.MathUtils.DEG2RAD
+            augmentation.rotation.z = prideObject.rotation.z * THREE.MathUtils.DEG2RAD
         }
     }
 

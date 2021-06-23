@@ -45,6 +45,7 @@ export class WebLayer3DContent extends THREE.Object3D {
     super()
     this.name = element.id
     this._webLayer = WebRenderer.getClosestLayer(element)!
+    ;(element as any).layer = this
 
     this.add(this.contentMesh)
     this.add(this._boundsMesh)
