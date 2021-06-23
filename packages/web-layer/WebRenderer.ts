@@ -270,7 +270,7 @@ export class WebRenderer {
       rasterizeQueue
         .shift()!
         .rasterize()
-        .then(() => {
+        .finally(() => {
           WebRenderer.rasterizeTaskCount--
         })
     }
@@ -689,42 +689,28 @@ export class WebRenderer {
   }
 
   // Generate and returns a dataurl for the given url
+  static dataURLMap = new Map<string, Promise<string>>()
   static async getDataURL(url:string): Promise<string> {
-    const xhr = await this.getURL(url)
-    const arr = new Uint8Array(xhr.response)
-    const contentType = xhr.getResponseHeader('Content-Type')?.split(';')[0]
-    if (contentType == 'text/css') {
-      let css = textDecoder.decode(arr)
-      css = await this.generateEmbeddedCSS(url, css)
-      const base64 = window.btoa(css)
-      if (base64.length > 0) {
-        return 'data:' + contentType + ';base64,' + base64
+    if (this.dataURLMap.has(url)) return this.dataURLMap.get(url)!
+    const dataURLPromise = new Promise<string>(async resolveDataURL => {
+      const xhr = await this.getURL(url)
+      const arr = new Uint8Array(xhr.response)
+      const contentType = xhr.getResponseHeader('Content-Type')?.split(';')[0]
+      let dataURL = ''
+      if (contentType == 'text/css') {
+        let css = textDecoder.decode(arr)
+        css = await this.generateEmbeddedCSS(url, css)
+        const base64 = window.btoa(css)
+        if (base64.length > 0) {
+          dataURL = 'data:' + contentType + ';base64,' + base64
+        }
       } else {
-        return ''
+        dataURL = 'data:' + contentType + ';base64,' + this.arrayBufferToBase64(arr)
       }
-    } else {
-      const dataURL = 'data:' + contentType + ';base64,' + this.arrayBufferToBase64(arr)
-      if (contentType?.startsWith('image')) {
-        // make the browser pre-process the image data
-        const loader = document.createElement('img')
-        let resolveRendered:() => void
-        const onRendered = new Promise(resolve => {
-          resolveRendered = resolve
-          loader.onload = () => {
-            requestAnimationFrame(loaded)
-          }
-        })
-        function loaded() {
-          requestAnimationFrame(rendered)
-        }
-        function rendered() {
-          resolveRendered()
-        }
-        loader.src = dataURL
-        await onRendered
-      }
-      return dataURL
-    }
+      resolveDataURL(dataURL)
+    })
+    this.dataURLMap.set(url, dataURLPromise)
+    return dataURLPromise
   }
 
   static updateInputAttributes(element: Element) {

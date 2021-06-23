@@ -9,7 +9,7 @@
                 <div id="step" xr-layer>Step: <span id="type">{{pride.elementSubType}}</span> {{pride.step}}</div>
                 <div id="instruction" xr-layer>{{pride.instruction}}</div>
             </div>
-            <div xr-layer xr-pixel-ratio="0.1" id="media">
+            <div xr-layer id="media">
                 <video xr-layer id="video" loop webkit-playsinline playsinline="true" crossorigin="anonymous" muted v-show="pride.video" :src="pride.video"/>
                 <img xr-layer id="image" crossorigin="anonymous" v-show="pride.image" :src="pride.image"/>
             </div>

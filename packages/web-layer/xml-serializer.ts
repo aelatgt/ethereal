@@ -1,5 +1,7 @@
 // Based on https://github.com/cburgmer/xmlserializer 
 
+import { WebRenderer } from "./WebRenderer";
+
 function removeInvalidCharacters(content:string) {
     // See http://www.w3.org/TR/xml/#NT-Char for valid XML 1.0 characters
     return content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
@@ -48,25 +50,34 @@ function serializeNamespace(node:Element, isRootNode:boolean) {
     }
 }
 
-function serializeChildren(node:Element, options:Options) {
-    let output = ''
-    for (const n of node.childNodes) output += nodeTreeToXHTML(n, options)
-    return output
+async function serializeChildren(node:Element, options:Options) {
+    let output = []
+    for (const n of node.childNodes) output.push(nodeTreeToXHTML(n, options))
+    return Promise.all(output).then(output => output.join(''))
 }
 
-function serializeTag(node:Element, options:Options) {
-    let output = '<' + getTagName(node)
+async function serializeTag(node:Element, options:Options) {
+    const tagName = getTagName(node)
+    let output = '<' + tagName
     output += serializeNamespace(node, options.depth === 0)
+
+    const childrenHTML = serializeChildren(node, options)
+
+    const isImg = tagName === 'img'
     
     for (const attr of node.attributes) {
-        output += serializeAttribute(attr.name, attr.value)
+        if (isImg && attr.name === 'src') {
+            output += serializeAttribute(attr.name, await WebRenderer.getDataURL(attr.value))
+        } else {
+            output += serializeAttribute(attr.name, attr.value)
+        }
     }
 
     if (node.childNodes.length > 0) {
         options.depth++
         output += '>'
-        output += serializeChildren(node, options)
-        output += '</' + getTagName(node) + '>'
+        output += await childrenHTML
+        output += '</' + tagName + '>'
         options.depth--
     } else {
         output += '/>'
@@ -90,7 +101,7 @@ function serializeCDATA(node:Node) {
     return '<![CDATA[' + node.nodeValue + ']]>'
 }
 
-function nodeTreeToXHTML(node:Node, options:Options) : string {
+async function nodeTreeToXHTML(node:Node, options:Options) : Promise<string> {
     const replaced = options.replacer?.(node)
     if (typeof replaced === 'string') {
         return replaced
@@ -114,6 +125,6 @@ interface Options {
     replacer?:(node:Node)=>string|void
 }
 
-export function serializeToString(node:Element, replacer:Options['replacer']) {
-    return removeInvalidCharacters(nodeTreeToXHTML(node, {depth: 0, replacer}))
+export async function serializeToString(node:Element, replacer:Options['replacer']) {
+    return removeInvalidCharacters(await nodeTreeToXHTML(node, {depth: 0, replacer}))
 }

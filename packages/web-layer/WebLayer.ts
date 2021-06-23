@@ -28,11 +28,14 @@ export type EventCallback = (
 
 const encoder = new TextEncoder();
 
+type SVGHash = string
+type CanvasHash = string
+
 export class WebLayer {
   static DEFAULT_CACHE_SIZE = 4
-  private static blankRetryCounts: Map<string, number> = new Map
-  private static canvasHashes: LRUMap<string, string> = new LRUMap(1000)
-  private static cachedCanvases: LRUMap<string, HTMLCanvasElement> = new LRUMap(WebLayer.DEFAULT_CACHE_SIZE)
+  private static retryCount: Map<SVGHash, number> = new Map
+  private static canvasHashes: LRUMap<SVGHash, CanvasHash> = new LRUMap(1000)
+  private static cachedCanvases: LRUMap<CanvasHash, HTMLCanvasElement> = new LRUMap(WebLayer.DEFAULT_CACHE_SIZE)
 
   id:string
 
@@ -69,6 +72,7 @@ export class WebLayer {
   childLayers = [] as WebLayer[]
   pixelRatio?: number
 
+  rasterizationCount: Map<string, number> = new Map()
   cachedBounds: Map<string, Bounds> = new Map()
   cachedMargin: Map<string, Edges> = new Map()
 
@@ -189,7 +193,7 @@ export class WebLayer {
     if (layer) {      
       const bounds = layer.bounds
       let attributes = ''
-      const extraStyle = `min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
+      const extraStyle = `max-width:${bounds.width+1}px;max-height:${bounds.height+1}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
       let addedStyle = false
       for (const attr of layer.element.attributes) {
         if (attr.name === 'src') continue
@@ -229,22 +233,21 @@ export class WebLayer {
       const computedStyle = getComputedStyle(layerElement)
       const needsInlineBlock = computedStyle.display === 'inline'
       WebRenderer.updateInputAttributes(layerElement)
-      const layerHTML = serializeToString(layerElement, this.serializationReplacer).replace(
-          elementAttribute,
-            `${elementAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
-            `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
-            WebRenderer.getPsuedoAttributes(this.pseudoStates)
-      )
       const parentsHTML = this._getParentsHTML(layerElement)
       parentsHTML[0] = parentsHTML[0].replace(
         'html',
         'html ' + WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE + '="" '
       )
 
-      const [svgCSS] = await Promise.all([
+      let [svgCSS, layerHTML] = await Promise.all([
         WebRenderer.getRenderingCSS(this.element),
-        WebRenderer.embedExternalResources(this.element)
+        serializeToString(layerElement, this.serializationReplacer)
       ])
+      layerHTML = layerHTML.replace(elementAttribute,
+            `${elementAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
+            `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
+            WebRenderer.getPsuedoAttributes(this.pseudoStates)
+    )
       const docString =
         '<svg width="' +
         width +
@@ -253,17 +256,18 @@ export class WebLayer {
         '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
         svgCSS.join('\n') +
         ']]></style></defs><foreignObject x="0" y="0" width="' +
-        width +
+        (width+1) +
         '" height="' +
-        height +
+        (height+1) +
         '">' +
         parentsHTML[0] +
         layerHTML +
         parentsHTML[1] +
         '</foreignObject></svg>'
       const svgDoc = this._svgDocument = docString
-      const svgHash = this._svgHash = WebRenderer.arrayBufferToBase64(sha256.hash(encoder.encode(svgDoc)))
-      // const svgSrc = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(docString))
+      const svgHash = this._svgHash = WebRenderer.arrayBufferToBase64(sha256.hash(encoder.encode(svgDoc))) +
+        '?w=' + width +
+        ';h=' + height
 
       // check for existing canvas
       const canvasHash = WebLayer.canvasHashes.get(svgHash)
@@ -280,31 +284,34 @@ export class WebLayer {
   }
 
   async rasterize() {
-    return new Promise<void>(resolve => {
-      this.svgImage.onload = () => {
-        WebRenderer.addToRenderQueue(this)
-        resolve()
-      }
-      this._svgHashRasterizing = this._svgHash
-      this.svgImage.src = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(this._svgDocument))
-      if (this.svgImage.complete && this.svgImage.currentSrc === this.svgImage.src) {
+    return new Promise<void>( (resolve, reject) => {
+      const render = () => {
         WebRenderer.addToRenderQueue(this)
         this.svgImage.onload = null
         resolve()
       }
+      this.svgImage.onload = () => {
+        setTimeout(render, 10) // delay to make sure internal SVG images/resources are fully loaded 
+      }
+      this.svgImage.onerror = (error) => {
+        reject(error)
+      }
+      this._svgHashRasterizing = this._svgHash
+      this.svgImage.src = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(this._svgDocument))
     })
   }
 
   render() {
+
+    if (!this.svgImage.complete || this.svgImage.currentSrc !== this.svgImage.src) {
+      setTimeout(() => WebRenderer.addToRenderQueue(this),100)
+      return
+    }
+
     const svgHash = this._svgHashRasterizing
 
     if (!this.cachedBounds.has(svgHash) || !this.cachedMargin.has(svgHash)) {
       this.needsRefresh = true
-      return
-    }
-
-    if (!this.svgImage.complete) {
-      WebRenderer.addToRenderQueue(this)
       return
     }
 
@@ -320,24 +327,24 @@ export class WebLayer {
     hctx.drawImage(this.svgImage, left, top, width, height, 0, 0, hw, hh)
     const hashData = hctx.getImageData(0, 0, hw, hh).data
     const canvasHash =
-      WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData))) +
-      '?w=' +
-      width +
-      ';h=' +
-      height
+      WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData)))
+    
+    const previousCanvasHash = WebLayer.canvasHashes.get(svgHash)
     WebLayer.canvasHashes.set(svgHash, canvasHash)
+    if (previousCanvasHash !== canvasHash) {
+      WebLayer.retryCount.set(svgHash, 0)
+    }
 
-    const blankRetryCount = WebLayer.blankRetryCounts.get(svgHash)||0
-    if (WebRenderer.isBlankImage(hashData) && blankRetryCount < 10) {
-      WebLayer.blankRetryCounts.set(svgHash,blankRetryCount+1)
-      setTimeout(() => WebRenderer.addToRenderQueue(this), 500)
+    const retryCount = WebLayer.retryCount.get(svgHash)||0
+    WebLayer.retryCount.set(svgHash, retryCount+1)
+
+    if (retryCount > 3 && WebLayer.cachedCanvases.has(canvasHash)) {
+      if (this._svgHash === this._svgHashRasterizing)
+        this.canvas = WebLayer.cachedCanvases.get(canvasHash)!
       return
     }
 
-    if (WebLayer.cachedCanvases.has(canvasHash)) {
-      this.canvas = WebLayer.cachedCanvases.get(canvasHash)!
-      return
-    }
+    setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2^retryCount)
 
     const pixelRatio =
       this.pixelRatio ||
@@ -354,7 +361,9 @@ export class WebLayer {
     ctx.clearRect(0, 0, w, h)
     ctx.drawImage(this.svgImage, left, top, width, height, 0, 0, w, h)
     WebLayer.cachedCanvases.set(canvasHash, newCanvas)
-    this.canvas = newCanvas
+
+    if (this._svgHash === this._svgHashRasterizing)
+      this.canvas = newCanvas
   }
 
   // Get all parents of the embeded html as these can effect the resulting styles
