@@ -9,7 +9,7 @@ if (self.THREE) {
 import { WebLayer} from '../WebLayer'
 import { WebRenderer, WebLayerOptions } from '../WebRenderer'
 
-import {Bounds, getBounds, getViewportBounds, traverseChildElements, DOM } from '../dom-utils'
+import {Bounds, Edges, getBounds, getViewportBounds, traverseChildElements, DOM } from '../dom-utils'
 
 export interface WebLayer3DOptions extends WebLayerOptions {
   pixelRatio?: number
@@ -89,9 +89,9 @@ export class WebLayer3DContent extends THREE.Object3D {
       return t
     }
 
-    const canvas = this._webLayer.canvas
-    let t = this.textures.get(canvas)
-    if (!t) {
+    const canvas = this._webLayer.currentCanvas
+    let t = this.textures.get(canvas!)
+    if (canvas && !t) {
       t = new THREE.Texture(canvas)
       t.needsUpdate = true
       t.wrapS = THREE.ClampToEdgeWrapping
@@ -175,9 +175,8 @@ export class WebLayer3DContent extends THREE.Object3D {
     return this._webLayer.needsRemoval
   }
 
-  get bounds() {
-    return this._webLayer.bounds
-  }
+  bounds = new Bounds
+  margin = new Edges
 
   get parentWebLayer(): WebLayer3DContent | undefined {
     return (
@@ -217,10 +216,11 @@ export class WebLayer3DContent extends THREE.Object3D {
       if (recurse) child.refresh(recurse)
     }
     this._refreshVideoBounds()
-    this._refreshDOMLayout()
   }
 
   private updateLayout() {
+
+    this._updateDOMLayout()
 
     if (this._camera) {
 
@@ -248,19 +248,17 @@ export class WebLayer3DContent extends THREE.Object3D {
     const mesh = this.contentMesh
     const texture = this.currentTexture
     const material = mesh.material as THREE.MeshBasicMaterial
-    if (texture.image && material.map !== texture) {
+    if (texture && (texture.image && material.map !== texture || this.textureNeedsUpdate)) {
       const contentScale = this.contentMesh.scale
       const aspect = Math.abs(contentScale.x * this.scale.x / contentScale.y * this.scale.y)
       const targetAspect = this.domSize.x / this.domSize.y
       if (Math.abs(targetAspect-aspect) < 1e3) {
         material.map = texture
         this.depthMaterial['map'] = texture
-        if (this.textureNeedsUpdate) {
-          this.textureNeedsUpdate = false
-          material.needsUpdate = true
-          texture.needsUpdate = true
-          this.depthMaterial.needsUpdate = true
-        }
+        this.textureNeedsUpdate = false
+        material.needsUpdate = true
+        texture.needsUpdate = true
+        this.depthMaterial.needsUpdate = true
       }
     }
     material.transparent = true
@@ -360,10 +358,10 @@ export class WebLayer3DContent extends THREE.Object3D {
   private _refreshVideoBounds() {
     if (this.element.nodeName === 'VIDEO') {
       const video = this.element as HTMLVideoElement
-      const texture = this.currentTexture
+      const texture = this.currentTexture!
       const computedStyle = getComputedStyle(this.element)
       const { objectFit } = computedStyle
-      const { width: viewWidth, height: viewHeight } = this.bounds
+      const { width: viewWidth, height: viewHeight } = this.bounds.copy(this._webLayer.currentBounds)
       const { videoWidth, videoHeight } = video
       const videoRatio = videoWidth / videoHeight
       const viewRatio = viewWidth / viewHeight
@@ -405,51 +403,56 @@ export class WebLayer3DContent extends THREE.Object3D {
     }
   }
 
-  private _refreshDOMLayout() {
+  private _updateDOMLayout() {
 
     if (this.needsRemoval) {
       return
     }
 
+    const {currentBounds, currentMargin} = this._webLayer
+
     this.domLayout.position.set(0,0,0)
     this.domLayout.scale.set(1, 1, 1)
     this.domLayout.quaternion.set(0, 0, 0, 1)
 
-    const bounds = this.bounds
+    const isVideo = this.element.nodeName === 'VIDEO'
+    const bounds = isVideo ? this.bounds : this.bounds.copy(currentBounds)
+    const margin = isVideo ? this.margin : this.margin.copy(currentMargin)
+
+    const fullWidth = bounds.width + margin.left + margin.right
+    const fullHeight = bounds.height + margin.top + margin.bottom
     const width = bounds.width
     const height = bounds.height
     const pixelSize = 1 / WebLayer3D.DEFAULT_PIXELS_PER_UNIT
 
     this.domSize.set(
-      Math.max(pixelSize * width, 10e-6),
-      Math.max(pixelSize * height, 10e-6),
+      Math.max(pixelSize * (width + margin.left + margin.right), 10e-6),
+      Math.max(pixelSize * (height + margin.top + margin.bottom), 10e-6),
       1
     )
 
     if (!WebLayer3D.shouldApplyDOMLayout(this)) return
 
-    const parentBounds =
-      this.parentWebLayer instanceof WebLayer3DContent
-        ? this.parentWebLayer.bounds
-        : getViewportBounds(scratchBounds)
-    const parentWidth = parentBounds.width
-    const parentHeight = parentBounds.height
+    const parentLayer = this.parentWebLayer
+    if (!parentLayer) return
 
-    const leftEdge = -parentWidth / 2 + width / 2
-    const topEdge = parentHeight / 2 - height / 2
-
-    // const sep = this.options.layerSeparation || WebLayer3D.DEFAULT_LAYER_SEPARATION
+    const parentBounds = parentLayer.bounds //|| getViewportBounds(scratchBounds)
+    const parentMargin = parentLayer.margin
+    const parentFullWidth = parentBounds.width + parentMargin.left + parentMargin.right
+    const parentFullHeight = parentBounds.height + parentMargin.bottom + parentMargin.bottom
+    const parentLeftEdge = - parentFullWidth / 2 + parentMargin.left
+    const parentTopEdge = parentFullHeight / 2 - parentMargin.top
     
     this.domLayout.position.set(
-      pixelSize * (leftEdge + bounds.left),
-      pixelSize * (topEdge - bounds.top),
+      pixelSize * (parentLeftEdge + fullWidth/2 + bounds.left - margin.left),
+      pixelSize * (parentTopEdge - fullHeight/2 - bounds.top + margin.top),
       0
     )
 
     const computedStyle = getComputedStyle(this.element)
     const transform = computedStyle.transform
     if (transform && transform !== 'none') {
-      const cssTransform = WebRenderer.parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix)
+      const cssTransform = WebRenderer.parseCSSTransform(computedStyle, bounds.width, bounds.height, pixelSize, scratchMatrix)
       if (cssTransform) {
         this.domLayout.updateMatrix()
         this.domLayout.matrix.multiply(cssTransform)
@@ -532,10 +535,11 @@ export class WebLayer3D extends THREE.Object3D {
           this.add(layer)
         } else layer.parentWebLayer?.add(layer)
         if (this.options.onLayerCreate) this.options.onLayerCreate(layer)
-      } else if (event === 'layerpainted') {
+      } else if (event === 'layerchanged') {
         const layer = WebRenderer.layers.get(target)!
         const layer3D = WebLayer3D.layersByElement.get(layer.element)!
         layer3D.textureNeedsUpdate = true
+        console.log('layerchanged', layer.element)
       } else if (event === 'layermoved') {
         const layer = WebLayer3D.layersByElement.get(target)!
         layer.parentWebLayer?.add(layer)

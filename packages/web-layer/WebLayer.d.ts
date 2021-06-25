@@ -1,14 +1,15 @@
 import "fast-text-encoding";
 import { Bounds, Edges } from './dom-utils';
-export declare type EventCallback = (event: 'layerpainted' | 'layerresized' | 'layercreated' | 'layermoved' | 'removalrequired' | 'inputrequired', data: {
+export declare type EventCallback = (event: 'layerchanged' | 'layerresized' | 'layercreated' | 'layermoved' | 'removalrequired' | 'inputrequired', data: {
     target: Element;
 }) => void;
+declare type SVGHash = string;
 export declare class WebLayer {
     element: Element;
     eventCallback: EventCallback;
     static DEFAULT_CACHE_SIZE: number;
-    private static retryCount;
-    private static canvasHashes;
+    private static svgRetryCount;
+    private static svgCanvasHash;
     private static cachedCanvases;
     id: string;
     constructor(element: Element, eventCallback: EventCallback);
@@ -21,7 +22,7 @@ export declare class WebLayer {
         target: boolean;
     };
     svgImage: HTMLImageElement;
-    bounds: Bounds;
+    private bounds;
     private padding;
     private margin;
     private border;
@@ -37,9 +38,14 @@ export declare class WebLayer {
     private _svgHashRasterizing;
     private _svgSrc;
     private _hashingCanvas;
-    _canvas: HTMLCanvasElement;
-    set canvas(val: HTMLCanvasElement);
-    get canvas(): HTMLCanvasElement;
+    _currentSVGHash?: string;
+    _currentCanvas?: HTMLCanvasElement;
+    _currentBounds: Bounds;
+    _currentMargin: Edges;
+    trySetFromSVGHash(svgHash: SVGHash): boolean;
+    get currentCanvas(): HTMLCanvasElement | undefined;
+    get currentBounds(): Bounds;
+    get currentMargin(): Edges;
     get depth(): number;
     get rootLayer(): WebLayer;
     traverseParentLayers(each: (layer: WebLayer) => void): void;
@@ -54,3 +60,4 @@ export declare class WebLayer {
     render(): void;
     private _getParentsHTML;
 }
+export {};

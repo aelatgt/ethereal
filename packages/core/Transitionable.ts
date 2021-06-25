@@ -105,6 +105,13 @@ export class TransitionConfig {
     blend?: boolean
 }
 
+const _scratchV2 = new Vector2
+const _scratchV3 = new Vector3
+const _scratchQ = new Quaternion
+const _scratchBox = new Box3
+const _scratchColor = new Color
+const _blackColor = new Color(0,0,0)
+
 export class Transitionable<T extends MathType = MathType> extends TransitionConfig {
 
     constructor(
@@ -354,10 +361,6 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
 
         // Finite Impulse Response Interruptable Transitions
 
-        // for (const transition of queue) {
-        //     transition.elapsed += delta
-        // }
-
         while (queue.length && queue[0].elapsed >= queue[0].duration) {
             this.start = queue.shift()!.target
         }
@@ -366,10 +369,10 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         const current = this._current
         let previousTarget = this.start
         
-        for (const transition of queue) {
-            this._addTransitionToCurrent(current, previousTarget, transition)
+        for (let i=0; i < queue.length; i++) {
+            const transition = queue[i]
+            this._addTransitionToCurrent(current, previousTarget, transition, delta)
             previousTarget = transition.target
-            transition.elapsed += delta
             if (!transition.blend) break
         }
 
@@ -416,16 +419,10 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         this.forceWait = false
     }
 
-    private _scratchV2 = new Vector2
-    private _scratchV3 = new Vector3
-    private _scratchQ = new Quaternion
-    private _scratchBox = new Box3
-    private _scratchColor = new Color
-    private _blackColor = new Color(0,0,0)
-
-    private _addTransitionToCurrent = (current:TransitionableType<T>, start:TransitionableType<T>, transition:Required<Transition<T>>) => {
+    private _addTransitionToCurrent(current:TransitionableType<T>, start:TransitionableType<T>, transition:Required<Transition<T>>, delta:number) {
         const alpha = transition.duration > 0 ? transition.easing( Math.min(transition.elapsed / transition.duration, 1) ) : 1
         const target = transition.target
+        transition.elapsed += delta
 
         if (typeof target === 'number') {
             this._current = current as number + MathUtils.lerp(target - (start as number), 0, 1-alpha) as any
@@ -436,7 +433,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const c = current as THREE.Vector3
             const s = start as THREE.Vector3
             const e = target as THREE.Vector3
-            const amount = this._scratchV3.copy(e).sub(s).lerp(V_000, 1-alpha)
+            const amount = _scratchV3.copy(e).sub(s).lerp(V_000, 1-alpha)
             this._current = c.add(amount) as any
             return
         } 
@@ -445,7 +442,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const c = current as THREE.Vector2
             const s = start as THREE.Vector2
             const e = target as THREE.Vector2
-            const amount = this._scratchV2.copy(e).sub(s).lerp(V_00, 1-alpha)
+            const amount = _scratchV2.copy(e).sub(s).lerp(V_00, 1-alpha)
             this._current = c.add(amount) as any
             return
         } 
@@ -454,7 +451,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const c = current as THREE.Quaternion
             const s = start as THREE.Quaternion
             const e = target as THREE.Quaternion
-            const amount = this._scratchQ.copy(s).invert().multiply(e).slerp(Q_IDENTITY, 1-alpha)
+            const amount = _scratchQ.copy(s).invert().multiply(e).slerp(Q_IDENTITY, 1-alpha)
             this._current = c.multiply(amount).normalize() as any
             return
         } 
@@ -463,7 +460,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const c = current as THREE.Color
             const s = start as THREE.Color
             const e = target as THREE.Color
-            const amount = this._scratchColor.copy(e).sub(s).lerp(this._blackColor, 1-alpha)
+            const amount = _scratchColor.copy(e).sub(s).lerp(_blackColor, 1-alpha)
             this._current = c.add(amount) as any
             return
         } 
@@ -472,8 +469,8 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             const c = current as THREE.Box3
             const s = start as THREE.Box3
             const e = target as THREE.Box3
-            const minAmount = this._scratchBox.min.copy(e.min).sub(s.min).lerp(V_000, 1-alpha)
-            const maxAmount = this._scratchBox.max.copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
+            const minAmount = _scratchBox.min.copy(e.min).sub(s.min).lerp(V_000, 1-alpha)
+            const maxAmount = _scratchBox.max.copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
             c.min.add(minAmount)
             c.max.add(maxAmount)
             // if (c.isEmpty()) {

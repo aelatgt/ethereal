@@ -1,7 +1,7 @@
 import * as _THREE from 'three';
 import { WebLayer } from '../WebLayer';
 import { WebLayerOptions } from '../WebRenderer';
-import { Bounds } from '../dom-utils';
+import { Bounds, Edges } from '../dom-utils';
 export interface WebLayer3DOptions extends WebLayerOptions {
     pixelRatio?: number;
     layerSeparation?: number;
@@ -28,7 +28,7 @@ export declare class WebLayer3DContent extends THREE.Object3D {
     private _viewZ;
     private _renderZ;
     textures: Map<HTMLCanvasElement | HTMLVideoElement, _THREE.Texture>;
-    get currentTexture(): _THREE.Texture;
+    get currentTexture(): _THREE.Texture | undefined;
     textureNeedsUpdate: boolean;
     contentMesh: _THREE.Mesh<_THREE.PlaneGeometry, _THREE.MeshBasicMaterial>;
     /**
@@ -65,7 +65,8 @@ export declare class WebLayer3DContent extends THREE.Object3D {
     setNeedsRefresh(): void;
     /** If true, this layer needs to be removed from the scene */
     get needsRemoval(): boolean;
-    get bounds(): Bounds;
+    bounds: Bounds;
+    margin: Edges;
     get parentWebLayer(): WebLayer3DContent | undefined;
     childWebLayers: WebLayer3DContent[];
     /**
@@ -99,7 +100,7 @@ export declare class WebLayer3DContent extends THREE.Object3D {
     traverseLayersPostOrder(each: (layer: WebLayer3DContent) => boolean | void): boolean;
     dispose(): void;
     private _refreshVideoBounds;
-    private _refreshDOMLayout;
+    private _updateDOMLayout;
 }
 /**
  * Transform a DOM tree into 3D layers.

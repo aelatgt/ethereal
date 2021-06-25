@@ -175,12 +175,6 @@ export declare class Transitionable<T extends MathType = MathType> extends Trans
      *
      */
     private _updateTransitionable;
-    private _scratchV2;
-    private _scratchV3;
-    private _scratchQ;
-    private _scratchBox;
-    private _scratchColor;
-    private _blackColor;
     private _addTransitionToCurrent;
     private _swap;
     /**
