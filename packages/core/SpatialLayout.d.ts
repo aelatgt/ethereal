@@ -83,9 +83,8 @@ export declare class SpatialLayout extends OptimizerConfig {
      * Return true if this layout has a valid solution
      */
     get hasValidSolution(): boolean;
-    private _prioritySort;
     /** stable-sort objectives by priority */
-    sortObjectives(): void;
+    processObjectives(): void;
     bestSolution: LayoutSolution;
     /**
      * Update best scores and sort solutions

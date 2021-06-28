@@ -32,7 +32,7 @@ export const ThreeBindings = {
         const node = metrics.node as THREE.Mesh
         if (!node.isObject3D) return
 
-        node.matrixAutoUpdate && node.updateMatrix()
+        node.updateMatrix()
         state.localMatrix = node.matrix
         state.parent = node.parent
         state.opacity = getThreeOpacity(metrics) || 1
@@ -61,8 +61,8 @@ export const ThreeBindings = {
         applyThreeOpacity(metrics, state.opacity)
 
         if (isNaN(state.localPosition.x)) throw new Error
-        // node.matrixAutoUpdate = true
-        // node.matrixWorldNeedsUpdate = true
+        node.matrixAutoUpdate = false
+        node.matrixWorldNeedsUpdate = false
     }
 }
 

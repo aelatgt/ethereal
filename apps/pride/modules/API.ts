@@ -52,7 +52,7 @@ const data = {
     json: '',
     procedure: 'Treadmill Monthly Maintenance',
     step: '',
-    instruction: 'test',
+    instruction: 'Loading...',
     image: '',
     video: './public/armWiggleDemonstrated.mov',
     elementType: '' as 'Info'|'Instruction',

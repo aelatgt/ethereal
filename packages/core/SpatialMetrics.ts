@@ -853,9 +853,9 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
                 ) || this.raw.localOrientation
             )
                 
-            const spatialBounds = (useCurrent ? 
+            const spatialBounds = useCurrent ? 
                 adapter?.bounds.enabled && adapter?.bounds.current :
-                adapter?.bounds.enabled && adapter?.bounds.target) //|| this.raw.spatialBounds
+                adapter?.bounds.enabled && adapter?.bounds.target
 
             const parentMetrics = this.parentMetrics
             state.parent = parentMetrics?.node ?? null

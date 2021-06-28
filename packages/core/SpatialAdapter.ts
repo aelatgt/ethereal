@@ -137,9 +137,9 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             case 'bottom': value = referenceBounds.min.y; break;
             case 'centery': value = referenceCenter.y; break;
             case 'top': value = referenceBounds.max.y; break;
-            case 'front': value = referenceBounds.min.z; break;
+            case 'front': value = referenceBounds.max.z; break;
             case 'centerz': value = referenceCenter.z; break;
-            case 'back': value = referenceBounds.max.z; break;
+            case 'back': value = referenceBounds.min.z; break;
             case 'centerdistance':
             default: value = 0
         }

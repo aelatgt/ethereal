@@ -29,7 +29,7 @@
 
 <script>
 import {defineComponent} from 'vue'
-import {useState} from './State'
+import {useState} from './PrideUI'
 export default defineComponent({
     setup() {
         return useState()

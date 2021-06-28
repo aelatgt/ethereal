@@ -98,7 +98,6 @@ export class SpatialOptimizer<N extends Node3D> {
 
         const prevOrientation = this._prevOrientation.copy(adapter.orientation.target)
         const prevBounds = this._prevBounds.copy(adapter.bounds.target)
-        const prevLayout = adapter.activeLayout
 
         for (const layout of adapter.layouts) {
             this._setConfig(layout)
@@ -127,14 +126,15 @@ export class SpatialOptimizer<N extends Node3D> {
         if ((bestSolution && bestSolution.isFeasible && adapter.layoutFeasibleTime >= this._config.minFeasibleTime) ||  
             adapter.layoutInfeasibleTime >= this._config.maxInfeasibleTime) {
             adapter.layoutInfeasibleTime = 0
-            bestSolution!.apply()
-            adapter.activeLayout = bestLayout!
+            bestSolution!.apply(false)
         } else {
             adapter.orientation.target = prevOrientation
             adapter.bounds.target = prevBounds
-            adapter.activeLayout = prevLayout
             adapter.metrics.invalidateStates()
         }
+
+        adapter.activeLayout = bestLayout!
+
         return true
     }
 
@@ -145,7 +145,7 @@ export class SpatialOptimizer<N extends Node3D> {
     private _updateLayout(adapter:SpatialAdapter<any>, layout:SpatialLayout) {
         adapter.measureBoundsCache.clear()
 
-        layout.sortObjectives()
+        layout.processObjectives()
         const solutions = layout.solutions
         const c = this._config
         const newSolution = this._scratchSolution

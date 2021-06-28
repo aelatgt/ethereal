@@ -43,6 +43,7 @@ export declare class WebRenderer {
     static readonly targetElement: Element | null;
     static getPsuedoAttributes(states: typeof WebLayer.prototype.pseudoStates): string;
     static rootNodeObservers: Map<Document | ShadowRoot, MutationObserver>;
+    static containerStyleElement: HTMLStyleElement;
     static renderingStyleElement: HTMLStyleElement;
     static initRootNodeObservation(element: Element): void;
     static addToSerializeQueue(layer: WebLayer): void;

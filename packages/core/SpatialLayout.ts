@@ -63,7 +63,7 @@ export class SpatialLayout extends OptimizerConfig {
         const obj = this.maximizeObjective = 
             this.maximizeObjective ?? new MaximizeObjective(this)
         obj.priority = -1000
-        obj.relativeTolerance = 0.99
+        obj.relativeTolerance = 0.1
         return this.addObjective(obj,opts)
     }
     maximizeObjective?:MaximizeObjective
@@ -142,8 +142,8 @@ export class SpatialLayout extends OptimizerConfig {
 
     magnetize(opts?:Partial<MagnetizeObjective>) {
         const obj = this.magnetizeObjective = this.magnetizeObjective ?? new MagnetizeObjective(this)
-        obj.priority = 1000
-        obj.relativeTolerance = 0.99
+        obj.priority = -900
+        obj.relativeTolerance = 0.95
         return this.addObjective(obj, opts)
     }
     magnetizeObjective?:MagnetizeObjective
@@ -167,7 +167,7 @@ export class SpatialLayout extends OptimizerConfig {
         Object.assign(obj, opts)
         if (this.objectives.indexOf(obj) === -1) 
             (this.objectives as Array<SpatialObjective>).push(obj)
-        this.sortObjectives()
+        this.processObjectives()
         return this
     }
     
@@ -189,13 +189,14 @@ export class SpatialLayout extends OptimizerConfig {
         return this.solutions[0]?.isFeasible === true
     }
 
-    private _prioritySort(a:SpatialObjective,b:SpatialObjective) {
-        if (a.priority === b.priority) return a.index - b.index
-        return a.priority - b.priority
-    }
-
     /** stable-sort objectives by priority */
-    sortObjectives() {
+    // private _prioritySort(a:SpatialObjective,b:SpatialObjective) {
+    //     return a.index - b.index
+    //     // if (a.priority === b.priority) return a.index - b.index
+    //     // return a.priority - b.priority
+    // }
+
+    processObjectives() {
         const sys = this.adapter.system
         const objectives = this.objectives as Array<SpatialObjective>
         let index = 0
@@ -208,7 +209,7 @@ export class SpatialLayout extends OptimizerConfig {
                 this.relativeTolerance ??
                 this.adapter.system.optimize.relativeTolerance
         }
-        objectives.sort(this._prioritySort)
+        // objectives.sort(this._prioritySort)
     }
 
     bestSolution! : LayoutSolution
@@ -531,7 +532,7 @@ export class LayoutSolution {
 
     apply(evaluate=true) {
         const layout = this.layout
-        const adapter = layout.adapter   
+        const adapter = layout.adapter
         adapter.orientation.target = this.orientation
         adapter.bounds.target = this.bounds
         adapter.metrics.invalidateStates(false)

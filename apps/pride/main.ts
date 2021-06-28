@@ -1,7 +1,7 @@
 import AppBase from './App'
 import Treadmill from './modules/Treadmill'
 import UI from './modules/UI'
-import PrideAPI from './modules/PrideAPI'
+import PrideAPI from './modules/API'
 import * as THREE from 'three'
 import * as ethereal from 'ethereal'
 
@@ -38,7 +38,7 @@ const app = new App({
     }
 })
 
-app.system.transition.duration = 1
+app.system.transition.duration = 1.5
 // app.system.transition.delay = 0
 // app.system.transition.maxWait = 4
 app.system.transition.easing = ethereal.easing.easeOut

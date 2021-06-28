@@ -38,14 +38,9 @@ function ensureElementIsInDocument(element: Element, options:WebLayerOptions): E
   }
   const container = document.createElement('div')
   container.setAttribute(WebRenderer.RENDERING_CONTAINER_ATTRIBUTE, '')
-  container.style.position = 'fixed'
-  container.style.width = '100%'
-  container.style.height = '100%'
-  container.style.top = '0px'
   container.style.visibility = 'hidden'
   container.style.pointerEvents = 'none'
   container.style.touchAction = 'none'
-  container.style['contain' as any] = 'strict'
   const containerShadow = container.attachShadow({mode: 'open'})
   containerShadow.appendChild(element)
   document.documentElement.appendChild(container)
@@ -108,9 +103,7 @@ export class WebRenderer {
   }
 
   static rootNodeObservers = new Map<Document|ShadowRoot, MutationObserver>()
-  // static documentObserver : MutationObserver
-  // static _didInit = false
-
+  static containerStyleElement : HTMLStyleElement
   static renderingStyleElement : HTMLStyleElement
 
   static initRootNodeObservation(element:Element) {
@@ -118,56 +111,67 @@ export class WebRenderer {
     const rootNode = element.getRootNode() as ShadowRoot|Document
     const styleRoot = 'head' in rootNode ? rootNode.head : rootNode
     if (this.rootNodeObservers.get(rootNode)) return
+
+    const containerStyle = this.containerStyleElement = document.createElement('style')
+    document.head.appendChild(containerStyle)
+    containerStyle.innerHTML = `
+      [${WebRenderer.RENDERING_CONTAINER_ATTRIBUTE}] {
+        all: initial;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        top: 0px;
+      }
+    `
     
-    if (!this.renderingStyleElement) {
-      const style = this.renderingStyleElement = document.createElement('style')
-      styleRoot.append(style) // otherwise stylesheet is not created
-      const sheet = style.sheet as CSSStyleSheet
-      let i = 0
-      addCSSRule(
-        sheet,
-        `[${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] *`,
-        'transform: none !important;',
-        i++
-      )
-      addCSSRule(
-        sheet,
-        `[${WebRenderer.RENDERING_ATTRIBUTE}], [${WebRenderer.RENDERING_ATTRIBUTE}] *`,
-        'visibility: visible !important;',
-        i++
-      )
-      addCSSRule(
-        sheet,
-        `[${WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}], [${
-          WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}] *`,
-        'visibility: hidden !important;',
-        i++
-      )
-      addCSSRule(
-        sheet,
-        `[${WebRenderer.RENDERING_ATTRIBUTE}]`,
-        'position: relative; top: 0 !important; left: 0 !important; float: none; box-sizing:border-box; min-width:var(--x-width); min-height:var(--x-height); display:block !important;',
-        i++
-      )
-      addCSSRule(
-        sheet,
-        `[${WebRenderer.RENDERING_INLINE_ATTRIBUTE}]`,
-        'top: var(--x-inline-top) !important; width:auto !important',
-        i++
-      )
-      addCSSRule(
-        sheet,
-        `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]`,
-        'transform: none !important; left: 0 !important; top: 0 !important; margin: 0 !important; border:0 !important; border-radius:0 !important; height:100% !important; padding:0 !important; position:fixed !important; display:block !important; background: rgba(0,0,0,0) none !important; box-shadow:none !important',
-        i++
-      )
-      addCSSRule(
-        sheet,
-        `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::before, [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::after`,
-        'content:none !important; box-shadow:none !important;',
-        i++
-      )
-    }
+    
+    const style = this.renderingStyleElement = document.createElement('style')
+    styleRoot.append(style) // otherwise stylesheet is not created
+    const sheet = style.sheet as CSSStyleSheet
+    let i = 0
+    addCSSRule(
+      sheet,
+      `[${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] *`,
+      'transform: none !important;',
+      i++
+    )
+    addCSSRule(
+      sheet,
+      `[${WebRenderer.RENDERING_ATTRIBUTE}], [${WebRenderer.RENDERING_ATTRIBUTE}] *`,
+      'visibility: visible !important;',
+      i++
+    )
+    addCSSRule(
+      sheet,
+      `[${WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}], [${
+        WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}] *`,
+      'visibility: hidden !important;',
+      i++
+    )
+    addCSSRule(
+      sheet,
+      `[${WebRenderer.RENDERING_ATTRIBUTE}]`,
+      'position: relative; top: 0 !important; left: 0 !important; float: none; box-sizing:border-box; min-width:var(--x-width); min-height:var(--x-height); display:block !important;',
+      i++
+    )
+    addCSSRule(
+      sheet,
+      `[${WebRenderer.RENDERING_INLINE_ATTRIBUTE}]`,
+      'top: var(--x-inline-top) !important; width:auto !important',
+      i++
+    )
+    addCSSRule(
+      sheet,
+      `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]`,
+      'transform: none !important; left: 0 !important; top: 0 !important; margin: 0 !important; border:0 !important; border-radius:0 !important; height:100% !important; padding:0 !important; background: rgba(0,0,0,0) none !important; box-shadow:none !important',
+      i++
+    )
+    addCSSRule(
+      sheet,
+      `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::before, [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::after`,
+      'content:none !important; box-shadow:none !important;',
+      i++
+    )
     
     if (rootNode === document) {
       let previousHash = ''

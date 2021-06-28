@@ -299,7 +299,7 @@ export default class AppBase {
     
     onAnimate = () => {
         const canvas = this.renderer.domElement
-        if (!this.xrPresenting) this._setSize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio)
+        this._setSize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio)
         const delta = Math.min(this.clock.getDelta(), 1/60)
         this.update(delta)
         this.renderer.render(this.scene, this.camera)
@@ -329,7 +329,7 @@ export default class AppBase {
             this.camera.matrix.copy(vrCamera.matrix)
             this.camera.matrix.decompose(this.camera.position, this.camera.quaternion, this.camera.scale)
             this.camera.projectionMatrix.copy(vrCamera.projectionMatrix)
-            this.camera.projectionMatrixInverse.getInverse(this.camera.projectionMatrix)
+            this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert()
             this.camera.updateWorldMatrix(true, true)
         } else {
             this.renderer.setClearColor(new THREE.Color('white'))
@@ -478,13 +478,16 @@ export default class AppBase {
     timeSinceLastResize = 0
 
     private _setSize(width:number, height:number, pixelRatio=1) {
+        this.timeSinceLastResize = performance.now() - this.lastResize
+        if (this.xrPresenting) {
+            return
+        }
         if (width !== this.lastWidth || height !== this.lastHeight) {
             this.lastWidth = width
             this.lastHeight = height
             this.lastResize = performance.now()
         }
         const el = this.renderer.domElement
-        this.timeSinceLastResize = performance.now() - this.lastResize
         if (this.timeSinceLastResize > 2000 && 
             (el.width !== width*pixelRatio || el.height !== height*pixelRatio)) {
             this.renderer.setSize(width, height, false)

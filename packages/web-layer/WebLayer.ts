@@ -165,9 +165,9 @@ export class WebLayer {
   }
 
   refresh() {
-    getBounds(this.element, this.bounds, this.parentLayer && this.parentLayer.element)
-    getMargin(this.element, this.margin)
     if (!this._currentSVGHash) {
+      getBounds(this.element, this.bounds, this.parentLayer && this.parentLayer.element)
+      getMargin(this.element, this.margin)
       this._currentBounds = this.bounds
       this._currentMargin = this.margin
     }
@@ -251,17 +251,15 @@ export class WebLayer {
     if (layerElement.nodeName === 'VIDEO') return
     
     getBounds(layerElement, this.bounds, this.parentLayer?.element)
+    getMargin(layerElement, this.margin)
     let { width, height } = this.bounds
+    // add margins
+    width += Math.max(this.margin.left, 0) + Math.max(this.margin.right, 0)
+    height += Math.max(this.margin.top, 0) + Math.max(this.margin.bottom, 0)
 
     if (width * height > 0) {
       getPadding(layerElement, this.padding)
-      getMargin(layerElement, this.margin)
       getBorder(layerElement, this.border)
-      // add margins and border
-      width += Math.max(this.margin.left, 0) + Math.max(this.margin.right, 0)// + 0.5
-      height += Math.max(this.margin.top, 0) + Math.max(this.margin.bottom, 0)
-      // width += Math.max(this.border.left,0) + Math.max(this.border.right,0)
-      // height += Math.max(this.border.top,0) + Math.max(this.border.bottom,0)
 
       // create svg markup
       const elementAttribute = WebRenderer.attributeHTML(WebRenderer.ELEMENT_UID_ATTRIBUTE,''+this.id)
@@ -311,6 +309,9 @@ export class WebLayer {
 
       // rasterize the svg document if no existing canvas matches
       WebRenderer.addToRasterizeQueue(this)
+    } else {
+      this._currentBounds.copy(this.bounds)
+      this._currentMargin.copy(this.margin)
     }
   }
 

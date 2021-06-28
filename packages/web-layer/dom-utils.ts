@@ -201,6 +201,10 @@ export function getBounds(
 }
 
 export function getMargin(element: Element, margin: Edges) {
+  if ((element as HTMLElement).offsetParent === null) {
+    margin.left = margin.right = margin.top = margin.bottom = 0
+    return 
+  }
   let style = getComputedStyle(element)
   margin.left = parseFloat(style.marginLeft) || 0
   margin.right = parseFloat(style.marginRight) || 0

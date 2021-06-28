@@ -16,6 +16,12 @@
     position: relative;
 }
 
+#content {
+    background-color: rgba(255,255,255,0.4);
+    border-radius: 10px;
+    margin:5px;
+}
+
 @media (min-width: 640px) {
     :not(.xr) #flex {
         flex-direction: row;
@@ -86,13 +92,11 @@
 }
 
 #instruction {
-    margin: 10px;
     padding: 10px;
     background-color: white;
     color: black;
     border-radius: 10px;
     min-height: 0;
-    margin: 5px;
 }
 
 #flex {

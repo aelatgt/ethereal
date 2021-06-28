@@ -1,6 +1,7 @@
 
-import {reactive, inject, readonly, provide} from 'vue'
-import PrideAPI from './PrideAPI'
+import {reactive, inject, readonly, provide, createApp} from 'vue'
+import PrideVue from './Pride.vue'
+import PrideAPI from './API'
 
 class State {
     logo = './public/pride-view.png'
@@ -28,17 +29,16 @@ class State {
     }
 }
 
-export function createState() {
-    return reactive(new State).start()
-}
+export type {State}
 
-export const STATE = Symbol('state')
-export function provideState() {
-    return provide(STATE, createState())
-}
+const STATE = Symbol('state')
 
 export function useState() {
     return readonly(inject(STATE) as State)
 }
 
-export type {State}
+export function createPrideUI() {
+    const state = reactive(new State).start()
+    const vue = createApp(PrideVue).provide(STATE, state).mount(document.createElement('div'))
+    return {state, vue}
+}

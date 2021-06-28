@@ -1,44 +1,42 @@
 import * as THREE from 'three'
 import * as ethereal from 'ethereal'
-import {Q_IDENTITY, V_111, V_000} from 'ethereal'
+import {Q_IDENTITY, V_111, WebLayer3D} from 'ethereal'
 import {createApp} from 'vue'
 
 import {App} from '../main'
 import {UpdateEvent} from '../App'
 
-import PrideVue from './Pride.vue'
-import PrideAPI from './PrideAPI'
-import {createState, STATE} from './State'
+import {createPrideUI} from './PrideUI'
+import {createLabelUI} from './LabelUI'
 
 export default class UI {
     augmentations: {[name: string]: THREE.Object3D} = {}
 
-    state = createState()
-
-    prideVue = createApp(PrideVue).provide(STATE, this.state).mount(document.createElement('div'))
-
-    pride = this.app.createWebLayerTree( this.prideVue.$el, {
+    pride = createPrideUI()
+    state = this.pride.state
+    main = this.app.createWebLayerTree( this.pride.vue.$el, {
         onLayerCreate: (layer) => {
             const adapter = this.app.system.getAdapter(layer)
             adapter.onUpdate = () => layer.update()
         }
     })
-    procedure = this.pride.querySelector('#procedure')!
-    step = this.pride.querySelector('#step')!
-    instruction = this.pride.querySelector('#instruction')!
-    content = this.pride.querySelector('#content')!
-    media = this.pride.querySelector('#media')!
-    image = this.pride.querySelector('#image')!
-    video = this.pride.querySelector('#video')!
-    model = this.pride.querySelector('#model')!
-    controls = this.pride.querySelector('#controls')!
-    backButton = this.pride.querySelector('#back')!
-    doneButton = this.pride.querySelector('#done')!
-    recordButton = this.pride.querySelector('#record')!
-    yesButton = this.pride.querySelector('#yes')!
-    noButton = this.pride.querySelector('#no')!
-    immersiveButton = this.pride.querySelector('#immersive-toggle')!
-
+    
+    procedure = this.main.querySelector('#procedure')!
+    step = this.main.querySelector('#step')!
+    instruction = this.main.querySelector('#instruction')!
+    content = this.main.querySelector('#content')!
+    media = this.main.querySelector('#media')!
+    image = this.main.querySelector('#image')!
+    video = this.main.querySelector('#video')!
+    model = this.main.querySelector('#model')!
+    controls = this.main.querySelector('#controls')!
+    backButton = this.main.querySelector('#back')!
+    doneButton = this.main.querySelector('#done')!
+    recordButton = this.main.querySelector('#record')!
+    yesButton = this.main.querySelector('#yes')!
+    noButton = this.main.querySelector('#no')!
+    immersiveButton = this.main.querySelector('#immersive-toggle')!
+    
     immersiveAnchor = new THREE.Object3D()
 
     snubberBox = new THREE.BoxHelper(this.app.treadmill.snubber)
@@ -56,13 +54,13 @@ export default class UI {
         }
 
         const setupPrideLayer = () => {
-            const adapter = this.app.system.getAdapter(this.pride)
+            const adapter = this.app.system.getAdapter(this.main)
 
             const immersiveLayout = adapter.createLayout()
                 .orientation(Q_IDENTITY)
                 .scale(V_111)
                 .visualBounds({
-                    back: '-10m',
+                    front: '-10m',
                     center: {x:0,y:0}
                 })
                 .maximize()
@@ -72,7 +70,7 @@ export default class UI {
                 .orientation(Q_IDENTITY)
                 .keepAspect()
                 .visualBounds({
-                    back: '-4m',
+                    front: '-4m',
                     size: {y: '100 vh'},//, diagonal:{gt:'50vh'}},
                     center: {x: '0 vdeg', y:'0 vdeg'}
                 })
@@ -80,25 +78,27 @@ export default class UI {
 
 
             adapter.onUpdate = () => {
-                this.pride.options.autoRefresh = (this.app.timeSinceLastResize > 100)
-                this.pride.update()
+                this.main.options.autoRefresh = (this.app.timeSinceLastResize > 100)
+                this.main.update()
                 // we only want to move the entire pride UI into an immersive layout
                 // on devices that offer an immersive interaction space (e.g., Quest/Hololens)
-                if (this.app.interactionSpace === 'world' && this.state.immersiveMode) {
-                    adapter.layouts = [immersiveLayout]
+                if (this.app.interactionSpace === 'world') {
+                    adapter.layouts = []
                 } else {
                     adapter.layouts = [flatLayout]
                 }
             }
 
 
-            const adapterContent = this.app.system.getAdapter(this.pride.contentMesh)
+            const adapterContent = this.app.system.getAdapter(this.main.contentMesh)
             adapterContent.bounds.enabled = true
             adapterContent.onUpdate = () => {
                 if (this.state.immersiveMode) {
-                    this.pride.contentMesh.position.set(0,0,-1)
+                    this.main.contentMesh.position.set(0,0,-1)
+                    adapter.opacity.target = 0
                 } else {
-                    this.pride.contentMesh.position.set(0,0,0)
+                    this.main.contentMesh.position.set(0,0,0)
+                    adapter.opacity.target = 1
                 }
             }
 
@@ -111,7 +111,8 @@ export default class UI {
             const adapter = app.system.getAdapter(poster) 
             adapter.onUpdate = () => {
                 if (this.state.immersiveMode) {
-                    poster.position.set(0,0,-3)
+                    const screenBasedInteraction = this.app.interactionSpace === 'screen'
+                    poster.position.set(0,screenBasedInteraction ? 0 : 0.5,screenBasedInteraction ? -5:-1)
                     adapter.opacity.target = 1
                 } else {
                     poster.position.set(0,0,-5)
@@ -134,7 +135,7 @@ export default class UI {
                 .orientation({swingRange:{x:'10deg',y:'10deg'}, twistRange:'0deg'})
                 .keepAspect('xyz')
                 .visualBounds({
-                    back:       '0m',
+                    back:       '100%',
                     left:       {gt: '10px'},
                     right:      {lt: '-10px'},
                     bottom:     {gt: '10px'},
@@ -190,19 +191,14 @@ export default class UI {
                 .poseRelativeTo(this.app.treadmill.snubber)
                 .keepAspect('xyz')
                 .orientation(Q_IDENTITY)
-                // .position({magnitude: {lt: '1m'}})
                 .bounds({
-                    center: {distance: {lt: '1m'}},
-                    // size: {diagonal: {lt: '100%'}}
+                    back: {gt:'0m'},
+                    front: {lt:'0m'},
+                    top: {lt:'0m'},
+                    bottom: {gt:'-100%'}
                 })
                 .visualBounds({
-                    absolute: {
-                        left: {gt:'10px'},
-                        top: {lt: '-10px'},
-                        bottom: {gt:'10px'}
-                    },
-                    right: {lt:'-100% -10px'},
-                    size: {diagonal: {gt: '10px'}}
+                    right: {lt:'-100% -10px'}
                 })
                 .magnetize()
                 .maximize() 
@@ -212,12 +208,37 @@ export default class UI {
                 this.content.update()
             }
         }
+
+        const setupMediaLayer = () => {
+            const layer = this.media
+            const adapter = this.app.system.getAdapter(layer)
+            const immersiveLayout = adapter.createLayout()
+                .poseRelativeTo(this.app.treadmill.poster)
+                .keepAspect('xyz')
+                .orientation(Q_IDENTITY)
+                .bounds({
+                    back:'100%',
+                    center: {
+                        x: 0,
+                        y: 0
+                    },
+                    size: {
+                        x: '100%'
+                    }
+                })
+            adapter.onUpdate = () => {
+                if (this.state.immersiveMode) adapter.layouts = [immersiveLayout]
+                else adapter.layouts = []
+                layer.update()
+            }
+        }
         
         setupImmersiveAnchor()
         setupPrideLayer()
         setupContentLayer()
         setupTreadmillPoster()
         setupSnubberModel()
+        setupMediaLayer()
 
         this.backButton.element.addEventListener('click', async () => {
             this.state.back()
@@ -246,7 +267,7 @@ export default class UI {
     }
 
     updateAugmentations() {
-        const prideObjects = PrideAPI.data.objects
+        const prideObjects = this.state.pride.objects
         for (const name in prideObjects) {
             const prideObject = prideObjects[name]
             let augmentation = this.augmentations[name]
@@ -263,6 +284,9 @@ export default class UI {
                     case 'sphere':
                         augmentation = new THREE.Mesh(new THREE.SphereGeometry(prideObject.radius * 0.01))
                         break
+                    case 'label': 
+                        const label = createLabelUI(prideObject.text)
+                        augmentation = new WebLayer3D(label.vue.$el)
                     default:
                         augmentation = new THREE.Object3D
                         break

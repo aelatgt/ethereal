@@ -10,11 +10,11 @@ export default defineConfig({
     mainFields: ['module','main']
   },
   server: {
-    hmr: {
-      port: 443
-    },
+    // hmr: {
+    //   port: 443
+    // },
     host: true,
-    // https: true
+    https: true
   },
   build: {
     outDir: "docs",

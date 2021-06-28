@@ -349,18 +349,18 @@ export class AspectConstraint extends SpatialObjective {
             Math.max(Math.abs(s.x), Math.abs(s.y), Math.abs(s.z)) : 
             Math.max(Math.abs(s.x), Math.abs(s.y))
         const aspectFill = s.divideScalar(largest)
-        // return  -(1/aspectFill.x) + 1 +
-        //         -(1/aspectFill.y) + 1 +
-        //         (mode === 'xyz' ? 
-        //             -(1/aspectFill.z) + 1:
-        //             // prevent z from being scaled largest when doing preserved 2D aspect
-        //             aspectFill.z > 1 ? 1-aspectFill.z : 0)
-        return  (aspectFill.x - 1) +
-                (aspectFill.y - 1) +
+        return  -(1/aspectFill.x) + 1 +
+                -(1/aspectFill.y) + 1 +
                 (mode === 'xyz' ? 
-                    aspectFill.z - 1:
+                    -(1/aspectFill.z) + 1:
                     // prevent z from being scaled largest when doing preserved 2D aspect
                     aspectFill.z > 1 ? 1-aspectFill.z : 0)
+        // return  (aspectFill.x - 1) +
+        //         (aspectFill.y - 1) +
+        //         (mode === 'xyz' ? 
+        //             aspectFill.z - 1:
+        //             // prevent z from being scaled largest when doing preserved 2D aspect
+        //             aspectFill.z > 1 ? 1-aspectFill.z : 0)
     }
 }
 
@@ -458,7 +458,7 @@ export class VisualMaximizeObjective extends SpatialObjective {
         this.type = "pixel"
     }
 
-    minAreaPercent = 0.2
+    minAreaPercent = 0
 
     evaluate() {
         const target = this.layout.adapter.metrics.target
@@ -468,7 +468,6 @@ export class VisualMaximizeObjective extends SpatialObjective {
         const refVisualSize = target.referenceState?.visualSize || viewSize
         const refVisualArea = refVisualSize.x * refVisualSize.y
         const score = this.attenuateVisualScore(visualArea) - refVisualArea * this.minAreaPercent
-        if (score === 0) console.log(score)
         return score
     }
 }
