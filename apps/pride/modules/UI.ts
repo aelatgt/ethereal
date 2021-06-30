@@ -9,6 +9,7 @@ import {UpdateEvent} from '../App'
 import {createPrideUI} from './PrideUI'
 import {createLabelUI} from './LabelUI'
 import { MeshPhongMaterial, MeshBasicMaterial, Vector3 } from 'three'
+import { Quaternion } from 'cannon'
 
 export default class UI {
     augmentations: {[name: string]: THREE.Object3D} = {}
@@ -186,11 +187,12 @@ export default class UI {
                 .bounds({
                     back: '0m',
                     top: '0m',
-                    size: {x:'150%'}
+                    size: {x:'150%'},
+                    right: '-100% - 10cm'
                 })
-                .visualBounds({
-                    right: '-100% -10px'
-                })
+                // .visualBounds({
+                //     right: '-100% -10px'
+                // })
             adapter.onUpdate = () => {
                 if (this.state.immersiveMode) adapter.layouts = [immersiveLayout]
                 else adapter.layouts = []
@@ -209,11 +211,12 @@ export default class UI {
                 .bounds({
                     back:'0m',
                     top: '0m',
-                    size: {x:'100%'}
+                    size: {x:'100%'},
+                    left: '100% + 10cm'
                 })
-                .visualBounds({
-                    left: '100% + 10px'
-                })
+                // .visualBounds({
+                //     left: '100% + 10px'
+                // })
             adapter.onUpdate = () => {
                 if (this.state.immersiveMode) adapter.layouts = [immersiveLayout]
                 else adapter.layouts = []
@@ -232,11 +235,12 @@ export default class UI {
                     back:'100%',
                     size: {x:'100%'},
                     left: {gt: '-20%'},
-                    right: {lt: '20%'}
+                    right: {lt: '20%'},
+                    bottom: '100% + 20cm'
                 })
-                .visualBounds({
-                    bottom: '100% + 20px',
-                })
+                // .visualBounds({
+                //     bottom: '100% + 20px',
+                // })
                 .magnetize()
             adapter.onUpdate = () => {
                 if (this.state.immersiveMode) adapter.layouts = [immersiveLayout]
@@ -254,19 +258,24 @@ export default class UI {
                 .orientation(Q_IDENTITY)
                 .bounds({
                     back: '0m',
-                    center: {x: '0m'}
-                })
-                .visualBounds({
-                    top: '- 100 % - 10px',
+                    center: {x: '0m'},
+                    top: '-100% - 10cm',
                     size: {x: '100%'}
                 })
+                // .visualBounds({
+                //     top: '- 100 % - 10px',
+                //     size: {x: '100%'}
+                // })
             const attachedLayout = adapter.createLayout()
                 .keepAspect('xyz')
-                .orientation(Q_IDENTITY)
-                .visualBounds({
-                    top: '-2vdeg',
-                    size: {x: '50vdeg'}
+                .orientation(new Quaternion(1,0,0,1))
+                .bounds({
+                    center: {x:0,y:0,z:0}
                 })
+                // .visualBounds({
+                //     top: '-2vdeg',
+                //     size: {x: '50vdeg'}
+                // })
             adapter.onUpdate = () => {
                 // if (app.controllers.left?.grip && this.state.immersiveMode) {
                 //     attachedLayout.poseRelativeTo(app.controllers.left.grip)
