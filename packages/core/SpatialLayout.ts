@@ -25,10 +25,10 @@ export class SpatialLayout extends OptimizerConfig {
     
     relativeTolerance?:number
     absoluteTolerance = {
-        meter: '4mm',
+        meter: '10mm',
         pixel: '4px',
         degree: '0.002deg',
-        ratio: 0.005
+        ratio: 0.002
     }
 
     getComputedAbsoluteTolerance(type: keyof typeof SpatialLayout.prototype.absoluteTolerance) {
@@ -122,8 +122,11 @@ export class SpatialLayout extends OptimizerConfig {
     }
     boundsConstraint?:SpatialBoundsConstraint
 
-    visualOrientation(spec:QuaternionSpec, opts?:ObjectiveOptions) {
-
+    visualOrientation(spec:QuaternionSpec,opts?:Partial<RelativeOrientationConstraint>) {
+        const obj = this.orientationConstraint = this.orientationConstraint ?? new RelativeOrientationConstraint(this)
+        obj.spec = spec
+        obj.priority = -999
+        return this.addObjective(obj, opts)
     }
 
     visualBounds(spec:VisualBoundsSpec, opts?:Partial<VisualBoundsConstraint>) {

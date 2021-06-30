@@ -81,15 +81,15 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
     }) as Required<TransitionConfig>
 
     optimize = new OptimizerConfig({
-        minFeasibleTime: 2,
+        minFeasibleTime: 0.02,
         maxInfeasibleTime: Infinity,
-        relativeTolerance: 0.3, 
-        maxIterationsPerFrame: 30, // iterations per frame per layout
-        swarmSize: 8, // solutions per layout
+        relativeTolerance: 0.1, 
+        maxIterationsPerFrame: 14, // iterations per frame per layout
+        swarmSize: 12, // solutions per layout
         pulseFrequencyMin: 0, // minimal exploitation pulse
         pulseFrequencyMax: 1, // maximal exploitation pulse
         pulseRate: 0.1, // The ratio of directed exploitation vs random exploration,
-        stepSizeMin: 0.000001,
+        stepSizeMin: 0.01,
         stepSizeMax: 4,
         stepSizeStart: 1.5
     }) as Required<OptimizerConfig>

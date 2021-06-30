@@ -310,7 +310,7 @@ export class RelativeOrientationConstraint extends SpatialObjective {
 
     evaluate() {
         const state = this.layout.adapter.metrics.target
-        return this.getQuaternionScore(state.localOrientation, this.spec)
+        return this.getQuaternionScore(state.relativeOrientation, this.spec)
     }
 }
 
@@ -437,12 +437,17 @@ export interface VisualBoundsSpec {
 export class VisualBoundsConstraint extends SpatialObjective {
     spec?:VisualBoundsSpec
 
+    pixelTolerance ?: number|string = undefined
+    meterTolerance ?: number|string = undefined
+
     constructor(layout:SpatialLayout) {
         super(layout)
         this.type = "pixel"
     }
 
     evaluate() {
+        if (this.type === 'meter') this.absoluteTolerance = this.meterTolerance
+        if (this.type === 'pixel') this.absoluteTolerance = this.pixelTolerance
         return this.attenuateVisualScore(
             this.getBoundsScore(this.spec, 'visual') + 
             this.getBoundsScore(this.spec?.absolute, 'view')
@@ -501,10 +506,10 @@ export class MaximizeTemporalCoherenceObjective extends SpatialObjective {
         const metrics = this.layout.adapter.metrics
         const previousCenter = metrics.previousTarget.spatialCenter
         const targetCenter = metrics.target.spatialCenter
-        const previousOrientation = metrics.previousTarget.localOrientation
-        const targetOrientation = metrics.target.localOrientation
-        const previousScale = metrics.previousTarget.localScale.lengthSq()
-        const targetScale = metrics.target.localScale.lengthSq()
+        const previousOrientation = metrics.previousTarget.relativeOrientation
+        const targetOrientation = metrics.target.relativeOrientation
+        const previousScale = metrics.previousTarget.relativeScale.lengthSq()
+        const targetScale = metrics.target.relativeScale.lengthSq()
         const dist = previousCenter.distanceTo(targetCenter) * 100
         const orientationDiff = previousOrientation.angleTo(targetOrientation) / Math.PI
         const scaleDiff = Math.abs(previousScale-targetScale) * 0.1

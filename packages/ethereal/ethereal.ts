@@ -3,7 +3,8 @@ import {
     SpatialMetrics,
     Node3D, 
     NodeState, 
-    Box3
+    Box3,
+    Matrix4
 } from "@etherealjs/core/mod"
 
 export {WebLayer3D, WebLayer3DContent, WebRenderer, THREE, DOM as toDOM} from '@etherealjs/web-layer/mod'
@@ -12,6 +13,9 @@ export type {WebLayer3DOptions} from '@etherealjs/web-layer/mod'
 declare module 'three/src/core/Object3D' {
     interface Object3D extends Node3D {}
 }
+
+const scratchMatrix = new Matrix4
+const scratchMatrix2 = new Matrix4
 
 export const ThreeBindings = {
     getChildren(metrics:SpatialMetrics, children:Node3D[]) {
@@ -32,9 +36,11 @@ export const ThreeBindings = {
         const node = metrics.node as THREE.Mesh
         if (!node.isObject3D) return
 
-        node.updateMatrix()
-        state.localMatrix = node.matrix
+        const targetRelativeMatrix = scratchMatrix.compose(node.position, node.quaternion, node.scale)
+        const refWorldMatrix = metrics.referenceMetrics?.target.worldMatrix
+        
         state.parent = node.parent
+        state.worldMatrix = refWorldMatrix ? scratchMatrix2.multiplyMatrices(refWorldMatrix, targetRelativeMatrix) : targetRelativeMatrix
         state.opacity = getThreeOpacity(metrics) || 1
     },
     getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) {
@@ -46,23 +52,25 @@ export const ThreeBindings = {
         }
         return bounds
     },
-    apply(metrics:SpatialMetrics, state:NodeState) {
+    apply(metrics:SpatialMetrics, currentState:NodeState) {
         const node = metrics.node as THREE.Mesh
         if (!node.isObject3D) return
-        if (state.parent !== node.parent) {
-            const newParent = state.parent as THREE.Object3D
-            newParent.add(node)
-        }
-        node.quaternion.copy(state.localOrientation)
-        node.position.copy(state.localPosition)
-        node.scale.copy(state.localScale)
-        node.matrix.copy(state.localMatrix)
-        node.matrixWorld.copy(state.worldMatrix)
-        applyThreeOpacity(metrics, state.opacity)
 
-        if (isNaN(state.localPosition.x)) throw new Error
+        if (currentState.parent !== node.parent) {
+            const newParent = currentState.parent as THREE.Object3D
+            if (newParent) newParent.add(node)
+        }
+
         node.matrixAutoUpdate = false
-        node.matrixWorldNeedsUpdate = false
+        
+        // node.quaternion.copy(currentState.localOrientation)
+        // node.position.copy(currentState.localPosition)
+        // node.scale.copy(currentState.localScale)
+        node.matrix.copy(currentState.localMatrix)
+        node.matrixWorld.copy(currentState.worldMatrix)
+        applyThreeOpacity(metrics, currentState.opacity)
+
+        // if (isNaN(currentState.localPosition.x)) throw new Error
     }
 }
 

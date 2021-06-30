@@ -36,122 +36,86 @@ export class NodeState<N extends Node3D=Node3D> {
     get parentState() {
         return this.metrics.parentMetrics?.[this.mode]
     }
+
+    private _localMatrix = new Matrix4
+    get localMatrix() { 
+        const parentWorldInverse = this.parentState?.worldMatrixInverse
+        return parentWorldInverse ? this._localMatrix.multiplyMatrices(parentWorldInverse, this.worldMatrix) : 
+            this._localMatrix.copy(this.worldMatrix)
+    }
     
     get referenceState() {
         return this.metrics.referenceMetrics?.[this.mode]
     }
 
-    private _cachedLocalMatrix = this._cache.memoize(() => {
-        this._localMatrix.decompose(this._localPosition, this._localOrientation, this._localScale)
-        this._localOrientation.normalize()
-        this._localOrientationInverse.copy(this._localOrientation).invert()
-        this._localRotation.makeRotationFromQuaternion(this._localOrientation)
-        this._localRotationInverse.makeRotationFromQuaternion(this._localOrientationInverse)
-        return this._localMatrix
-    })
-    get localMatrix() { return this._localMatrix }
-    set localMatrix(val:Matrix4) {
-        if (isNaN(val.elements[0])) throw new Error()
-        if (!this._localMatrix.equals(val)) {
+    // private _cachedLocalMatrix = this._cache.memoize(() => {
+    //     this._localMatrix.decompose(this._localPosition, this._localOrientation, this._localScale)
+    //     this._localOrientation.normalize()
+    //     this._localOrientationInverse.copy(this._localOrientation).invert()
+    //     this._localRotation.makeRotationFromQuaternion(this._localOrientation)
+    //     this._localRotationInverse.makeRotationFromQuaternion(this._localOrientationInverse)
+    //     return this._localMatrix
+    // })
+    get worldMatrix() { return this._worldMatrix }
+    set worldMatrix(val:Matrix4) {
+        if (isNaN(val.elements[0]) ||val.elements[0] === 0) throw new Error()
+        if (!this._worldMatrix.equals(val)) {
             this.invalidate()
-            this._localMatrix.copy(val)
-            this._localMatrixInverse.copy(this._localMatrix).invert()
+            this._worldMatrix.copy(val)
+            this._worldMatrixInverse.copy(this._worldMatrix).invert()
+            this._worldMatrix.decompose(this._worldPosition, this._worldOrientation, this._worldScale)
+            this._worldOrientationInverse.copy(this._worldOrientation).invert()
+            this._worldRotation.makeRotationFromQuaternion(this._worldOrientation)
+            this._worldRotationInverse.makeRotationFromQuaternion(this._worldOrientationInverse)
         }
     }
 
-    private _localMatrix = new Matrix4
-    private _localMatrixInverse = new Matrix4
-    
-    private _localPosition = new Vector3
-    private _localOrientation = new Quaternion
-    private _localOrientationInverse = new Quaternion
-    private _localScale = new Vector3(1,1,1)
-    private _localRotation = new Matrix4
-    private _localRotationInverse = new Matrix4
-
-    get localMatrixInverse() {
-        return this._localMatrixInverse
-    }
-
-    get localPosition() {
-        this._cachedLocalMatrix()
-        return this._localPosition
-    }
-
-    get localOrientation() {
-        this._cachedLocalMatrix()
-        return this._localOrientation
-    }
-
-    get localOrientationInverse() {
-        this._cachedLocalMatrix()
-        return this._localOrientationInverse
-    }
-
-    get localScale() {
-        this._cachedLocalMatrix()
-        return this._localScale
-    }
-
-    /**
-     * Local rotation matrix
-     */
-    get localRotation() {
-        this._cachedLocalMatrix()
-        return this._localRotation
-    }
-
-    /**
-     * Local Orientation matrix inverse
-     */
-    get localRotationInverse() {
-        this._cachedLocalMatrix()
-        return this._localRotationInverse
-    }
-
-    private _cachedWorldMatrix = this._cache.memoize(() => {
-        const matrix = this._worldMatrix.copy(this.localMatrix)
-        const parentState = this.parentState
-        if (parentState) {
-            matrix.premultiply(parentState.worldMatrix)
-        }
-        matrix.decompose(this._worldPosition, this._worldOrientation, this._worldScale)
-        this._worldMatrixInverse.copy(this._worldMatrix).invert()
-        this._worldOrientationInverse.copy(this._worldOrientation).invert()
-        this._worldRotation.makeRotationFromQuaternion(this._worldOrientation)
-        this._worldRotationInverse.makeRotationFromQuaternion(this._worldOrientationInverse)
-        return matrix
-    })
-    get worldMatrix() {
-        return this._cachedWorldMatrix()
-    }
-    
+    private _worldMatrix = new Matrix4
+    private _worldMatrixInverse = new Matrix4
     private _worldPosition = new Vector3
     private _worldOrientation = new Quaternion
     private _worldOrientationInverse = new Quaternion
-    private _worldScale = new Vector3
-    private _worldMatrix = new Matrix4
-    private _worldMatrixInverse = new Matrix4
+    private _worldScale = new Vector3(1,1,1)
     private _worldRotation = new Matrix4
     private _worldRotationInverse = new Matrix4
+    
+    private _relativePosition = new Vector3
+    private _relativeOrientation = new Quaternion
+    private _relativeScale = new Vector3(1,1,1)
+
+    get relativePosition() {
+        const refPosition = this.referenceState?.worldPosition
+        return refPosition ? 
+            this._relativePosition.subVectors(this.worldPosition, refPosition) :
+            this._relativePosition.copy(this.worldPosition)
+    }
+
+    get relativeOrientation() {
+        const refOrientationInv = this.referenceState?.worldOrientationInverse
+        return refOrientationInv ? 
+            this._relativeOrientation.multiplyQuaternions(this.worldOrientation, refOrientationInv) :
+            this._relativeOrientation.copy(this.worldOrientation)
+    }
+
+    get relativeScale() {
+        const refScale = this.referenceState?.worldScale
+        return refScale ? this._relativeScale.copy(this.worldScale).divide(refScale) :
+            this._relativeScale.copy(this.worldScale)
+    }
 
     get worldMatrixInverse() {
-        this.worldMatrix
         return this._worldMatrixInverse
     }
 
     get worldPosition() {
-        this.worldMatrix
         return this._worldPosition
     }
 
     get worldOrientation() {
-        this.worldMatrix
         return this._worldOrientation
     }
 
     get worldScale() {
-        this.worldMatrix
         return this._worldScale
     }
 
@@ -193,24 +157,24 @@ export class NodeState<N extends Node3D=Node3D> {
      * Spatial Frame = Reference Origin + My World Orientation
      */
     private _cachedSpatialMatrix = this._cache.memoize(() => {
-        const spatialMatrix = this._spatialMatrix.compose(this.outerOrigin, this.worldOrientation, V_111) 
-        this._spatialMatrixInverse.copy(this._spatialMatrix).invert()
-        this._localFromSpatial.multiplyMatrices(this.worldMatrixInverse, spatialMatrix)
+        const worldFromSpatial = this._worldFromSpatial.compose(this.outerOrigin, this.worldOrientation, V_111) 
+        this._spatialFromWorld.copy(this._worldFromSpatial).invert()
+        this._localFromSpatial.multiplyMatrices(this.worldMatrixInverse, worldFromSpatial)
         this._spatialFromLocal.copy(this._localFromSpatial).invert()
         const reference = this.referenceState
         if (reference) {
-            this._spatialFromReference.multiplyMatrices(this._spatialMatrixInverse, reference.worldMatrix)
+            this._spatialFromReference.multiplyMatrices(this._spatialFromWorld, reference.worldMatrix)
         } else {
-            this._spatialFromReference.copy(this._spatialMatrixInverse)
+            this._spatialFromReference.copy(this._spatialFromWorld)
         }
-        return spatialMatrix
+        return worldFromSpatial
     })
     get spatialMatrix() {
         return this._cachedSpatialMatrix()
     }
 
-    private _spatialMatrix = new Matrix4
-    private _spatialMatrixInverse = new Matrix4
+    private _worldFromSpatial = new Matrix4
+    private _spatialFromWorld = new Matrix4
     private _localFromSpatial = new Matrix4
     private _spatialFromLocal = new Matrix4
     private _spatialFromReference = new Matrix4
@@ -221,7 +185,7 @@ export class NodeState<N extends Node3D=Node3D> {
      */
     get spatialMatrixInverse() {
         this.spatialMatrix
-        return this._spatialMatrixInverse
+        return this._spatialFromWorld
     }
 
     /**
@@ -666,7 +630,7 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
             const reference = adapter?.activeLayout?.referenceNode || adapter?.referenceNode || this.parentNode
             this.referenceMetrics = reference && this.system.getMetrics(reference as N)
 
-            this.parentMetrics?.update()
+            // this.parentMetrics?.update()
             this.referenceMetrics?.update()
 
 
@@ -826,10 +790,8 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
      */
     private _computeState = (() => {
 
-        const localMatrix = new Matrix4
-        const localOrientation = new Quaternion
-        const localPosition = new Vector3
-        const localScale = new Vector3
+        const relativeMatrix = new Matrix4
+        const relativeOrientation = new Quaternion
 
         const worldMatrix = new Matrix4
         const worldPosition = new Vector3
@@ -843,30 +805,20 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
 
         return function computeState(this:SpatialMetrics<N>, state:NodeState<N>) {
 
-            const useCurrent = state.mode === 'current'
+            this.raw // DEBUG: why does this break things?
+
+            state.parent = this.raw.parent
+
             const adapter = this._adapter
-
-            localOrientation.copy( 
-                ( useCurrent ? 
-                    adapter?.orientation.enabled && adapter?.orientation.current :
-                    adapter?.orientation.enabled && adapter?.orientation.target
-                ) || this.raw.localOrientation
+            const referenceState = this.referenceMetrics?.[state.mode]
+            relativeOrientation.copy(
+                adapter?.orientation.enabled && adapter?.orientation[state.mode] || this.raw.relativeOrientation
             )
-                
-            const spatialBounds = useCurrent ? 
-                adapter?.bounds.enabled && adapter?.bounds.current :
-                adapter?.bounds.enabled && adapter?.bounds.target
-
-            const parentMetrics = this.parentMetrics
-            state.parent = parentMetrics?.node ?? null
+            const spatialBounds = adapter?.bounds.enabled && adapter?.bounds[state.mode]
 
             if (spatialBounds) {
                 spatialBounds.getCenter(spatialCenter)
                 spatialBounds.getSize(spatialSize)
-
-                const parentState = useCurrent ? 
-                    parentMetrics?.current : 
-                    parentMetrics?.target
 
                 const innerCenter = this.innerCenter
                 const innerSize = this.innerSize
@@ -881,27 +833,26 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
                 if (Math.abs(innerSize.y) >= sizeEpsillon) worldScale.y /= innerSize.y
                 if (Math.abs(innerSize.z) >= sizeEpsillon) worldScale.z /= innerSize.z
 
-                worldOrientation.multiplyQuaternions(state.outerOrientation, localOrientation).normalize()
+                worldOrientation.multiplyQuaternions(state.outerOrientation, relativeOrientation).normalize()
                 spatialOffset.copy(spatialCenter).applyQuaternion(worldOrientation)
                 innerOffset.copy(innerCenter).multiply(worldScale).applyQuaternion(worldOrientation)
                 worldPosition.copy(state.outerOrigin).add(spatialOffset).sub(innerOffset)
                 
                 worldMatrix.compose(worldPosition,worldOrientation,worldScale)
-
-                parentState ?    
-                    localMatrix.multiplyMatrices(parentState.worldMatrixInverse, worldMatrix) :
-                    localMatrix.copy(worldMatrix)
+                state.worldMatrix = worldMatrix
 
             } else {
 
-                localPosition.copy(this.raw.localPosition)
-                localScale.copy(this.raw.localScale)
-                localMatrix.compose(localPosition, localOrientation, localScale)
+                relativeMatrix.compose(this.raw.relativePosition, relativeOrientation, this.raw.relativeScale)
+                state.worldMatrix = referenceState?.worldMatrix ? 
+                    worldMatrix.multiplyMatrices(referenceState?.worldMatrix,relativeMatrix) : 
+                    relativeMatrix
                 
             }
 
-            // apply changes
-            state.localMatrix = localMatrix
+            const opacity = adapter?.opacity.enabled && adapter?.opacity[state.mode]
+            state.opacity = typeof opacity === 'number' ? opacity : 1
+
             return state
         }
     })()

@@ -35,7 +35,7 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         this.metrics = this.system.getMetrics(this.node)
         const raw = this.metrics.raw
 
-        this._orientation = new Transitionable(this.system, raw.localOrientation, undefined, this.transition)
+        this._orientation = new Transitionable(this.system, raw.relativeOrientation, undefined, this.transition)
         this._bounds = new Transitionable(this.system, raw.spatialBounds, undefined, this.transition)
         this._opacity = new Transitionable(this.system, raw.opacity, undefined, this.transition)
         
@@ -330,11 +330,11 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         // reference frame or spatial frame changes
         const metrics = this.metrics
         if (metrics.referenceMetrics) {
-            this.outerOrigin.target.copy(metrics.referenceMetrics.target.worldCenter)
-            this.outerOrientation.target.copy(metrics.referenceMetrics.target.worldOrientation)
-            this.outerBounds.target.copy(metrics.referenceMetrics.innerBounds)
+            this.outerOrigin.target = metrics.referenceMetrics.target.worldCenter
+            this.outerOrientation.target = metrics.referenceMetrics.target.worldOrientation
+            this.outerBounds.target = metrics.referenceMetrics.innerBounds
             this.outerBounds.target.applyMatrix4(metrics.target.spatialFromReference)
-            this.outerVisualBounds.target.copy(metrics.referenceMetrics.target.visualBounds)
+            this.outerVisualBounds.target = metrics.referenceMetrics.target.visualBounds
         }
         this.outerOrigin.update()
         this.outerOrientation.update()
@@ -352,15 +352,20 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             metrics.invalidateStates()
             const rawState = metrics.raw // recompute
             if (!this.system.optimizer.update(this)) { // no layouts?
+                const currentOrientation = this.orientation.current
                 const targetOrientation = this.orientation.target // metrics.target.localOrientation
-                const orientation = rawState.localOrientation
-                if (targetOrientation.angleTo(orientation) > this.system.epsillonRadians) {
+                const orientation = rawState.relativeOrientation
+                if (targetOrientation.angleTo(orientation) > this.system.epsillonRadians && 
+                    currentOrientation.angleTo(orientation) > this.system.epsillonRadians) {
                     this.orientation.target = orientation
                 }
+                const currentBounds = this.bounds.current
                 const targetBounds = this.bounds.target // metrics.target.spatialBounds
                 const bounds = rawState.spatialBounds
-                if (targetBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||
-                    targetBounds.max.distanceTo(bounds.max) > this.system.epsillonMeters) {
+                if ((targetBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||
+                    targetBounds.max.distanceTo(bounds.max) > this.system.epsillonMeters) &&
+                    (currentBounds.min.distanceTo(bounds.min) > this.system.epsillonMeters ||
+                    currentBounds.max.distanceTo(bounds.max) > this.system.epsillonMeters)) {
                     this.bounds.target = bounds
                 }
             }

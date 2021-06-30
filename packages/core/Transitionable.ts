@@ -262,7 +262,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
      * The relative difference between the target and last committed value.
      */
     get relativeDifference() {
-        const lastTarget = this.queue[this.queue.length-1]?.target || this.start
+        const lastTarget = this.queue[this.queue.length-1]?.target ?? this.start
         return typeof this.target !== 'undefined' ? computeRelativeDifference(lastTarget, this.target) : 0
     }
 
@@ -366,12 +366,11 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         }
         
         this.current = this.start
-        const current = this._current
         let previousTarget = this.start
         
         for (let i=0; i < queue.length; i++) {
             const transition = queue[i]
-            this._addTransitionToCurrent(current, previousTarget, transition, delta)
+            this._addTransitionToCurrent(previousTarget, transition, delta)
             previousTarget = transition.target
             if (!transition.blend) break
         }
@@ -419,19 +418,20 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         this.forceWait = false
     }
 
-    private _addTransitionToCurrent(current:TransitionableType<T>, start:TransitionableType<T>, transition:Required<Transition<T>>, delta:number) {
+    private _addTransitionToCurrent(prev:TransitionableType<T>, transition:Required<Transition<T>>, delta:number) {
+        const current = this._current
         const alpha = transition.duration > 0 ? transition.easing( Math.min(transition.elapsed / transition.duration, 1) ) : 1
         const target = transition.target
         transition.elapsed += delta
 
         if (typeof target === 'number') {
-            this._current = current as number + MathUtils.lerp(target - (start as number), 0, 1-alpha) as any
+            this._current = current as number + MathUtils.lerp(target - (prev as number), 0, 1-alpha) as any
             return
         } 
         
         if ('isVector3' in target) {
             const c = current as THREE.Vector3
-            const s = start as THREE.Vector3
+            const s = prev as THREE.Vector3
             const e = target as THREE.Vector3
             const amount = _scratchV3.copy(e).sub(s).lerp(V_000, 1-alpha)
             this._current = c.add(amount) as any
@@ -440,7 +440,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         
         if ('isVector2' in target) {
             const c = current as THREE.Vector2
-            const s = start as THREE.Vector2
+            const s = prev as THREE.Vector2
             const e = target as THREE.Vector2
             const amount = _scratchV2.copy(e).sub(s).lerp(V_00, 1-alpha)
             this._current = c.add(amount) as any
@@ -449,7 +449,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         
         if ('isQuaternion' in target) {
             const c = current as THREE.Quaternion
-            const s = start as THREE.Quaternion
+            const s = prev as THREE.Quaternion
             const e = target as THREE.Quaternion
             const amount = _scratchQ.copy(s).invert().multiply(e).slerp(Q_IDENTITY, 1-alpha)
             this._current = c.multiply(amount).normalize() as any
@@ -458,7 +458,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         
         if ('isColor' in target) {
             const c = current as THREE.Color
-            const s = start as THREE.Color
+            const s = prev as THREE.Color
             const e = target as THREE.Color
             const amount = _scratchColor.copy(e).sub(s).lerp(_blackColor, 1-alpha)
             this._current = c.add(amount) as any
@@ -467,7 +467,7 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
         
         if ('isBox3' in target) {
             const c = current as THREE.Box3
-            const s = start as THREE.Box3
+            const s = prev as THREE.Box3
             const e = target as THREE.Box3
             const minAmount = _scratchBox.min.copy(e.min).sub(s.min).lerp(V_000, 1-alpha)
             const maxAmount = _scratchBox.max.copy(e.max).sub(s.max).lerp(V_000, 1-alpha)
@@ -513,7 +513,9 @@ export class Transitionable<T extends MathType = MathType> extends TransitionCon
             for (const t of syncGroup) {
                 if (t.enabled && t.status === 'committing') {
                     for (const to of syncGroup) { 
-                        if (to.needsUpdate && to.forceCommit === false) to.forceCommit = true 
+                        if (to.needsUpdate && to.forceCommit === false && 
+                            to.relativeDifference > to.resolvedConfig.threshold) 
+                            to.forceCommit = true 
                     }
                     break
                 }
