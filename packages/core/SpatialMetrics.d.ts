@@ -15,41 +15,25 @@ export declare class NodeState<N extends Node3D = Node3D> {
     set parent(val: N | null);
     private _parent;
     get parentState(): NodeState<N> | undefined;
-    get referenceState(): NodeState<N> | undefined;
-    private _cachedLocalMatrix;
-    get localMatrix(): Matrix4;
-    set localMatrix(val: Matrix4);
     private _localMatrix;
-    private _localMatrixInverse;
-    private _localPosition;
-    private _localOrientation;
-    private _localOrientationInverse;
-    private _localScale;
-    private _localRotation;
-    private _localRotationInverse;
-    get localMatrixInverse(): Matrix4;
-    get localPosition(): Vector3;
-    get localOrientation(): Quaternion;
-    get localOrientationInverse(): Quaternion;
-    get localScale(): Vector3;
-    /**
-     * Local rotation matrix
-     */
-    get localRotation(): Matrix4;
-    /**
-     * Local Orientation matrix inverse
-     */
-    get localRotationInverse(): Matrix4;
-    private _cachedWorldMatrix;
+    get localMatrix(): Matrix4;
+    get referenceState(): NodeState<N> | undefined;
     get worldMatrix(): Matrix4;
+    set worldMatrix(val: Matrix4);
+    private _worldMatrix;
+    private _worldMatrixInverse;
     private _worldPosition;
     private _worldOrientation;
     private _worldOrientationInverse;
     private _worldScale;
-    private _worldMatrix;
-    private _worldMatrixInverse;
     private _worldRotation;
     private _worldRotationInverse;
+    private _relativePosition;
+    private _relativeOrientation;
+    private _relativeScale;
+    get relativePosition(): Vector3;
+    get relativeOrientation(): Quaternion;
+    get relativeScale(): Vector3;
     get worldMatrixInverse(): Matrix4;
     get worldPosition(): Vector3;
     get worldOrientation(): Quaternion;
@@ -79,8 +63,8 @@ export declare class NodeState<N extends Node3D = Node3D> {
      */
     private _cachedSpatialMatrix;
     get spatialMatrix(): Matrix4;
-    private _spatialMatrix;
-    private _spatialMatrixInverse;
+    private _worldFromSpatial;
+    private _spatialFromWorld;
     private _localFromSpatial;
     private _spatialFromLocal;
     private _spatialFromReference;

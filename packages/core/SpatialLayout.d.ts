@@ -2,7 +2,7 @@ import { Node3D } from './EtherealLayoutSystem';
 import { Quaternion, Box3 } from './math-utils';
 import { SpatialAdapter } from './SpatialAdapter';
 import { OptimizerConfig } from './SpatialOptimizer';
-import { ObjectiveOptions, Vector3Spec, //RelativePositionConstraint as RelativePositionConstraint, 
+import { Vector3Spec, //RelativePositionConstraint as RelativePositionConstraint, 
 QuaternionSpec, RelativeOrientationConstraint as RelativeOrientationConstraint, WorldScaleConstraint as WorldScaleConstraint, AspectConstraint, SpatialBoundsSpec, SpatialBoundsConstraint, VisualBoundsSpec, VisualBoundsConstraint, VisualMaximizeObjective as MaximizeObjective, SpatialObjective, MagnetizeObjective, MinimizeOcclusionObjective } from './SpatialObjective';
 /**
  * Defines spatial layout constraints/goals
@@ -55,7 +55,7 @@ export declare class SpatialLayout extends OptimizerConfig {
     scaleConstraint?: WorldScaleConstraint;
     bounds(spec: SpatialBoundsSpec, opts?: Partial<SpatialBoundsConstraint>): this;
     boundsConstraint?: SpatialBoundsConstraint;
-    visualOrientation(spec: QuaternionSpec, opts?: ObjectiveOptions): void;
+    visualOrientation(spec: QuaternionSpec, opts?: Partial<RelativeOrientationConstraint>): this;
     visualBounds(spec: VisualBoundsSpec, opts?: Partial<VisualBoundsConstraint>): this;
     visualBoundsMeterConstraint?: VisualBoundsConstraint;
     visualBoundsPixelConstraint?: VisualBoundsConstraint;

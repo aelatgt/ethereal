@@ -82,9 +82,9 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
 
     optimize = new OptimizerConfig({
         minFeasibleTime: 0.02,
-        maxInfeasibleTime: Infinity,
-        relativeTolerance: 0.4, 
-        maxIterationsPerFrame: 20, // iterations per frame per layout
+        maxInfeasibleTime: 5,
+        relativeTolerance: 0.001, 
+        maxIterationsPerFrame: 10, // iterations per frame per layout
         swarmSize: 10, // solutions per layout
         pulseFrequencyMin: 0, // minimal exploitation pulse
         pulseFrequencyMax: 1, // maximal exploitation pulse

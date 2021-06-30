@@ -9,7 +9,7 @@ export declare const ThreeBindings: {
     getChildren(metrics: SpatialMetrics, children: Node3D[]): void;
     getState(metrics: SpatialMetrics, state: NodeState): void;
     getIntrinsicBounds(metrics: SpatialMetrics, bounds: Box3): Box3 | undefined;
-    apply(metrics: SpatialMetrics, state: NodeState): void;
+    apply(metrics: SpatialMetrics, currentState: NodeState): void;
 };
 export declare const DefaultBindings: {
     getChildren(metrics: SpatialMetrics, children: Node3D[]): void;

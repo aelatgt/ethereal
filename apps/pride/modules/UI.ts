@@ -123,7 +123,7 @@ export default class UI {
             
             const flatLayout = adapter.createLayout()
                 .poseRelativeTo(this.model)
-                .orientation({swingRange:{x:'10deg',y:'10deg'}, twistRange:'0deg'})
+                .orientation(Q_IDENTITY)//{swingRange:{x:'10deg',y:'10deg'}, twistRange:'0deg'})
                 .keepAspect('xyz')
                 .visualBounds({
                     back:       '100%',

@@ -152,6 +152,8 @@ export interface VisualBoundsSpec {
 }
 export declare class VisualBoundsConstraint extends SpatialObjective {
     spec?: VisualBoundsSpec;
+    pixelTolerance?: number | string;
+    meterTolerance?: number | string;
     constructor(layout: SpatialLayout);
     evaluate(): number;
 }
