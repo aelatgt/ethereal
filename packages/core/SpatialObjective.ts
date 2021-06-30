@@ -448,10 +448,13 @@ export class VisualBoundsConstraint extends SpatialObjective {
     evaluate() {
         if (this.type === 'meter') this.absoluteTolerance = this.meterTolerance
         if (this.type === 'pixel') this.absoluteTolerance = this.pixelTolerance
-        return this.attenuateVisualScore(
-            this.getBoundsScore(this.spec, 'visual') + 
+
+        return this.getBoundsScore(this.spec, 'visual') + 
             this.getBoundsScore(this.spec?.absolute, 'view')
-        )
+        // return this.attenuateVisualScore(
+        //     this.getBoundsScore(this.spec, 'visual') + 
+        //     this.getBoundsScore(this.spec?.absolute, 'view')
+        // )
     }
 }
 

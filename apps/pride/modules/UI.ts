@@ -70,10 +70,13 @@ export default class UI {
                 this.main.update()
                 // we only want to move the entire pride UI into an immersive layout
                 // on devices that offer an immersive interaction space (e.g., Quest/Hololens)
-                if (this.app.interactionSpace === 'world') {
+                this.state.worldInteraction = this.app.interactionSpace === 'world'
+                if (this.app.interactionSpace === 'world' && this.state.immersiveMode) {
                     adapter.layouts = [immersiveLayout]
-                } else {
+                } else if (this.app.interactionSpace === 'screen') {
                     adapter.layouts = [flatLayout]
+                } else {
+                    adapter.layouts = []
                 }
             }
 
@@ -179,17 +182,15 @@ export default class UI {
             const immersiveLayout = adapter.createLayout()
                 .poseRelativeTo(this.app.treadmill.snubber)
                 .keepAspect('xyz')
-                .orientation({swingRange:{x:'180deg',y:'180deg'}, twistRange:'0deg'})
+                .orientation(Q_IDENTITY)
                 .bounds({
-                    front: '0m',
+                    back: '0m',
                     top: '0m',
                     size: {x:'150%'}
                 })
                 .visualBounds({
                     right: '-100% -10px'
                 })
-                .magnetize()
-                .maximize() 
             adapter.onUpdate = () => {
                 if (this.state.immersiveMode) adapter.layouts = [immersiveLayout]
                 else adapter.layouts = []
@@ -206,7 +207,7 @@ export default class UI {
                 .keepAspect('xyz')
                 .orientation(Q_IDENTITY)
                 .bounds({
-                    back:'100%',
+                    back:'0m',
                     top: '0m',
                     size: {x:'100%'}
                 })
@@ -219,12 +220,67 @@ export default class UI {
                 layer.update()
             }
         }
+
+        const setupProcedureLayer = () => {
+            const layer = this.procedure
+            const adapter = this.app.system.getAdapter(layer)
+            const immersiveLayout = adapter.createLayout()
+                .poseRelativeTo(this.app.treadmill.poster)
+                .keepAspect('xyz')
+                .orientation(Q_IDENTITY)
+                .bounds({
+                    back:'100%',
+                    size: {x:'100%'},
+                    left: {gt: '-20%'},
+                    right: {lt: '20%'}
+                })
+                .visualBounds({
+                    bottom: '100% + 20px',
+                })
+                .magnetize()
+            adapter.onUpdate = () => {
+                if (this.state.immersiveMode) adapter.layouts = [immersiveLayout]
+                else adapter.layouts = []
+                layer.update()
+            }
+        }
+
+        const setupControlsLayer = () => {
+            const layer = this.controls
+            const adapter = this.app.system.getAdapter(layer)
+            const immersiveLayout = adapter.createLayout()
+                .keepAspect('xyz')
+                .orientation(Q_IDENTITY)
+                .visualBounds({
+                    top: '10px',
+                    size: {x: '50vdeg'}
+                })
+            const attachedLayout = adapter.createLayout()
+                .keepAspect('xyz')
+                .orientation(Q_IDENTITY)
+                .visualBounds({
+                    top: '-2vdeg',
+                    size: {x: '50vdeg'}
+                })
+                .magnetize()
+            adapter.onUpdate = () => {
+                if (app.controllers.left?.grip && this.state.immersiveMode) {
+                    attachedLayout.poseRelativeTo(app.controllers.left.grip)
+                    adapter.layouts = [attachedLayout]
+                } else {
+                    adapter.layouts = []
+                }
+                layer.update()
+            }
+        }
         
         setupPrideLayer()
         setupContentLayer()
         setupTreadmillPoster()
         setupSnubberModel()
         setupMediaLayer()
+        setupProcedureLayer()
+        setupControlsLayer()
 
         this.backButton.element.addEventListener('click', async () => {
             this.state.back()
@@ -275,7 +331,7 @@ export default class UI {
                             size.z * 0.01,
                         ), new MeshBasicMaterial({
                             transparent: true,
-                            blending: THREE.AdditiveBlending
+                            blending: THREE.AdditiveBlending,
                         }))
                         break
                     case 'sphere':
@@ -296,23 +352,24 @@ export default class UI {
                 }
                 augmentation.userData.pride = stringifiedObject
                 this.augmentations[name] = augmentation
-                const adapter = this.app.system.getAdapter(augmentation)
-                adapter.bounds.enabled = true
-                adapter.opacity.target = 0.2
+                // const adapter = this.app.system.getAdapter(augmentation)
+                // adapter.bounds.enabled = true
             }
             if (prideObject.position) {
                 augmentation.scale.setScalar(1)
-                if (augmentation instanceof WebLayer3D) {
-                    augmentation.update()
-                    augmentation.scale.setScalar(10)
-                }
                 this.app.treadmill.snubber.add(augmentation)
                 augmentation.position.copy(prideObject.position as any).multiplyScalar(0.01)
+
+                if (augmentation instanceof WebLayer3D) {
+                    augmentation.update()
+                } else {
+                    // adapter.opacity.target = 0.2
+                }
             }
             if (prideObject.rotation) {
-                augmentation.rotation.x = prideObject.rotation.x * THREE.MathUtils.DEG2RAD
-                augmentation.rotation.y = prideObject.rotation.y * THREE.MathUtils.DEG2RAD
-                augmentation.rotation.z = prideObject.rotation.z * THREE.MathUtils.DEG2RAD
+                // augmentation.rotation.x = prideObject.rotation.x * THREE.MathUtils.DEG2RAD
+                // augmentation.rotation.y = prideObject.rotation.y * THREE.MathUtils.DEG2RAD
+                // augmentation.rotation.z = prideObject.rotation.z * THREE.MathUtils.DEG2RAD
             }
             augmentation.updateMatrix()
         }

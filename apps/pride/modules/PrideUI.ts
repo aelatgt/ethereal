@@ -7,6 +7,7 @@ class State {
     logo = './public/pride-view.png'
     pride = {...PrideAPI.data}
     immersiveMode = false
+    worldInteraction = false
 
     async get() {
         await PrideAPI.get()

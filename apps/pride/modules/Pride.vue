@@ -16,7 +16,7 @@
             <div xr-layer id="model">
             </div>
         </div>
-        <div id="controls" xr-layer>
+        <div id="controls" v-bind:class="{ equipped: controlsEquipped }" xr-layer>
             <div xr-layer class="button" id="back">Back</div>
             <div xr-layer class="button" id="done" v-show="['ManualInstruction', 'ClarifyingInfo', 'VerifyInstruction'].indexOf(pride.elementSubType) > -1">Done</div>
             <div xr-layer class="button" id="yes" v-show="pride.elementSubType === 'Conditional'">Yes</div>

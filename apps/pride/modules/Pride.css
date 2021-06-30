@@ -45,6 +45,10 @@
     width: 200px;
 }
 
+.worldInteraction #controls {
+    width: 300px;
+}
+
 .xr #media {
     position: absolute;
     width: 200px;
@@ -136,6 +140,10 @@
 #controls {
     margin: 5px;
     align-self: stretch;
+}
+
+#controls.equipped {
+    width: 300px;
 }
 
 #controls :hover {

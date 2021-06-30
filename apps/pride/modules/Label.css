@@ -1,0 +1,11 @@
+
+
+.label {
+    position: absolute;
+    padding: 10px;
+    color: black;
+    background-color: white;
+    border-radius: 10px;
+    font-size:large;
+    font-family: 'Inconsolata', monospace;
+}
