@@ -85,7 +85,7 @@ export class EtherealLayoutSystem<N extends Node3D = Node3D> {
         maxInfeasibleTime: Infinity,
         relativeTolerance: 0.4, 
         maxIterationsPerFrame: 50, // iterations per frame per layout
-        swarmSize: 4, // solutions per layout
+        swarmSize: 10, // solutions per layout
         pulseFrequencyMin: 0, // minimal exploitation pulse
         pulseFrequencyMax: 1, // maximal exploitation pulse
         pulseRate: 0.2, // The ratio of directed exploitation vs random exploration,

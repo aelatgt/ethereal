@@ -163,7 +163,7 @@ export class WebRenderer {
     addCSSRule(
       sheet,
       `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]`,
-      'transform: none !important; left: 0 !important; top: 0 !important; margin: 0 !important; border:0 !important; border-radius:0 !important; height:100% !important; padding:0 !important; background: rgba(0,0,0,0) none !important; box-shadow:none !important',
+      'transform: none !important; left: 0 !important; top: 0 !important; margin: 0 !important; border:0 !important; border-radius:0 !important; width: 100% !important; height:100% !important; padding:0 !important; background: rgba(0,0,0,0) none !important; box-shadow:none !important',
       i++
     )
     addCSSRule(

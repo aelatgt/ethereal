@@ -8,7 +8,7 @@ import {UpdateEvent} from '../App'
 
 import {createPrideUI} from './PrideUI'
 import {createLabelUI} from './LabelUI'
-import { MeshPhongMaterial, MeshBasicMaterial } from 'three'
+import { MeshPhongMaterial, MeshBasicMaterial, Vector3 } from 'three'
 
 export default class UI {
     augmentations: {[name: string]: THREE.Object3D} = {}
@@ -47,11 +47,11 @@ export default class UI {
             const adapter = this.app.system.getAdapter(this.main)
 
             const immersiveLayout = adapter.createLayout()
-                .visualBounds({
-                    front: '-1m'
+                .bounds({
+                    center: {x:0, y: 1.5, z:-1}
                 })
-                .orientation({swingRange:{x:'180deg',y:'180deg'}, twistRange:'0deg'})
-                .scale(V_111)
+                .orientation(Q_IDENTITY)
+                .scale(new Vector3(0.5,0.5,0.5))
 
             const flatLayout = adapter.createLayout()
                 .poseRelativeTo(this.app.camera) // attach the UI to the camera
@@ -71,7 +71,7 @@ export default class UI {
                 // we only want to move the entire pride UI into an immersive layout
                 // on devices that offer an immersive interaction space (e.g., Quest/Hololens)
                 this.state.worldInteraction = this.app.interactionSpace === 'world'
-                if (this.app.interactionSpace === 'world' && this.state.immersiveMode) {
+                if (this.app.interactionSpace === 'world') {
                     adapter.layouts = [immersiveLayout]
                 } else if (this.app.interactionSpace === 'screen') {
                     adapter.layouts = [flatLayout]
@@ -249,11 +249,16 @@ export default class UI {
             const layer = this.controls
             const adapter = this.app.system.getAdapter(layer)
             const immersiveLayout = adapter.createLayout()
+                .poseRelativeTo(this.content)
                 .keepAspect('xyz')
                 .orientation(Q_IDENTITY)
+                .bounds({
+                    back: '0m',
+                    center: {x: '0m'}
+                })
                 .visualBounds({
-                    top: '10px',
-                    size: {x: '50vdeg'}
+                    top: '- 100 % - 10px',
+                    size: {x: '100%'}
                 })
             const attachedLayout = adapter.createLayout()
                 .keepAspect('xyz')
@@ -262,11 +267,13 @@ export default class UI {
                     top: '-2vdeg',
                     size: {x: '50vdeg'}
                 })
-                .magnetize()
             adapter.onUpdate = () => {
-                if (app.controllers.left?.grip && this.state.immersiveMode) {
-                    attachedLayout.poseRelativeTo(app.controllers.left.grip)
-                    adapter.layouts = [attachedLayout]
+                // if (app.controllers.left?.grip && this.state.immersiveMode) {
+                //     attachedLayout.poseRelativeTo(app.controllers.left.grip)
+                //     adapter.layouts = [attachedLayout]
+                // } else 
+                if (this.state.immersiveMode) {
+                    adapter.layouts = [immersiveLayout]
                 } else {
                     adapter.layouts = []
                 }
