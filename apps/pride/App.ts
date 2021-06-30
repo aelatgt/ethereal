@@ -1,6 +1,7 @@
 
 import * as THREE from 'three'
 import {WebLayer3D, WebLayer3DOptions} from 'ethereal'
+import { Group, XRInputSource } from 'three'
 
 export interface EnterXREvent {
     type: 'enterxr'
@@ -33,10 +34,10 @@ export default class AppBase {
     camera = new THREE.PerspectiveCamera
     uiView = new THREE.PerspectiveCamera
 
-    renderer = new THREE.WebGLRenderer(<any>{
-        desynchronized: true,
+    renderer = new THREE.WebGLRenderer({
         antialias: false,
-        alpha: true
+        alpha: true,
+        powerPreference: 'high-performance'
     })
 
     clock = new THREE.Clock
@@ -50,6 +51,12 @@ export default class AppBase {
     // a map of XRCoordinateSystem instances and their Object3D proxies to be updated each frame
     xrObjects = new Map<any, THREE.Object3D>() // XRCoordinateSystem -> Three.js Object3D Map
 
+    controllers: {
+        left?: {ray:Group,grip?:Group}
+        right?: {ray:Group,grip?:Group}
+        none?: {ray:Group,grip?:Group}
+    } = {}
+
     constructor(private _config: AppConfig) {
         this.scene.add(this.camera)
 
@@ -57,9 +64,9 @@ export default class AppBase {
         // box.position.set(0,0,-2)
         // this.scene.add(box)
 
-
         const renderer = this.renderer
         document.documentElement.append(this.renderer.domElement)
+        renderer.domElement.style.backgroundColor = 'darkgray'
         renderer.domElement.style.position = 'fixed'
         renderer.domElement.style.width = '100%'
         renderer.domElement.style.height ='100%'
@@ -70,6 +77,7 @@ export default class AppBase {
         renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false})
         renderer.domElement.addEventListener('click', onClick, false)
         renderer.setAnimationLoop(this.onAnimate)
+        renderer.setClearColor(new THREE.Color('white'), 0)
 
         window.addEventListener('vrdisplaypresentchange', (evt) => {
             setTimeout(() => { if (!this.xrPresenting) this._exitXR(), 10 })
@@ -121,23 +129,13 @@ export default class AppBase {
         }
 
         const addController = (id:number) => {
-            const meshColorOff = 0xDB3236 //  Red.
-            const meshColorOn  = 0xF4C20D //  Yellow.
-            const controllerMaterial = new THREE.MeshBasicMaterial({
-                color: meshColorOff
-            })
             const controller = renderer.xr.getController(id)
+            if (!controller) return
+            const grip = renderer.xr.getControllerGrip(id)
             this.scene.add(controller)
+            if (grip) this.scene.add(grip)
+
             controller.addEventListener('selectstart',  ( event:any ) => {
-                controllerMaterial.color.setHex( meshColorOn )
-                onSelect()
-            })
-            controller.addEventListener('selectend',  ( event:any ) => {
-                controllerMaterial.color.setHex( meshColorOff )
-            })
-            controller.add(new THREE.AxesHelper(1))
-            this.immersiveRays.add(controller)
-            const onSelect = () => {
                 for (const layer of this.webLayers) {
                     const hit = layer.hitTest(controller)
                     if (hit) {
@@ -145,22 +143,23 @@ export default class AppBase {
                         hit.target.focus()
                     }
                 }
-            }
+            })
+            controller.addEventListener('selectend',  ( event:any ) => {
+            })
 
-
-            function buildController( data : any ) {
+            function buildController( source : XRInputSource ) {
 
                 let geometry, material;
 
-                switch ( data.targetRayMode ) {
+                switch ( source.targetRayMode ) {
 
                     case 'tracked-pointer':
 
                         geometry = new THREE.BufferGeometry();
-                        geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [ 0, 0, 0, 0, 0, - 1 ], 3 ) );
-                        geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( [ 0.5, 0.5, 0.5, 0, 0, 0 ], 3 ) );
+                        geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( [ 0, 0, 0, 0, 0, - 30 ], 3 ) );
+                        geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( [ 0.9, 0.9, 0.9, 0, 0, 0 ], 3 ) );
 
-                        material = new THREE.LineBasicMaterial( { vertexColors: true, blending: THREE.AdditiveBlending } );
+                        material = new THREE.LineBasicMaterial( { vertexColors: true, blending: THREE.AdditiveBlending, linewidth: 3 } );
 
                         return new THREE.Line( geometry, material );
 
@@ -176,16 +175,25 @@ export default class AppBase {
 
             let ui:THREE.Object3D|undefined
             controller.addEventListener('connected', (evt) => {
-                ui = buildController(evt)
+                const session = renderer.xr.getSession()!
+                const source = session.inputSources[id]
+                ui = buildController(source)
                 if (ui) controller.add(ui)
+                this.immersiveRays.add(controller)
+                this.controllers[source.handedness] = {ray:controller, grip}
             })
             controller.addEventListener('disconnected', () => {
                 if (ui) controller.remove(ui)
+                this.immersiveRays.delete(controller)
+                const session = renderer.xr.getSession()!
+                const source = session.inputSources[id]
+                delete this.controllers[source.handedness]
             })
         }
 
         addController(0)
         addController(1)
+        addController(2)
         
 
         // this.renderer.setAnimationLoop(this.onAnimate)
@@ -322,8 +330,6 @@ export default class AppBase {
         }
 
         if (this.xrPresenting) {
-            this.renderer.setClearColor(new THREE.Color('blue'))
-            this.renderer.setClearColor(new THREE.Color('white'), 0)
             this._wasPresenting = true
             const vrCamera = this.renderer.xr.getCamera(this.camera) as THREE.ArrayCamera
             this.camera.matrix.copy(vrCamera.matrix)
@@ -332,7 +338,6 @@ export default class AppBase {
             this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert()
             this.camera.updateWorldMatrix(true, true)
         } else {
-            this.renderer.setClearColor(new THREE.Color('white'))
             if (this._wasPresenting) {
                 this._wasPresenting = false
                 this._exitXR()

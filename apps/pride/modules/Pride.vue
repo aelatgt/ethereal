@@ -1,6 +1,6 @@
 
 <template>
-    <div id="pride" xr-pixel-ratio="0.01" v-bind:class="immersiveMode">
+    <div id="pride" xr-pixel-ratio="0.01" v-bind:class="{ xr: immersiveMode }">
         <link crossorigin="anonymous" href="https://fonts.googleapis.com/css?family=Inconsolata:400,700" rel="stylesheet"/>
         <link rel="stylesheet" href="./modules/Pride.css"/>
         <div xr-layer id="procedure"><img xr-layer class="logo" :src="logo"/>Procedure: {{pride.procedure}}</div>
@@ -16,7 +16,7 @@
             <div xr-layer id="model">
             </div>
         </div>
-        <div id="controls">
+        <div id="controls" xr-layer>
             <div xr-layer class="button" id="back">Back</div>
             <div xr-layer class="button" id="done" v-show="['ManualInstruction', 'ClarifyingInfo', 'VerifyInstruction'].indexOf(pride.elementSubType) > -1">Done</div>
             <div xr-layer class="button" id="yes" v-show="pride.elementSubType === 'Conditional'">Yes</div>

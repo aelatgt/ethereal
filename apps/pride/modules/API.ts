@@ -23,7 +23,7 @@ export interface Augmentation {
 
 export interface LabelAugmentation extends Augmentation {
     type: 'label',
-    text: string
+    label: string
 }
 
 export interface BoxAugmentation extends Augmentation {

@@ -23,16 +23,16 @@
 }
 
 @media (min-width: 640px) {
-    :not(.xr) #flex {
+    #pride:not(.xr) #flex {
         flex-direction: row;
     }
-    :not(.xr) #content {
+    #pride:not(.xr) #content {
         flex: 2;
     }
-    :not(.xr) #media {
+    #pride:not(.xr) #media {
         flex: 3;
     }
-    :not(.xr) #model {
+    #pride:not(.xr) #model {
         flex: 3;
     }
 }
@@ -42,7 +42,6 @@
 }
 
 .xr #content {
-    position: absolute;
     width: 200px;
 }
 
