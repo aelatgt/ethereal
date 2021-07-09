@@ -16,7 +16,7 @@ export interface WebLayer3DOptions extends WebLayerOptions {
   layerSeparation?: number
   autoRefresh?: boolean
   onLayerCreate?(layer: WebLayer3DContent): void
-  onAfterRasterize?(layer: WebLayer3DContent): void,
+  onLayerPaint?(layer: WebLayer3DContent): void
   textureEncoding?: number,
   renderOrderOffset?: number
 }
@@ -534,12 +534,12 @@ export class WebLayer3D extends THREE.Object3D {
           this.rootLayer = layer
           this.add(layer)
         } else layer.parentWebLayer?.add(layer)
-        if (this.options.onLayerCreate) this.options.onLayerCreate(layer)
-      } else if (event === 'layerchanged') {
+        this.options.onLayerCreate?.(layer)
+      } else if (event === 'layerpainted') {
         const layer = WebRenderer.layers.get(target)!
         const layer3D = WebLayer3D.layersByElement.get(layer.element)!
         layer3D.textureNeedsUpdate = true
-        console.log('layerchanged', layer.element)
+        this.options.onLayerPaint?.(layer3D)
       } else if (event === 'layermoved') {
         const layer = WebLayer3D.layersByElement.get(target)!
         layer.parentWebLayer?.add(layer)

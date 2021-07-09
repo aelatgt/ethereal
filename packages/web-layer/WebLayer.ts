@@ -17,12 +17,9 @@ import {serializeToString, serializeAttribute} from './xml-serializer'
 
 export type EventCallback = (
   event:
-    | 'layerchanged'
-    | 'layerresized'
+    | 'layerpainted'
     | 'layercreated'
-    | 'layermoved'
-    | 'removalrequired'
-    | 'inputrequired',
+    | 'layermoved',
   data: { target: Element }
 ) => void
 
@@ -106,7 +103,7 @@ export class WebLayer {
         this._currentCanvas = canvas
         this._currentBounds = bounds
         this._currentMargin = margin
-        if (previousCanvasHash !== canvasHash && this.eventCallback) this.eventCallback('layerchanged', { target: this.element })
+        if (previousCanvasHash !== canvasHash && this.eventCallback) this.eventCallback('layerpainted', { target: this.element })
         return true
       }
     }

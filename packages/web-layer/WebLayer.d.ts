@@ -1,6 +1,6 @@
 import "fast-text-encoding";
 import { Bounds, Edges } from './dom-utils';
-export declare type EventCallback = (event: 'layerchanged' | 'layerresized' | 'layercreated' | 'layermoved' | 'removalrequired' | 'inputrequired', data: {
+export declare type EventCallback = (event: 'layerpainted' | 'layercreated' | 'layermoved', data: {
     target: Element;
 }) => void;
 declare type SVGHash = string;

@@ -7,7 +7,7 @@ export interface WebLayer3DOptions extends WebLayerOptions {
     layerSeparation?: number;
     autoRefresh?: boolean;
     onLayerCreate?(layer: WebLayer3DContent): void;
-    onAfterRasterize?(layer: WebLayer3DContent): void;
+    onLayerPaint?(layer: WebLayer3DContent): void;
     textureEncoding?: number;
     renderOrderOffset?: number;
 }
