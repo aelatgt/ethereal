@@ -439,7 +439,7 @@ export class WebLayer3DContent extends THREE.Object3D {
     const parentBounds = parentLayer.bounds //|| getViewportBounds(scratchBounds)
     const parentMargin = parentLayer.margin
     const parentFullWidth = parentBounds.width + parentMargin.left + parentMargin.right
-    const parentFullHeight = parentBounds.height + parentMargin.bottom + parentMargin.bottom
+    const parentFullHeight = parentBounds.height + parentMargin.bottom + parentMargin.top
     const parentLeftEdge = - parentFullWidth / 2 + parentMargin.left
     const parentTopEdge = parentFullHeight / 2 - parentMargin.top
     
