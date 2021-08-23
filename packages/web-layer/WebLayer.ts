@@ -220,6 +220,7 @@ export class WebLayer {
   serializationReplacer = (node:Node) => {
     if (this.element === node) return
     const element = node as Element
+    const tagName = element.tagName?.toLowerCase()
     if (tagName === 'style' || tagName === 'link') return
     const layer = WebRenderer.layers.get(element)
     if (layer) {      

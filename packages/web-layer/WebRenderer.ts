@@ -2,6 +2,7 @@ import {EventCallback, WebLayer} from './WebLayer'
 import { addCSSRule } from './dom-utils'
 import { Matrix4 } from 'three/src/math/Matrix4'
 import { ResizeObserver as Polyfill } from '@juggle/resize-observer'
+import { render } from 'vue'
 const ResizeObserver:typeof Polyfill = (self as any).ResizeObserver || Polyfill
 
 export interface WebLayerOptions {
@@ -104,7 +105,6 @@ export class WebRenderer {
 
   static rootNodeObservers = new Map<Document|ShadowRoot, MutationObserver>()
   static containerStyleElement : HTMLStyleElement
-  static renderingStyleElement : HTMLStyleElement
 
   static initRootNodeObservation(element:Element) {
     const document = element.ownerDocument
@@ -123,55 +123,64 @@ export class WebRenderer {
         top: 0px;
       }
     `
+
+    const renderingStyles = `
+    [${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] * {
+      transform: none !important;'
+    }
     
+    [${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] * {
+      transform: none !important;
+    }
+
+    [${WebRenderer.RENDERING_ATTRIBUTE}], [${WebRenderer.RENDERING_ATTRIBUTE}] * {
+      visibility: visible !important;
+    }
     
-    const style = this.renderingStyleElement = document.createElement('style')
+    [${WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}], [${
+      WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}] * {
+      visibility: hidden !important;
+    }
+
+    [${WebRenderer.RENDERING_ATTRIBUTE}] {
+      position: relative;
+      top: 0 !important;
+      left: 0 !important;
+      float: none;
+      box-sizing:border-box;
+      min-width:var(--x-width);
+      min-height:var(--x-height);
+      display:block !important;
+    }
+    
+    [${WebRenderer.RENDERING_INLINE_ATTRIBUTE}] {
+      top: var(--x-inline-top) !important;
+      width:auto !important;
+    }
+
+    [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}] {
+      transform: none !important;
+      left: 0 !important;
+      top: 0 !important;
+      margin: 0 !important;
+      border:0 !important;
+      border-radius:0 !important;
+      width: 100% !important;
+      height:100% !important;
+      padding:0 !important;
+      background: rgba(0,0,0,0) none !important;
+      box-shadow:none !important';
+    }
+    
+    [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::before, [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::after {
+      content:none !important;
+      box-shadow:none !important;
+    }
+    `
+
+    const style = document.createElement('style')
+    style.textContent = renderingStyles
     styleRoot.append(style) // otherwise stylesheet is not created
-    const sheet = style.sheet as CSSStyleSheet
-    let i = 0
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] *`,
-      'transform: none !important;',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_ATTRIBUTE}], [${WebRenderer.RENDERING_ATTRIBUTE}] *`,
-      'visibility: visible !important;',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}], [${
-        WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}] *`,
-      'visibility: hidden !important;',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_ATTRIBUTE}]`,
-      'position: relative; top: 0 !important; left: 0 !important; float: none; box-sizing:border-box; min-width:var(--x-width); min-height:var(--x-height); display:block !important;',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_INLINE_ATTRIBUTE}]`,
-      'top: var(--x-inline-top) !important; width:auto !important',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]`,
-      'transform: none !important; left: 0 !important; top: 0 !important; margin: 0 !important; border:0 !important; border-radius:0 !important; width: 100% !important; height:100% !important; padding:0 !important; background: rgba(0,0,0,0) none !important; box-shadow:none !important',
-      i++
-    )
-    addCSSRule(
-      sheet,
-      `[${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::before, [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::after`,
-      'content:none !important; box-shadow:none !important;',
-      i++
-    )
     
     if (rootNode === document) {
       let previousHash = ''
@@ -220,7 +229,7 @@ export class WebRenderer {
       for (const m of mutations) {
         if (STYLE_NODES.indexOf(m.target.nodeName.toUpperCase()) !== -1) {
           setNeedsRefreshOnAllLayers()
-          this.embeddedCSS.get(document)?.delete(m.target as Element)
+          // this.embeddedCSS.get(document)?.delete(m.target as Element)
         }
         for (const node of m.addedNodes) setNeedsRefreshOnStyleLoad(node)
       }
@@ -417,48 +426,6 @@ export class WebRenderer {
     return out.premultiply(T2).multiply(T1)
   }
 
-  static async embedExternalResources(element: Element) {
-    const promises = []
-    const elements = element.querySelectorAll('*')
-    // TODO: just save the serialized resources without modifying the original elements
-    for (const element of elements) {
-      const link = element.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
-      if (link) {
-        promises.push(
-          WebRenderer.getDataURL(link).then(dataURL => {
-            element.removeAttributeNS('http://www.w3.org/1999/xlink', 'href')
-            element.setAttribute('href', dataURL)
-          })
-        )
-      }
-      const imgElement = element as HTMLImageElement
-      if (element.tagName == 'IMG' && imgElement.src.substr(0, 4) != 'data') {
-        promises.push(
-          WebRenderer.getDataURL(imgElement.src).then(dataURL => {
-            element.setAttribute('src', dataURL)
-          })
-        )
-      }
-      if (element.namespaceURI == 'http://www.w3.org/1999/xhtml' && element.hasAttribute('style')) {
-        const style = element.getAttribute('style') || ''
-        promises.push(
-          WebRenderer.generateEmbeddedCSS(window.location.href, style).then(css => {
-            if (style != css) element.setAttribute('style', css)
-          })
-        )
-      }
-    }
-    const styles = element.querySelectorAll('style')
-    for (const style of styles) {
-      promises.push(
-        WebRenderer.generateEmbeddedCSS(window.location.href, style.innerHTML).then(css => {
-          if (style.innerHTML != css) style.innerHTML = css
-        })
-      )
-    }
-    return Promise.all(promises)
-  }
-
   static pauseMutationObservers() {
     const mutationObservers = WebRenderer.mutationObservers.values()
     for (const m of mutationObservers) {
@@ -584,7 +551,7 @@ export class WebRenderer {
   }
 
   static async generateEmbeddedCSS(url:string, css:string): Promise<string> {
-    let found
+    let found : RegExpExecArray | null
     const promises = []
 
     // Add classes for psuedo-classes
@@ -594,11 +561,13 @@ export class WebRenderer {
     css = css.replace(new RegExp(':target', 'g'), this.attributeCSS(this.TARGET_ATTRIBUTE))
 
     // Replace all urls in the css
-    const regEx = RegExp(/url\((?!['"]?(?:data):)['"]?([^'"\)]*)['"]?\)/gi)
+    const regEx = RegExp(/(@import.*?["']([^"']+)["'].*?|url\((?!['"]?(?:data):)['"]?([^'"\)]*)['"]?\))/gi)
     while ((found = regEx.exec(css))) {
-      const resourceURL = found[1]
+      const isCSSImport = !!found[2]
+      const accept = isCSSImport ? 'type/css' : undefined
+      const resourceURL = found[2] || found[3]
       promises.push(
-        this.getDataURL(new URL(resourceURL, url).href).then(dataURL => {
+        this.getDataURL(new URL(resourceURL, url).href, accept).then(dataURL => {
           css = css.replace(resourceURL, dataURL)
         })
       )
@@ -608,84 +577,46 @@ export class WebRenderer {
     return css
   }
 
-  static async getURL(url:string, accept?:string): Promise<XMLHttpRequest> {
-    url = new URL(url, window.location.href).href
-    return new Promise<XMLHttpRequest>(resolve => {
-      var xhr = new XMLHttpRequest()
+  private static embeddedStyles = new Map<ShadowRoot|Document, Map<Element, Promise<string>>>()
 
-      xhr.open('GET', url, true)
-      if (accept) xhr.setRequestHeader('accept', accept)
-
-      xhr.responseType = 'arraybuffer'
-
-      xhr.onload = () => {
-        resolve(xhr)
-      }
-
-      xhr.onerror = () => {
-        resolve(xhr)
-      }
-
-      xhr.send()
-    })
-  }
-
-  private static embeddedCSS = new Map<ShadowRoot|Document, Map<Element, Promise<string>>>()
-
-  static async getRenderingCSS(el:Element) {
+  static async getAllEmbeddedStyles(el:Element) {
     const rootNode = el.getRootNode() as ShadowRoot|Document
-    const embedded = this.embeddedCSS.get(rootNode) || new Map<Element, Promise<string>>()
-    this.embeddedCSS.set(rootNode, embedded)
+    const embedded = this.embeddedStyles.get(rootNode) || new Map<Element, Promise<string>>()
+    this.embeddedStyles.set(rootNode, embedded)
 
     const styleElements = Array.from(
       rootNode.querySelectorAll("style, link[type='text/css'], link[rel='stylesheet']")
     ) as (HTMLStyleElement|HTMLLinkElement)[]
-    styleElements.push(this.renderingStyleElement)
     
-    // if we are inside shadow dom, we have to clone the fonts into the light dom to load fonts in Chrome/Firefox
     const inShadow = el.getRootNode() instanceof ShadowRoot
 
-    function processSheetRules(rules:CSSRuleList) {
-      let allRules = ''
-      let fontRules = ''
-      for (const rule of rules) {
-        if (rule.type === CSSRule.FONT_FACE_RULE) {
-          fontRules += '\n\n' + rule.cssText
-        }
-        allRules += '\n\n' + rule.cssText
-      }
-      return {allRules, fontRules}
-    }
-
-    let foundNewStyles = false
+    // let foundNewStyles = false
     for (const element of styleElements) {
       if (!embedded.has(element)) {
-        foundNewStyles = true
+        // foundNewStyles = true
         embedded.set(element, new Promise<string>(resolve => {
-          const loading = setInterval(() => {
-            if (element.sheet) {
-              clearInterval(loading)
-              const result = processSheetRules(element.sheet.rules)
-              if (inShadow && result.fontRules) {
-                const fontStyles = document.createElement('style')
-                fontStyles.innerHTML = result.fontRules
-                document.head.appendChild(fontStyles)
-                embedded.set(fontStyles, Promise.resolve(''))
-              }
-              this._addDynamicPseudoClassRules(rootNode)
-              resolve(result.allRules)
-            }
-          },10)
-        }).then((cssText) => this.generateEmbeddedCSS(window.location.href, cssText)))
-        //   embedded.set(
-        //     element,
-        //     this.getURL(element.getAttribute('href')!, 'text/css').then(xhr => {
-        //       if (!xhr.response) return ''
-        //       this._addDynamicPseudoClassRules(rootNode)
-        //       var css = textDecoder.decode(xhr.response)
-        //       return this.generateEmbeddedCSS(window.location.href, css)
-        //     })
-        //   )
+          if (element.tagName.toLowerCase() === 'style') {
+            resolve(element.textContent || '')
+          } else {
+            const link = element as HTMLLinkElement
+            resolve(this.getEmbeddedCSS(link.href))
+          }
+        }).then((cssText) => {
+          console.log(cssText)
+          const regEx = RegExp(/@font-face[^{]*{([^{}]|{[^{}]*})*}/gi)
+          const fontRules = cssText.match(regEx)
+
+          // if we are inside shadow dom, we have to clone the fonts
+          // into the light dom to load fonts in Chrome/Firefox
+          if (inShadow && fontRules) {
+            const fontStyles = document.createElement('style')
+            fontStyles.innerHTML = fontRules.reduce((r, s) => s + '\n\n' + r, '')
+            document.head.appendChild(fontStyles)
+            embedded.set(fontStyles, Promise.resolve(''))
+          }
+
+          return this.generateEmbeddedCSS(window.location.href, cssText)
+        }))
       }
     }
     // if (foundNewStyles) this._addDynamicPseudoClassRules(rootNode)
@@ -694,27 +625,32 @@ export class WebRenderer {
 
   // Generate and returns a dataurl for the given url
   static dataURLMap = new Map<string, Promise<string>>()
-  static async getDataURL(url:string): Promise<string> {
+  static async getDataURL(url:string, accept?:string): Promise<string> {
+    if (url.startsWith('data')) return url
     if (this.dataURLMap.has(url)) return this.dataURLMap.get(url)!
     const dataURLPromise = new Promise<string>(async resolveDataURL => {
-      const xhr = await this.getURL(url)
-      const arr = new Uint8Array(xhr.response)
-      const contentType = xhr.getResponseHeader('Content-Type')?.split(';')[0]
-      let dataURL = ''
+      const res = await fetch(url, accept ? {headers:{accept}} : undefined)
+      const contentType = res.headers.get('content-type')
       if (contentType == 'text/css') {
-        let css = textDecoder.decode(arr)
-        css = await this.generateEmbeddedCSS(url, css)
-        const base64 = window.btoa(css)
-        if (base64.length > 0) {
-          dataURL = 'data:' + contentType + ';base64,' + base64
-        }
+        const css = await this.generateEmbeddedCSS(url, await res.text())
+        this.embeddedCSSMap.set(url, css)
+        resolveDataURL('data:' + contentType + ';base64,' + window.btoa(css))
       } else {
-        dataURL = 'data:' + contentType + ';base64,' + this.arrayBufferToBase64(arr)
+        const buffer = new Uint8Array(await res.arrayBuffer())
+        resolveDataURL('data:' + contentType + ';base64,' + this.arrayBufferToBase64(buffer))
       }
-      resolveDataURL(dataURL)
     })
     this.dataURLMap.set(url, dataURLPromise)
     return dataURLPromise
+  }
+
+  static embeddedCSSMap = new Map<string, string>()
+  static async getEmbeddedCSS(url:string) {
+    if (this.embeddedCSSMap.has(url)) return this.embeddedCSSMap.get(url)!
+    const res = await fetch(url, {headers:{'accept': 'text/css'}})
+    const css = await this.generateEmbeddedCSS(url, await res.text())
+    this.embeddedCSSMap.set(url, css)
+    return this.embeddedCSSMap.get(url)!
   }
 
   static updateInputAttributes(element: Element) {
@@ -732,16 +668,6 @@ export class WebRenderer {
       inputElement.setAttribute('value', inputElement.value)
     }
   }
-
-  // static getPsuedoAttributes(element: Element) {
-  //   // const layer = this.layers.get(element)
-  //   return (
-  //     `${this.containsHover(element) ? `${this.HOVER_ATTRIBUTE}="" ` : ' '}` +
-  //     `${element.contains(this.focusElement) ? `${this.FOCUS_ATTRIBUTE}="" ` : ' '}` +
-  //     `${element.contains(this.activeElement) ? `${this.ACTIVE_ATTRIBUTE}="" ` : ' '}` +
-  //     `${element.contains(this.targetElement) ? `${this.TARGET_ATTRIBUTE}="" ` : ' '}`
-  //   )
-  // }
 
   static isBlankImage(imageData:Uint8ClampedArray) {
       const pixelBuffer = new Uint32Array(imageData.buffer)

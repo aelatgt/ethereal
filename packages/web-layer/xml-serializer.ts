@@ -27,15 +27,6 @@ export function serializeAttribute (name:string, value:string) {
     return ' ' + name + '="' + serializeAttributeValue(value) + '"'
 }
 
-function getTagName(node:Element) {
-    var tagName = node.tagName
-    // Aid in serializing of original HTML documents
-    if (node.namespaceURI === 'http://www.w3.org/1999/xhtml') {
-        tagName = tagName.toLowerCase()
-    }
-    return tagName
-}
-
 function serializeNamespace(node:Element, isRootNode:boolean) {
     const nodeHasXmlnsAttr = node.hasAttribute('xmlns')
     // Serialize the namespace as an xmlns attribute whenever the element
@@ -57,16 +48,15 @@ async function serializeChildren(node:Element, options:Options) {
 }
 
 async function serializeTag(node:Element, options:Options) {
-    const tagName = getTagName(node)
+    const tagName = node.tagName.toLowerCase()
+
     let output = '<' + tagName
     output += serializeNamespace(node, options.depth === 0)
 
     const childrenHTML = serializeChildren(node, options)
-
-    const isImg = tagName === 'img'
     
     for (const attr of node.attributes) {
-        if (isImg && attr.name === 'src') {
+        if (attr.name === 'src') {
             output += serializeAttribute(attr.name, await WebRenderer.getDataURL(attr.value))
         } else {
             output += serializeAttribute(attr.name, attr.value)
