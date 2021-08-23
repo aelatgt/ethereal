@@ -26,7 +26,7 @@ export const ThreeBindings = {
             children[i] = nodeObj.children[i]
         }
     },
-    getState(metrics:SpatialMetrics, state:NodeState) {
+    getState(metrics:SpatialMetrics) {
         if (metrics.system.viewNode === metrics.node) {
             const cameraNode = metrics.node as THREE.Camera
             cameraNode.updateMatrixWorld()
@@ -36,12 +36,26 @@ export const ThreeBindings = {
         const node = metrics.node as THREE.Mesh
         if (!node.isObject3D) return
 
-        const targetRelativeMatrix = scratchMatrix.compose(node.position, node.quaternion, node.scale)
-        const refWorldMatrix = metrics.referenceMetrics?.target.worldMatrix
-        
-        state.parent = node.parent
-        state.worldMatrix = refWorldMatrix ? scratchMatrix2.multiplyMatrices(refWorldMatrix, targetRelativeMatrix) : targetRelativeMatrix
-        state.opacity = getThreeOpacity(metrics) || 1
+        let worldMatrix:Matrix4
+        let relativeMatrix:Matrix4
+        if (metrics.isAdaptive) {
+            // IMPORTANT: this line can potentially end up recursively calling this same function
+            // for an ancestor node, so we need to make sure we aren't relying on our scratch memory 
+            // to be unchanged after this line. In other words, any calculations stored in our scratch 
+            // memory before this line, must be assumed to be invalid after this line executes
+            const refWorldMatrix = metrics.referenceMetrics?.target.worldMatrix
+            // For adaptive objects, we treat position/quaternion/scale as target state
+            relativeMatrix = scratchMatrix.compose(node.position, node.quaternion, node.scale)
+            worldMatrix = refWorldMatrix ? scratchMatrix2.multiplyMatrices(refWorldMatrix, relativeMatrix) : relativeMatrix
+        } else {
+            worldMatrix = node.matrixWorld
+            relativeMatrix = node.matrix
+        }
+
+        metrics.raw.parent = node.parent
+        metrics.raw.worldMatrix.copy(worldMatrix)
+        metrics.raw.relativeMatrix.copy(relativeMatrix)
+        metrics.raw.opacity = getThreeOpacity(metrics) || 1
     },
     getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) {
         const node = metrics.node as THREE.Mesh
@@ -60,6 +74,11 @@ export const ThreeBindings = {
             const newParent = currentState.parent as THREE.Object3D
             if (newParent) newParent.add(node)
         }
+
+        let val = currentState.localMatrix
+        if (isNaN(val.elements[0]) || isNaN(val.elements[13]) || isNaN(val.elements[14]) || isNaN(val.elements[15]) ||val.elements[0] === 0) throw new Error()
+        val = currentState.worldMatrix
+        if (isNaN(val.elements[0]) || isNaN(val.elements[13]) || isNaN(val.elements[14]) || isNaN(val.elements[15]) ||val.elements[0] === 0) throw new Error()
 
         node.matrixAutoUpdate = false
         
@@ -115,9 +134,9 @@ export const DefaultBindings = {
             ThreeBindings.getChildren(metrics, children)
         }
     },
-    getState(metrics:SpatialMetrics, state:NodeState) {
+    getState(metrics:SpatialMetrics) {
         if ((metrics.node as THREE.Object3D).isObject3D) {
-            ThreeBindings.getState(metrics, state)
+            ThreeBindings.getState(metrics)
         }
     },
     getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) {

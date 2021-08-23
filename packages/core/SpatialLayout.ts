@@ -14,6 +14,8 @@ import {
 } from './SpatialObjective'
 
 
+const scratchVector3 = new Vector3
+
 /**
  * Defines spatial layout constraints/goals
  */
@@ -262,6 +264,12 @@ export class SpatialLayout extends OptimizerConfig {
         const objectives = this.objectives
         if (a.scores.length < objectives.length) return 1
         if (b.scores.length < objectives.length) return -1
+
+        // immediately throw away really bad solutions
+        if (a.boundsCenterDistance > 1e20) return 1
+        if (b.boundsCenterDistance > 1e10) return -1
+        if (a.boundsManhattanLength > 1e20) return 1
+        if (b.boundsManhattanLength > 1e10) return -1
 
         const aFeasible = a.isFeasible
         const bFeasible = b.isFeasible
@@ -538,7 +546,7 @@ export class LayoutSolution {
         const adapter = layout.adapter
         adapter.orientation.target = this.orientation
         adapter.bounds.target = this.bounds
-        adapter.metrics.invalidateStates(false)
+        adapter.metrics.invalidateStates()
         if (evaluate) {
             this.isFeasible = true
             for (let i=0; i < layout.objectives.length; i++) {
@@ -548,5 +556,10 @@ export class LayoutSolution {
                     this.isFeasible = false
             }
         }
+        this.boundsManhattanLength = this.bounds.getSize(scratchVector3).manhattanLength()
+        this.boundsCenterDistance = this.bounds.getCenter(scratchVector3).length()
     }
+
+    boundsManhattanLength!:number
+    boundsCenterDistance!:number
 }

@@ -33,16 +33,17 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
         public node:N
     ) {
         this.metrics = this.system.getMetrics(this.node)
-        const raw = this.metrics.raw
+        // const raw = this.metrics.raw
+        const target = this.metrics.target
 
-        this._orientation = new Transitionable(this.system, raw.relativeOrientation, undefined, this.transition)
-        this._bounds = new Transitionable(this.system, raw.spatialBounds, undefined, this.transition)
-        this._opacity = new Transitionable(this.system, raw.opacity, undefined, this.transition)
+        this._orientation = new Transitionable(this.system, target.relativeOrientation, undefined, this.transition)
+        this._bounds = new Transitionable(this.system, target.spatialBounds, undefined, this.transition)
+        this._opacity = new Transitionable(this.system, target.opacity, undefined, this.transition)
         
-        this._outerOrigin = new Transitionable(this.system, raw.outerOrigin, undefined, this.transition)
-        this._outerOrientation = new Transitionable(this.system, raw.outerOrientation, undefined, this.transition)
-        this._outerBounds = new Transitionable(this.system, raw.outerBounds, undefined, this.transition)
-        this._outerVisualBounds = new Transitionable(this.system, raw.outerVisualBounds, undefined, this.transition)
+        this._outerOrigin = new Transitionable(this.system, target.outerCenter, undefined, this.transition)
+        this._outerOrientation = new Transitionable(this.system, target.outerOrientation, undefined, this.transition)
+        this._outerBounds = new Transitionable(this.system, target.outerBounds, undefined, this.transition)
+        this._outerVisualBounds = new Transitionable(this.system, target.outerVisualBounds, undefined, this.transition)
         
         this._outerOrigin.debounce = 0
         this._outerOrigin.delay = 0
@@ -350,7 +351,9 @@ export class SpatialAdapter<N extends Node3D = Node3D> {
             metrics.invalidateIntrinsicBounds()
             metrics.invalidateInnerBounds()
             metrics.invalidateStates()
-            const rawState = metrics.raw // recompute
+            metrics.updateRawState()
+            const rawState = metrics.raw
+
             if (!this.system.optimizer.update(this)) { // no layouts?
                 const currentOrientation = this.orientation.current
                 const targetOrientation = this.orientation.target // metrics.target.localOrientation

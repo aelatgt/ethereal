@@ -220,6 +220,7 @@ export class WebLayer {
   serializationReplacer = (node:Node) => {
     if (this.element === node) return
     const element = node as Element
+    if (tagName === 'style' || tagName === 'link') return
     const layer = WebRenderer.layers.get(element)
     if (layer) {      
       const bounds = layer.bounds
@@ -269,10 +270,9 @@ export class WebLayer {
         'html ' + WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE + '="" '
       )
 
-      let [svgCSS, layerHTML] = await Promise.all([
-        WebRenderer.getRenderingCSS(layerElement),
-        serializeToString(layerElement, this.serializationReplacer)
-      ])
+      const svgCSS = await WebRenderer.getAllEmbeddedStyles(layerElement)
+      let layerHTML = await serializeToString(layerElement, this.serializationReplacer)
+      
       layerHTML = layerHTML.replace(elementAttribute,
             `${elementAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
             `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +

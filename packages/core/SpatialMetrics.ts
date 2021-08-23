@@ -3,6 +3,7 @@ import { Box3, Vector3, Quaternion, Matrix4, V_000, DIRECTION, V_111, Box2, Vect
 import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem'
 import { MemoizationCache } from './MemoizationCache'
 import { SpatialAdapter } from './SpatialAdapter'
+import { Bounds } from '@etherealjs/web-layer'
 
 const InternalRawState = Symbol("raw")
 const InternalCurrentState = Symbol("current")
@@ -58,7 +59,7 @@ export class NodeState<N extends Node3D=Node3D> {
     // })
     get worldMatrix() { return this._worldMatrix }
     set worldMatrix(val:Matrix4) {
-        if (isNaN(val.elements[0]) ||val.elements[0] === 0) throw new Error()
+        if (isNaN(val.elements[0]) || isNaN(val.elements[15]) ||val.elements[0] === 0) throw new Error()
         if (!this._worldMatrix.equals(val)) {
             this.invalidate()
             this._worldMatrix.copy(val)
@@ -641,11 +642,14 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
             } else {
                 this.invalidateInnerBounds()
                 this.invalidateStates()
+                this.updateRawState()
             }
 
         }
     }
     
+    private _mat = new Matrix4
+
     private _cachedInnerBounds = this._cache.memoize(() => {
         const inner = this._innerBounds
 
@@ -653,9 +657,9 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
             inner.copy(this.intrinsicBounds)
             const childBounds = this._childBounds
             for (const c of this.boundingChildMetrics) {
-                c.invalidateStates()
+                c.update()
                 childBounds.copy(c.innerBounds)
-                childBounds.applyMatrix4(c.raw.localMatrix)
+                childBounds.applyMatrix4(c.raw.relativeMatrix)
                 inner.union(childBounds)
             }
         }
@@ -805,7 +809,7 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
 
         return function computeState(this:SpatialMetrics<N>, state:NodeState<N>) {
 
-            this.raw // DEBUG: why does this break things?
+            // this.raw // DEBUG: why does this break things?
 
             state.parent = this.raw.parent
 
@@ -857,11 +861,7 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         }
     })()
 
-    invalidateStates(includeRaw=true) {
-        if (includeRaw) {
-            this._cachedRawState.needsUpdate = true
-            this[InternalRawState].invalidate()
-        }
+    invalidateStates() {
         this._cachedCurrentState.needsUpdate = true
         this._cachedTargetState.needsUpdate = true
         this[InternalCurrentState].invalidate()
@@ -869,16 +869,56 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
     }
 
     /**
-     * The raw node state, before any update, with ancestor target states
+     * The raw node state
      */
-    get raw() : Readonly<NodeState<N>> {
-        return this._cachedRawState()
+    raw = {
+        parent: null as N|null,
+        worldMatrix: new Matrix4,
+        relativeMatrix: new Matrix4,
+        opacity: 0,
+        // computed:
+        worldPosition: new Vector3,
+        worldOrientation: new Quaternion,
+        worldScale: new Vector3,
+        relativePosition: new Vector3,
+        relativeOrientation: new Quaternion,
+        relativeScale: new Vector3,
+        spatialBounds: new Box3,
+        worldFromSpatial: new Matrix4,
+        localFromSpatial: new Matrix4,
+        spatialFromLocal: new Matrix4
     }
-    private _cachedRawState = this._cache.memoize(() => {
-        this.system.bindings.getState(this, this[InternalRawState])
-        return this[InternalRawState]
-    });
-    [InternalRawState]:NodeState<N> = new NodeState('target', this)
+
+    updateRawState() {
+        this.system.bindings.getState(this)
+        const raw = this.raw        
+        raw.worldMatrix.decompose(raw.worldPosition, raw.worldOrientation, raw.worldScale)
+        raw.relativeMatrix.decompose(raw.relativePosition, raw.relativeOrientation, raw.relativeScale)
+        raw.worldFromSpatial.compose(this.outerOrigin.target(), raw.worldOrientation, V_111) 
+        raw.localFromSpatial.copy(raw.worldMatrix).invert().multiply(raw.worldFromSpatial)
+        raw.spatialFromLocal.copy(raw.localFromSpatial).invert()
+        raw.spatialBounds.copy(this.innerBounds).applyMatrix4(raw.spatialFromLocal)
+    }
+    
+    // get raw() : Readonly<NodeState<N>> {
+    //     return this._cachedRawState()
+    // }
+    // private _cachedRawState = this._cache.memoize(() => {
+    //     this.system.bindings.getState(this, this[InternalRawState])
+    //     return this[InternalRawState]
+    // });
+    // [InternalRawState]<N> = new NodeState('target', this)
+
+    private _getOuterOrigin(mode:'current'|'target') {
+        const adapter = this.system.nodeAdapters.get(this.node)
+        if (adapter) return adapter.outerOrigin[mode]
+        return this.referenceMetrics?.[mode]?.worldCenter ?? V_000
+    }
+
+    outerOrigin = {
+        current: () => this._getOuterOrigin('current'),
+        target: () => this._getOuterOrigin('target')
+    }
 
     /**
      * The current state
