@@ -1,6 +1,5 @@
 import { Box3, Vector3, Quaternion, Matrix4 } from './math-utils';
 import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem';
-declare const InternalRawState: unique symbol;
 declare const InternalCurrentState: unique symbol;
 declare const InternalTargetState: unique symbol;
 declare const InternalPreviousTargetState: unique symbol;
@@ -243,6 +242,7 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * Update metrics, if necessary
      */
     update(): void;
+    private _mat;
     private _cachedInnerBounds;
     private _childBounds;
     private _innerBounds;
@@ -286,13 +286,32 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * Compute spatial state from spatial orientation & bounds
      */
     private _computeState;
-    invalidateStates(includeRaw?: boolean): void;
+    invalidateStates(): void;
     /**
-     * The raw node state, before any update, with ancestor target states
+     * The raw node state
      */
-    get raw(): Readonly<NodeState<N>>;
-    private _cachedRawState;
-    [InternalRawState]: NodeState<N>;
+    raw: {
+        parent: N | null;
+        worldMatrix: Matrix4;
+        relativeMatrix: Matrix4;
+        opacity: number;
+        worldPosition: Vector3;
+        worldOrientation: Quaternion;
+        worldScale: Vector3;
+        relativePosition: Vector3;
+        relativeOrientation: Quaternion;
+        relativeScale: Vector3;
+        spatialBounds: Box3;
+        worldFromSpatial: Matrix4;
+        localFromSpatial: Matrix4;
+        spatialFromLocal: Matrix4;
+    };
+    updateRawState(): void;
+    private _getOuterOrigin;
+    outerOrigin: {
+        current: () => Vector3;
+        target: () => Vector3;
+    };
     /**
      * The current state
      */

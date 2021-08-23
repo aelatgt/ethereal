@@ -1,7 +1,7 @@
 {
   "name": "@etherealjs/web-layer",
   "description": "Use web content in WebGL scenes!",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "author": "Gheric Speiginer",
   "devDependencies": {
     "@juggle/resize-observer": "^3.2.0",

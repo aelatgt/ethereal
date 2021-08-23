@@ -44,7 +44,6 @@ export declare class WebRenderer {
     static getPsuedoAttributes(states: typeof WebLayer.prototype.pseudoStates): string;
     static rootNodeObservers: Map<Document | ShadowRoot, MutationObserver>;
     static containerStyleElement: HTMLStyleElement;
-    static renderingStyleElement: HTMLStyleElement;
     static initRootNodeObservation(element: Element): void;
     static addToSerializeQueue(layer: WebLayer): void;
     static addToRasterizeQueue(layer: WebLayer): void;
@@ -61,7 +60,6 @@ export declare class WebRenderer {
     static disposeLayer(layer: WebLayer): void;
     static getClosestLayer(element: Element, inclusive?: boolean): WebLayer | undefined;
     static parseCSSTransform(computedStyle: CSSStyleDeclaration, width: number, height: number, pixelSize: number, out?: Matrix4): Matrix4 | null;
-    static embedExternalResources(element: Element): Promise<void[]>;
     static pauseMutationObservers(): void;
     static resumeMutationObservers(): void;
     private static startMutationObserver;
@@ -72,11 +70,12 @@ export declare class WebRenderer {
     static attributeCSS(name: string, value?: string): string;
     static attributeHTML(name: string, value?: string): string;
     static generateEmbeddedCSS(url: string, css: string): Promise<string>;
-    static getURL(url: string, accept?: string): Promise<XMLHttpRequest>;
-    private static embeddedCSS;
-    static getRenderingCSS(el: Element): Promise<string[]>;
+    private static embeddedStyles;
+    static getAllEmbeddedStyles(el: Element): Promise<string[]>;
     static dataURLMap: Map<string, Promise<string>>;
-    static getDataURL(url: string): Promise<string>;
+    static getDataURL(url: string, accept?: string): Promise<string>;
+    static embeddedCSSMap: Map<string, string>;
+    static getEmbeddedCSS(url: string): Promise<string>;
     static updateInputAttributes(element: Element): void;
     static _updateInputAttribute(inputElement: HTMLInputElement): void;
     static isBlankImage(imageData: Uint8ClampedArray): boolean;

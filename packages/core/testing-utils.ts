@@ -18,17 +18,17 @@ export class EtherealSystemMock extends EtherealLayoutSystem {
                     children[i] = nodeObj.children[i]
                 }
             },
-            getState(metrics:SpatialMetrics, state:NodeState) {
+            getState(metrics:SpatialMetrics) {
                 const nodeObj = metrics.node as Mesh
-                state.parent = nodeObj.parent
+                // state.parent = nodeObj.parent
                 // state.opacity = (nodeObj.material as MeshBasicMaterial)?.opacity ?? 
                 //                 (nodeObj.material as MeshBasicMaterial[])?.[0]?.opacity ?? 1
                 // state.localOrientation = nodeObj.quaternion
                 // state.localPosition = nodeObj.position
                 // state.localScale = nodeObj.scale
                 if (nodeObj.matrixAutoUpdate) nodeObj.updateMatrix()
-                state.localMatrix = nodeObj.matrix
-                return state
+                // state.localMatrix = nodeObj.matrix
+                // return state
             },
             getIntrinsicBounds(metrics:SpatialMetrics, bounds:Box3) {
                 const nodeObj = metrics.node as Mesh

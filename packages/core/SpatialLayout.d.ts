@@ -174,4 +174,6 @@ export declare class LayoutSolution {
     private _swap;
     static generatePulseFrequency(min: number, max: number): number;
     apply(evaluate?: boolean): void;
+    boundsManhattanLength: number;
+    boundsCenterDistance: number;
 }

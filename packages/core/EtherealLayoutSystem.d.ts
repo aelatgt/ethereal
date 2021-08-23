@@ -15,7 +15,7 @@ export declare type Node3D = {
  */
 export interface NodeBindings<N extends Node3D> {
     getChildren(metrics: SpatialMetrics<N>, children: Node3D[]): void;
-    getState(metrics: SpatialMetrics<N>, state: NodeState<N>): void;
+    getState(metrics: SpatialMetrics<N>): void;
     getIntrinsicBounds(metrics: SpatialMetrics<N>, bounds: Box3): void;
     apply(metrics: SpatialMetrics<N>, state: Readonly<NodeState<N>>): void;
 }
