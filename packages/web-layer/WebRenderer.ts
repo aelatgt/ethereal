@@ -1,8 +1,6 @@
 import {EventCallback, WebLayer} from './WebLayer'
-import { addCSSRule } from './dom-utils'
 import { Matrix4 } from 'three/src/math/Matrix4'
 import { ResizeObserver as Polyfill } from '@juggle/resize-observer'
-import { render } from 'vue'
 const ResizeObserver:typeof Polyfill = (self as any).ResizeObserver || Polyfill
 
 export interface WebLayerOptions {
