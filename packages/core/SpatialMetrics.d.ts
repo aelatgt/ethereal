@@ -242,7 +242,6 @@ export declare class SpatialMetrics<N extends Node3D = Node3D> {
      * Update metrics, if necessary
      */
     update(): void;
-    private _mat;
     private _cachedInnerBounds;
     private _childBounds;
     private _innerBounds;

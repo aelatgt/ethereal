@@ -288,9 +288,7 @@ export class NodeState<N extends Node3D=Node3D> {
      * The outer bounds origin in the world frame
      */
     get outerOrigin() {
-        const adapter = this.metrics.system.nodeAdapters.get(this.metrics.node)
-        if (adapter) return adapter.outerOrigin[this.mode]
-        return this.referenceState?.worldCenter ?? V_000
+        return this.metrics.outerOrigin[this.mode]()
     }
 
     /**
@@ -647,11 +645,15 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
 
         }
     }
-    
-    private _mat = new Matrix4
 
     private _cachedInnerBounds = this._cache.memoize(() => {
+
         const inner = this._innerBounds
+
+        // prevent traversing the entire scene
+        if (!this.raw.parent) {
+            return inner.makeEmpty()
+        }
 
         if (this.node !== this.system.viewNode) {
             inner.copy(this.intrinsicBounds)
@@ -808,8 +810,6 @@ export class SpatialMetrics<N extends Node3D=Node3D> {
         const innerOffset = new Vector3
 
         return function computeState(this:SpatialMetrics<N>, state:NodeState<N>) {
-
-            // this.raw // DEBUG: why does this break things?
 
             state.parent = this.raw.parent
 
