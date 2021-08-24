@@ -600,7 +600,6 @@ export class WebRenderer {
             resolve(this.getEmbeddedCSS(link.href))
           }
         }).then((cssText) => {
-          console.log(cssText)
           const regEx = RegExp(/@font-face[^{]*{([^{}]|{[^{}]*})*}/gi)
           const fontRules = cssText.match(regEx)
 
