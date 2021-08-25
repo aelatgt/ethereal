@@ -379,7 +379,8 @@ export class WebLayer {
 
     setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2^retryCount)
 
-    if (previousCanvasHash === canvasHash) return
+    if (previousCanvasHash === canvasHash && WebLayer.cachedCanvases.has(previousCanvasHash)) 
+      return
 
     const pixelRatio =
       this.pixelRatio ||
@@ -396,7 +397,6 @@ export class WebLayer {
     ctx.clearRect(0, 0, w, h)
     ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, w, h)
     WebLayer.cachedCanvases.set(canvasHash, newCanvas)
-    console.log('layer painted ' + 'x'+retryCount, this.element)
 
     if (this._svgHash === this._svgHashRasterizing)
       this.trySetFromSVGHash(svgHash)
@@ -411,9 +411,9 @@ export class WebLayer {
     do {
       let tag = parent.tagName.toLowerCase()
       let attributes = ' '
+      let style = ''
       for (const a of parent.attributes) {
-        if (a.name === 'style') continue
-
+        if (a.name === 'style') { style = a.value; continue }
         attributes += `${a.name}="${a.value}" `
       }
       const open =
@@ -422,7 +422,7 @@ export class WebLayer {
         (tag === 'html'
           ? ` xmlns="http://www.w3.org/1999/xhtml" style="--x-width:${
               this.bounds.width}px;--x-height:${this.bounds.height}px;--x-inline-top:${
-              this.border.top + this.margin.top + this.padding.top}px" `
+              this.border.top + this.margin.top + this.padding.top}px; ${style}" `
           : '') +
         attributes +
         `${WebRenderer.RENDERING_PARENT_ATTRIBUTE}="" ` +
