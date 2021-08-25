@@ -13,7 +13,7 @@ import {
 import { LRUMap } from 'lru_map'
 import * as sha256 from 'fast-sha256'
 
-import {serializeToString, serializeAttribute} from './xml-serializer'
+import {serializeToString, serializeAttribute, serializeAttributeValue} from './xml-serializer'
 
 export type EventCallback = (
   event:
@@ -413,8 +413,9 @@ export class WebLayer {
       let attributes = ' '
       let style = ''
       for (const a of parent.attributes) {
-        if (a.name === 'style') { style = a.value; continue }
-        attributes += `${a.name}="${a.value}" `
+        const value = serializeAttributeValue(a.value)
+        if (a.name === 'style') { style = value; continue }
+        attributes += `${a.name}="${value}" `
       }
       const open =
         '<' +

@@ -7,7 +7,7 @@ function removeInvalidCharacters(content:string) {
     return content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 }
 
-function serializeAttributeValue (value:string) {
+export function serializeAttributeValue (value:string) {
     return value
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -16,7 +16,7 @@ function serializeAttributeValue (value:string) {
         .replace(/'/g, '&apos;')
 }
 
-function serializeTextContent (content:string) {
+export function serializeTextContent (content:string) {
     return content
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
