@@ -230,7 +230,7 @@ export class WebLayer {
       // instead, replace nested layers with an invisible placerholder that is the same width/height
       // downsides of this are that we lose subpixel precision. To avoid any rendering issues,
       // each sublayer should have explictly defined sizes (no fit-content or auto sizing). 
-      const extraStyle = `box-sizing:border;max-width:${bounds.width+1}px;max-height:${bounds.height+1}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
+      const extraStyle = `box-sizing:border-box;max-width:${bounds.width+1}px;max-height:${bounds.height+1}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
       let addedStyle = false
       for (const attr of layer.element.attributes) {
         if (attr.name === 'src') continue
