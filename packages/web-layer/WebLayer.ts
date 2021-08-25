@@ -221,12 +221,16 @@ export class WebLayer {
     if (this.element === node) return
     const element = node as Element
     const tagName = element.tagName?.toLowerCase()
-    if (tagName === 'style' || tagName === 'link') return
+    if (tagName === 'style' || tagName === 'link') return ''
     const layer = WebRenderer.layers.get(element)
-    if (layer) {      
+    if (layer) {
       const bounds = layer.bounds
       let attributes = ''
-      const extraStyle = `max-width:${bounds.width+1}px;max-height:${bounds.height+1}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
+      // in order to increase our cache hits, don't serialize nested layers
+      // instead, replace nested layers with an invisible placerholder that is the same width/height
+      // downsides of this are that we lose subpixel precision. To avoid any rendering issues,
+      // each sublayer should have explictly defined sizes (no fit-content or auto sizing). 
+      const extraStyle = `box-sizing:border;max-width:${bounds.width+1}px;max-height:${bounds.height+1}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
       let addedStyle = false
       for (const attr of layer.element.attributes) {
         if (attr.name === 'src') continue
