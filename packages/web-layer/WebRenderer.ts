@@ -145,10 +145,6 @@ export class WebRenderer {
       top: 0 !important;
       left: 0 !important;
       float: none;
-      box-sizing:border-box;
-      min-width:var(--x-width);
-      min-height:var(--x-height);
-      display:block !important;
     }
     
     [${WebRenderer.RENDERING_INLINE_ATTRIBUTE}] {
