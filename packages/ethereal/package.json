@@ -1,12 +1,12 @@
 {
   "name": "ethereal",
   "description": "An Engine for Web-Based Immersive UI!",
-  "version": "2.0.24",
+  "version": "2.0.31",
   "author": "Gheric Speiginer",
   "bugs": "https://github.com/aelatgt/ethereal/issues",
   "dependencies": {
-    "@etherealjs/core": "^2.0.0",
-    "@etherealjs/web-layer": "^2.0.0"
+    "@etherealjs/core": "^2.0.31",
+    "@etherealjs/web-layer": "^2.0.31"
   },
   "exports": {
     ".": {
