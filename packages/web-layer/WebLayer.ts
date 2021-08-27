@@ -428,10 +428,8 @@ export class WebLayer {
           ? ` xmlns="http://www.w3.org/1999/xhtml" style="--x-width:${
               this.bounds.width}px;--x-height:${this.bounds.height}px;--x-inline-top:${
               this.border.top + this.margin.top + this.padding.top}px; ${style}" `
-          : ` style="${style}" `) +
+          : ` style="${style}" ${WebRenderer.RENDERING_PARENT_ATTRIBUTE}="" `) +
         attributes +
-        `${WebRenderer.RENDERING_PARENT_ATTRIBUTE}="" ` +
-        // WebRenderer.getPsuedoAttributes(parent) +
         ' >'
       opens.unshift(open)
       const close = '</' + tag + '>'
