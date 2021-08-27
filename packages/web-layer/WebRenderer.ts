@@ -163,6 +163,7 @@ export class WebRenderer {
       height:100% !important;
       padding:0 !important;
       visibility:hidden !important;
+      filter:none !important;
     }
     
     [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::before, [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::after {

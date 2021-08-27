@@ -1,7 +1,7 @@
 {
   "name": "ethereal",
   "description": "An Engine for Web-Based Immersive UI!",
-  "version": "2.0.21",
+  "version": "2.0.22",
   "author": "Gheric Speiginer",
   "bugs": "https://github.com/aelatgt/ethereal/issues",
   "dependencies": {
