@@ -61,7 +61,7 @@ export declare abstract class SpatialObjective {
     layout: SpatialLayout;
     constructor(layout: SpatialLayout);
     abstract evaluate(): number;
-    protected reduceFromOneOrManySpec: <V, S>(value: V, spec: S | S[] | undefined, applyFn: (value: V, spec: S) => number) => number;
+    protected reduceFromOneOrManySpec: <V, S>(value: V, spec: OneOrMany<S> | undefined, applyFn: (value: V, spec: S) => number) => number;
     protected getNumberScore(value: number, spec: OneOrMany<NumberConstraintSpec>): number;
     private _getNumberScoreSingle;
     protected getVector3Score(value: Vector3, spec: OneOrMany<Vector3Spec> | undefined): number;

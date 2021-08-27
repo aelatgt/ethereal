@@ -125,18 +125,14 @@ export class WebRenderer {
     const renderingStyles = `
     [${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] * {
       transform: none !important;
-      /* the following is a hack for Safari; 
-      without some kind of css filter active, 
-      any box-shadow effect will fail to rasterize properly */
-      filter: opacity(1);
-    }
-    
-    [${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] * {
-      transform: none !important;
     }
 
     [${WebRenderer.RENDERING_ATTRIBUTE}], [${WebRenderer.RENDERING_ATTRIBUTE}] * {
       visibility: visible !important;
+      /* the following is a hack for Safari; 
+      without some kind of css filter active, 
+      any box-shadow effect will fail to rasterize properly */
+      filter: opacity(1);
     }
     
     [${WebRenderer.RENDERING_ATTRIBUTE}] [${WebRenderer.LAYER_ATTRIBUTE}], [${

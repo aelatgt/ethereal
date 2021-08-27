@@ -339,7 +339,7 @@ export class NodeState<N extends Node3D=Node3D> {
     }
 
 
-    private get _viewState() {
+    private get _viewState() : NodeState<N> {
         if (this.metrics.system.viewNode === this.metrics.node) return this
         const viewMetrics = this.metrics.system.viewMetrics
         if (this.mode === 'current') return viewMetrics[InternalCurrentState]
