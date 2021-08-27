@@ -124,7 +124,11 @@ export class WebRenderer {
 
     const renderingStyles = `
     [${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] * {
-      transform: none !important;'
+      transform: none !important;
+      /* the following is a hack for Safari; 
+      without some kind of css filter active, 
+      any box-shadow effect will fail to rasterize properly */
+      filter: opacity(1);
     }
     
     [${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] * {
@@ -144,7 +148,10 @@ export class WebRenderer {
       position: relative !important;
       top: 0 !important;
       left: 0 !important;
-      float: none !important;
+      float: left !important; /* prevent margin-collapse in SVG foreign-element for Webkit */
+      box-sizing:border-box;
+      min-width:var(--x-width);
+      min-height:var(--x-height);
     }
     
     [${WebRenderer.RENDERING_INLINE_ATTRIBUTE}] {
