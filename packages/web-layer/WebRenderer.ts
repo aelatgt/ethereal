@@ -141,10 +141,10 @@ export class WebRenderer {
     }
 
     [${WebRenderer.RENDERING_ATTRIBUTE}] {
-      position: relative;
+      position: relative !important;
       top: 0 !important;
       left: 0 !important;
-      float: none;
+      float: none !important;
     }
     
     [${WebRenderer.RENDERING_INLINE_ATTRIBUTE}] {
@@ -162,8 +162,7 @@ export class WebRenderer {
       width: 100% !important;
       height:100% !important;
       padding:0 !important;
-      background: rgba(0,0,0,0) none !important;
-      box-shadow:none !important';
+      visibility:hidden !important;
     }
     
     [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::before, [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}]::after {
