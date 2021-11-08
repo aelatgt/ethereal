@@ -1,20 +1,15 @@
 {
   "name": "ethereal",
   "description": "An Engine for Web-Based Immersive UI!",
-  "version": "2.0.32",
+  "version": "2.0.33",
   "author": "Gheric Speiginer",
   "bugs": "https://github.com/aelatgt/ethereal/issues",
   "dependencies": {
     "@etherealjs/core": "^2.0.32",
     "@etherealjs/web-layer": "^2.0.32"
   },
-  "exports": {
-    ".": {
-      "source": "./ethereal.ts",
-      "import": "./dist/ethereal.es.js",
-      "require": "./dist/ethereal.umd.js"
-    }
-  },
+  "main": "./dist/ethereal.umd.js",
+  "module": "./dist/ethereal.es.js",
   "homepage": "https://github.com/aelatgt/ethereal#readme",
   "keywords": [
     "3d",

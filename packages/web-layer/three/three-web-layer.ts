@@ -411,6 +411,8 @@ export class WebLayer3DContent extends THREE.Object3D {
 
     const {currentBounds, currentMargin} = this._webLayer
 
+    if (!currentBounds || !currentMargin) return
+
     this.domLayout.position.set(0,0,0)
     this.domLayout.scale.set(1, 1, 1)
     this.domLayout.quaternion.set(0, 0, 0, 1)
@@ -624,12 +626,12 @@ export class WebLayer3D extends THREE.Object3D {
     this.rootLayer.traverseLayersPreOrder(this._prepareHitTest)
 
     for (const ray of this._interactionRays) {
-      if (ray instanceof THREE.Ray) this._raycaster.ray.copy(ray)
-      else
+      if ('isObject3D' in ray && ray.isObject3D) {
         this._raycaster.ray.set(
           ray.getWorldPosition(scratchVector),
           ray.getWorldDirection(scratchVector2).negate()
-        )
+        ) 
+      } else this._raycaster.ray.copy(ray as THREE.Ray)
       this._hitIntersections.length = 0
       const intersections = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections) as Intersection[]
       // intersections.forEach(this._intersectionGetGroupOrder)
@@ -661,12 +663,12 @@ export class WebLayer3D extends THREE.Object3D {
     const raycaster = this._raycaster
     const intersections = this._hitIntersections
     const meshMap = WebLayer3D.layersByMesh
-    if (ray instanceof THREE.Ray) 
-      this._raycaster.ray.copy(ray)
-    else this._raycaster.ray.set(
+    if ('isObject3D' in ray && ray.isObject3D) { 
       ray.getWorldPosition(scratchVector),
       ray.getWorldDirection(scratchVector2).negate()
-    )
+    } else {
+      this._raycaster.ray.copy(ray as THREE.Ray)
+    }
     intersections.length = 0
     raycaster.intersectObject(this, true, intersections)
     // intersections.forEach(this._intersectionGetGroupOrder)

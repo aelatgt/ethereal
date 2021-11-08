@@ -25,7 +25,7 @@ export class SpatialLayout extends OptimizerConfig {
         super()
     }
     
-    relativeTolerance?:number
+    declare relativeTolerance?:number
     absoluteTolerance = {
         meter: '10mm',
         pixel: '4px',

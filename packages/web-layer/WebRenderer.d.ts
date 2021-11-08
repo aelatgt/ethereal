@@ -71,7 +71,9 @@ export declare class WebRenderer {
     static attributeHTML(name: string, value?: string): string;
     static generateEmbeddedCSS(url: string, css: string): Promise<string>;
     private static embeddedStyles;
+    private static fontStyles;
     static getAllEmbeddedStyles(el: Element): Promise<string[]>;
+    static deleteEmbeddedStyle(style: HTMLStyleElement): void;
     static dataURLMap: Map<string, Promise<string>>;
     static getDataURL(url: string, accept?: string): Promise<string>;
     static embeddedCSSMap: Map<string, string>;

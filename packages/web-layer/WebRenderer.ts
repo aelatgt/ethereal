@@ -575,6 +575,7 @@ export class WebRenderer {
   }
 
   private static embeddedStyles = new Map<ShadowRoot|Document, Map<Element, Promise<string>>>()
+  private static fontStyles = new Map<string, HTMLStyleElement>()
 
   static async getAllEmbeddedStyles(el:Element) {
     const rootNode = el.getRootNode() as ShadowRoot|Document
@@ -605,10 +606,14 @@ export class WebRenderer {
           // if we are inside shadow dom, we have to clone the fonts
           // into the light dom to load fonts in Chrome/Firefox
           if (inShadow && fontRules) {
-            const fontStyles = document.createElement('style')
-            fontStyles.innerHTML = fontRules.reduce((r, s) => s + '\n\n' + r, '')
-            document.head.appendChild(fontStyles)
-            embedded.set(fontStyles, Promise.resolve(''))
+            for (const rule of fontRules) {
+              if (this.fontStyles.has(rule)) continue
+              const fontStyle = document.createElement('style')
+              fontStyle.innerHTML = fontRules.reduce((r, s) => s + '\n\n' + r, '')
+              document.head.appendChild(fontStyle)
+              this.fontStyles.set(rule, fontStyle)
+              embedded.set(fontStyle, Promise.resolve(''))
+            }
           }
 
           return this.generateEmbeddedCSS(window.location.href, cssText)
@@ -617,6 +622,12 @@ export class WebRenderer {
     }
     // if (foundNewStyles) this._addDynamicPseudoClassRules(rootNode)
     return Promise.all(embedded.values())
+  }
+
+  static deleteEmbeddedStyle(style:HTMLStyleElement) {
+    const rootNode = style.getRootNode() as ShadowRoot|Document
+    const embedded = this.embeddedStyles.get(rootNode)
+    embedded?.delete(style)
   }
 
   // Generate and returns a dataurl for the given url
