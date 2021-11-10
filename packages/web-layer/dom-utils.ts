@@ -133,7 +133,10 @@ export function getBounds(
   if (
     offsetParent &&
     referenceElement &&
-    offsetParent.contains(referenceElement) &&
+    (
+      offsetParent.contains(referenceElement) || 
+      offsetParent.contains((referenceElement.getRootNode() as ShadowRoot).host)
+    ) &&
     offsetParent !== referenceElement
   ) {
     getBounds(referenceElement, bounds, offsetParent)
