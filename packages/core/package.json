@@ -1,6 +1,6 @@
 {
   "name": "@etherealjs/core",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "dependencies": {
     "@popmotion/easing": "latest",
     "@types/mathjs": "^6.0.9"
