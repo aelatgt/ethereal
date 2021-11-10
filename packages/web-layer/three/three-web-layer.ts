@@ -664,8 +664,10 @@ export class WebLayer3D extends THREE.Object3D {
     const intersections = this._hitIntersections
     const meshMap = WebLayer3D.layersByMesh
     if ('isObject3D' in ray && ray.isObject3D) { 
-      ray.getWorldPosition(scratchVector),
-      ray.getWorldDirection(scratchVector2).negate()
+      this._raycaster.ray.set(
+        ray.getWorldPosition(scratchVector),
+        ray.getWorldDirection(scratchVector2).negate()
+      )
     } else {
       this._raycaster.ray.copy(ray as THREE.Ray)
     }
