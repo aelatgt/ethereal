@@ -352,8 +352,8 @@ export class WebLayer {
     let { width, height } = this.cachedBounds.get(svgHash)!
     let { left, top, right, bottom } = this.cachedMargin.get(svgHash)!
 
-    const fullWidth = width + left + right
-    const fullHeight = height + top + bottom
+    const fullWidth = Math.max(width + left + right, 1)
+    const fullHeight = Math.max(height + top + bottom, 1)
 
     const hashingCanvas = this._hashingCanvas
     let hw = hashingCanvas.width
