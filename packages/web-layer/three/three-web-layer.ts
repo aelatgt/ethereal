@@ -287,9 +287,12 @@ export class WebLayer3DContent extends THREE.Object3D {
     this.updateContent()
     this.updateLayout()
 
-    this.position.copy(this.domLayout.position)
-    this.quaternion.copy(this.domLayout.quaternion)
-    this.scale.copy(this.domLayout.scale)
+    if (WebLayer3D.shouldApplyDOMLayout(this)) {
+      this.position.copy(this.domLayout.position)
+      this.quaternion.copy(this.domLayout.quaternion)
+      this.scale.copy(this.domLayout.scale)
+    }
+
     this.contentMesh.position.set(0,0,0)
     this.contentMesh.scale.copy(this.domSize)
     this.contentMesh.quaternion.set(0,0,0,1)
@@ -432,8 +435,6 @@ export class WebLayer3DContent extends THREE.Object3D {
       Math.max(pixelSize * (height + margin.top + margin.bottom), 10e-6),
       1
     )
-
-    if (!WebLayer3D.shouldApplyDOMLayout(this)) return
 
     const parentLayer = this.parentWebLayer
     if (!parentLayer) return
