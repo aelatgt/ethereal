@@ -1,15 +1,8 @@
 {
   "name": "@etherealjs/web-layer",
   "description": "Use web content in WebGL scenes!",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "author": "Gheric Speiginer",
-  "devDependencies": {
-    "@juggle/resize-observer": "^3.2.0",
-    "fast-sha256": "latest",
-    "fast-text-encoding": "latest",
-    "lru_map": "^0.3.3",
-    "resize-observer-polyfill": "latest"
-  },
   "keywords": [
     "3D",
     "AR",
@@ -23,5 +16,16 @@
   "peerDependencies": {
     "three": ">=0.122.0"
   },
-  "types": "mod"
+  "dependencies": {
+    "@loaders.gl/core": "^3.1.4",
+    "@loaders.gl/textures": "^3.1.4",
+    "@juggle/resize-observer": "^3.2.0",
+    "dexie": "^3.2.0",
+    "fast-sha256": "latest",
+    "fast-text-encoding": "latest",
+    "resize-observer-polyfill": "latest"
+  },
+  "scripts": {
+    "build": "tsc"
+  }
 }

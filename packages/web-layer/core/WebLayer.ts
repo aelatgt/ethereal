@@ -10,10 +10,10 @@ import {
   Bounds,
   Edges
 } from './dom-utils'
-import { LRUMap } from 'lru_map'
 import * as sha256 from 'fast-sha256'
 
 import {serializeToString, serializeAttribute, serializeAttributeValue} from './xml-serializer'
+import { WebLayerCache } from './WebLayerCache'
 
 export type EventCallback = (
   event:
@@ -25,14 +25,10 @@ export type EventCallback = (
 
 const encoder = new TextEncoder();
 
-type SVGHash = string
-type CanvasHash = string
-
 export class WebLayer {
-  static DEFAULT_CACHE_SIZE = 4
-  private static svgRetryCount: Map<SVGHash, number> = new Map
-  private static svgCanvasHash: LRUMap<SVGHash, CanvasHash> = new LRUMap(1000)
-  private static cachedCanvases: LRUMap<CanvasHash, HTMLCanvasElement> = new LRUMap(WebLayer.DEFAULT_CACHE_SIZE)
+  static CACHE = new WebLayerCache()  
+  static MINIMUM_RENDER_ATTEMPTS = 3
+  private static canvasPool: HTMLCanvasElement[] = []
 
   id:string
 
@@ -43,9 +39,8 @@ export class WebLayer {
     element.setAttribute(WebRenderer.LAYER_ATTRIBUTE,'')
     this.parentLayer = WebRenderer.getClosestLayer(this.element, false)
     this.eventCallback('layercreated', { target: element })
-    WebLayer.cachedCanvases.limit = WebRenderer.layers.size * WebLayer.DEFAULT_CACHE_SIZE
-    this._hashingCanvas.width = 20
-    this._hashingCanvas.height = 20
+    this._hashingCanvas.width = 30
+    this._hashingCanvas.height = 30
   }
 
   needsRefresh = true
@@ -60,67 +55,28 @@ export class WebLayer {
 
   svgImage: HTMLImageElement = new Image()
   
-  private bounds = new Bounds()
-  private padding = new Edges()
-  private margin = new Edges()
-  private border = new Edges()
-  
   parentLayer?: WebLayer
   childLayers = [] as WebLayer[]
   pixelRatio?: number
 
-  rasterizationCount: Map<string, number> = new Map()
-  cachedBounds: Map<string, Bounds> = new Map()
-  cachedMargin: Map<string, Edges> = new Map()
+  private _desiredStateHash = ''
+  private _rasterizingStateHash = ''
+  private _currentStateHash = ''
 
-  private _dynamicAttributes = ''
-  private _svgHash = ''
-  private _svgDocument = ''
-  private _svgHashRasterizing = ''
   private _svgSrc = ''
+  private _svgDocument = ''
   private _hashingCanvas = document.createElement('canvas')
 
-  _currentSVGHash?: string
-  _currentCanvas?: HTMLCanvasElement
-  _currentBounds!: Bounds
-  _currentMargin!: Edges
-
-  trySetFromSVGHash(svgHash:SVGHash) {
-    const bounds = this.cachedBounds.get(svgHash)
-    const margin = this.cachedMargin.get(svgHash)
-    if (svgHash == this._currentSVGHash) {
-      if (bounds && margin) {
-        this._currentBounds = bounds
-        this._currentMargin = margin
-      }
-      return true 
-    } else {
-      const previousCanvasHash = WebLayer.svgCanvasHash.get(this._currentSVGHash!)
-      const canvasHash = WebLayer.svgCanvasHash.get(svgHash)!
-      const canvas = WebLayer.cachedCanvases.get(canvasHash)
-      if (canvas && bounds && margin) {
-        this._currentSVGHash = svgHash
-        this._currentCanvas = canvas
-        this._currentBounds = bounds
-        this._currentMargin = margin
-        if (previousCanvasHash !== canvasHash && this.eventCallback) this.eventCallback('layerpainted', { target: this.element })
-        return true
-      }
-    }
-    return false
+  private _domMetrics = {
+    bounds: new Bounds(),
+    padding: new Edges(),
+    margin: new Edges(),
+    border: new Edges()
   }
 
-  get currentCanvas() {
-    return this._currentCanvas
-  }
-
-  get currentBounds() {
-    return this._currentBounds
-  }
-
-  get currentMargin() {
-    return this._currentMargin
-  }
+  textureUrl?:string
+  bounds = new Bounds
+  margin = new Edges
 
   get depth() {
     let depth = 0
@@ -161,12 +117,27 @@ export class WebLayer {
     }
   }
 
+  update() {
+    if (!this._currentStateHash) {
+      const metrics = this._domMetrics
+      this.bounds.copy(metrics.bounds)
+      this.margin.copy(metrics.margin)
+    } else {
+      const data = WebLayer.CACHE.getLayerStateData(this._currentStateHash)
+      this.bounds.copy(data.bounds)
+      this.margin.copy(data.margin)
+      if (this.textureUrl !== data.textureUrl) {
+        this.textureUrl = data.textureUrl
+        this.eventCallback('layerpainted', { target: this.element })
+      }
+    }
+  }
+
   refresh() {
-    if (!this._currentSVGHash) {
-      getBounds(this.element, this.bounds, this.parentLayer && this.parentLayer.element)
-      getMargin(this.element, this.margin)
-      this._currentBounds = this.bounds
-      this._currentMargin = this.margin
+    if (!this._currentStateHash) {
+      const metrics = this._domMetrics
+      getBounds(this.element, metrics.bounds, this.parentLayer && this.parentLayer.element)
+      getMargin(this.element, metrics.margin)
     }
     this.needsRefresh = false
     this._updateParentAndChildLayers()
@@ -224,7 +195,7 @@ export class WebLayer {
     if (tagName === 'style' || tagName === 'link') return ''
     const layer = WebRenderer.layers.get(element)
     if (layer) {
-      const bounds = layer.bounds
+      const bounds = layer._domMetrics.bounds
       let attributes = ''
       // in order to increase our cache hits, don't serialize nested layers
       // instead, replace nested layers with an invisible placerholder that is the same width/height
@@ -252,17 +223,19 @@ export class WebLayer {
   async serialize() {      
     const layerElement = this.element as HTMLElement
     if (layerElement.nodeName === 'VIDEO') return
+
+    const metrics = this._domMetrics
     
-    getBounds(layerElement, this.bounds, this.parentLayer?.element)
-    getMargin(layerElement, this.margin)
-    let { width, height } = this.bounds
+    getBounds(layerElement, metrics.bounds, this.parentLayer?.element)
+    getMargin(layerElement, metrics.margin)
+    let { width, height } = metrics.bounds
     // add margins
-    width += Math.max(this.margin.left, 0) + Math.max(this.margin.right, 0)
-    height += Math.max(this.margin.top, 0) + Math.max(this.margin.bottom, 0)
+    width += Math.max(metrics.margin.left, 0) + Math.max(metrics.margin.right, 0)
+    height += Math.max(metrics.margin.top, 0) + Math.max(metrics.margin.bottom, 0)
 
     if (width * height > 0) {
-      getPadding(layerElement, this.padding)
-      getBorder(layerElement, this.border)
+      getPadding(layerElement, metrics.padding)
+      getBorder(layerElement, metrics.border)
 
       // create svg markup
       const elementAttribute = WebRenderer.attributeHTML(WebRenderer.ELEMENT_UID_ATTRIBUTE,''+this.id)
@@ -299,21 +272,28 @@ export class WebLayer {
         parentsHTML[1] +
         '</foreignObject></svg>'
       const svgDoc = this._svgDocument = docString
-      const svgHash = this._svgHash = WebRenderer.arrayBufferToBase64(sha256.hash(encoder.encode(svgDoc))) +
+      const svgHash = this._desiredStateHash = WebRenderer.arrayBufferToBase64(sha256.hash(encoder.encode(svgDoc))) +
         '?w=' + width +
         ';h=' + height
 
-      this.cachedBounds.set(svgHash, new Bounds().copy(this.bounds))
-      this.cachedMargin.set(svgHash, new Edges().copy(this.margin))
-      
-      // try setting from cache
-      if (this.trySetFromSVGHash(svgHash)) return
 
-      // rasterize the svg document if no existing canvas matches
+      // set the current layer hash
+      this._currentStateHash = svgHash
+
+      // update the layer state data
+      const data = WebLayer.CACHE.getLayerStateData(svgHash)
+      data.bounds.copy(metrics.bounds)
+      data.margin.copy(metrics.margin)
+
+      // if we've already processed this exact layer state several times, we should 
+      // be confident about what it looks like, and don't need to rerender
+      if (data.renderAttempts >= WebLayer.MINIMUM_RENDER_ATTEMPTS && data.canvasHash) return
+
+      // rasterize (and then render) the svg document 
       WebRenderer.addToRasterizeQueue(this)
     } else {
-      this._currentBounds.copy(this.bounds)
-      this._currentMargin.copy(this.margin)
+      this.bounds.copy(metrics.bounds)
+      this.margin.copy(metrics.margin)
     }
   }
 
@@ -330,27 +310,23 @@ export class WebLayer {
       this.svgImage.onerror = (error) => {
         reject(error)
       }
-      this._svgHashRasterizing = this._svgHash
+      this._rasterizingStateHash = this._desiredStateHash
       this.svgImage.src = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(this._svgDocument))
     })
   }
 
-  render() {
+  async render() {
 
     if (!this.svgImage.complete || this.svgImage.currentSrc !== this.svgImage.src) {
       setTimeout(() => WebRenderer.addToRenderQueue(this),100)
       return
     }
 
-    const svgHash = this._svgHashRasterizing
+    const svgHash = this._rasterizingStateHash
+    const data = WebLayer.CACHE.getLayerStateData(svgHash)
 
-    if (!this.cachedBounds.has(svgHash) || !this.cachedMargin.has(svgHash)) {
-      this.needsRefresh = true
-      return
-    }
-
-    let { width, height } = this.cachedBounds.get(svgHash)!
-    let { left, top, right, bottom } = this.cachedMargin.get(svgHash)!
+    let { width, height } = data.bounds
+    let { left, top, right, bottom } = data.margin
 
     const fullWidth = Math.max(width + left + right, 1)
     const fullHeight = Math.max(height + top + bottom, 1)
@@ -366,50 +342,43 @@ export class WebLayer {
     const canvasHash =
       WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData)))
     
-    const previousCanvasHash = WebLayer.svgCanvasHash.get(svgHash)
-    WebLayer.svgCanvasHash.set(svgHash, canvasHash)
+    const previousCanvasHash = data.canvasHash
+    data.canvasHash = canvasHash
     if (previousCanvasHash !== canvasHash) {
-      WebLayer.svgRetryCount.set(svgHash, 0)
+      data.renderAttempts = 0
     }
 
-    const retryCount = WebLayer.svgRetryCount.get(svgHash)||0
-    WebLayer.svgRetryCount.set(svgHash, retryCount+1)
+    data.renderAttempts++
 
-    if (retryCount > 3 && WebLayer.cachedCanvases.has(canvasHash)) {
-      if (this._svgHash === this._svgHashRasterizing)
-        this.trySetFromSVGHash(this._svgHash)
+    if (data.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) {
+      if (this._desiredStateHash === this._rasterizingStateHash && !WebLayer.CACHE.getTextureURL(this._desiredStateHash))
+        this._currentStateHash = this._desiredStateHash
       return
     }
 
-    setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2^retryCount)
+    setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2^data.renderAttempts)
 
-    if (previousCanvasHash === canvasHash && WebLayer.cachedCanvases.has(previousCanvasHash)) 
-      return
-
+    if (previousCanvasHash === canvasHash && WebLayer.CACHE.getTextureURL(canvasHash)) return
+ 
     const pixelRatio =
       this.pixelRatio ||
       parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
       window.devicePixelRatio
-    const newCanvas =
-      WebLayer.cachedCanvases.size === WebLayer.cachedCanvases.limit
-        ? WebLayer.cachedCanvases.shift()![1]
-        : document.createElement('canvas')
+    const newCanvas = WebLayer.canvasPool.pop() || document.createElement('canvas')
     let w = (newCanvas.width = fullWidth * pixelRatio)
     let h = (newCanvas.height = fullHeight * pixelRatio)
     const ctx = newCanvas.getContext('2d')!
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, w, h)
     ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, w, h)
-    WebLayer.cachedCanvases.set(canvasHash, newCanvas)
-
-    if (this._svgHash === this._svgHashRasterizing)
-      this.trySetFromSVGHash(svgHash)
+    WebLayer.CACHE.updateTexture(canvasHash, newCanvas)
   }
 
   // Get all parents of the embeded html as these can effect the resulting styles
   private _getParentsHTML(element: Element) {
     const opens = []
     const closes = []
+    const metrics = this._domMetrics
     let parent = element.parentElement
     if (!parent) parent = document.documentElement
     do {
@@ -426,8 +395,8 @@ export class WebLayer {
         tag +
         (tag === 'html'
           ? ` xmlns="http://www.w3.org/1999/xhtml" style="--x-width:${
-              this.bounds.width}px;--x-height:${this.bounds.height}px;--x-inline-top:${
-              this.border.top + this.margin.top + this.padding.top}px; ${style}" `
+              metrics.bounds.width}px;--x-height:${metrics.bounds.height}px;--x-inline-top:${
+              metrics.border.top + metrics.margin.top + metrics.padding.top}px; ${style}" `
           : ` style="${style}" ${WebRenderer.RENDERING_PARENT_ATTRIBUTE}="" `) +
         attributes +
         ' >'

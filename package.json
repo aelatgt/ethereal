@@ -7,16 +7,16 @@
     ]
   },
   "dependencies": {
-    "@types/three": "^0.129.1",
     "@vue/compiler-sfc": "^3.0.11",
     "ethereal": "file:packages/ethereal",
     "sass": "^1.32.12",
-    "three": "^0.129.0",
     "three-mesh-bvh": "^0.3.7",
-    "vue": "^3.0.11"
+    "vue": "^3.0.11",
+    "three": "^0.136.0"
   },
   "devDependencies": {
     "@types/node": "^14.14.33",
+    "@types/three": "^0.136.1",
     "@vitejs/plugin-vue": "^1.1.5",
     "ava": "^3.15.0",
     "link-into": "^3.0.1",

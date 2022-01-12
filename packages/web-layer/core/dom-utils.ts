@@ -279,7 +279,7 @@ export function getDocumentBounds(document: Document, bounds: Bounds) {
 }
 
 
-export function DOM(html:string) {
+export function toDOM(html:string) {
   const wrapper = document.createElement('div')
   wrapper.innerHTML = html
   const el = wrapper.firstElementChild!
