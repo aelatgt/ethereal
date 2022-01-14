@@ -1,6 +1,6 @@
 
 import * as THREE from 'three'
-import {WebLayer3D, WebLayer3DOptions} from 'ethereal'
+import { WebContainer3D, WebContainer3DOptions, WebLayerManager } from '@etherealjs/web-layer/three'
 import { Group, XRInputSource } from 'three'
 
 export interface EnterXREvent {
@@ -37,7 +37,7 @@ export default class AppBase {
     renderer = new THREE.WebGLRenderer({
         antialias: false,
         alpha: true,
-        powerPreference: 'high-performance'
+        powerPreference: 'high-performance',
     })
 
     clock = new THREE.Clock
@@ -58,6 +58,9 @@ export default class AppBase {
     } = {}
 
     constructor(private _config: AppConfig) {
+
+        WebLayerManager.initialize(this.renderer)
+
         this.scene.add(this.camera)
 
         // const box = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshNormalMaterial)
@@ -66,6 +69,7 @@ export default class AppBase {
 
         const renderer = this.renderer
         document.documentElement.append(this.renderer.domElement)
+        renderer.outputEncoding = THREE.sRGBEncoding
         renderer.domElement.style.backgroundColor = 'darkgray'
         renderer.domElement.style.position = 'fixed'
         renderer.domElement.style.width = '100%'
@@ -118,7 +122,7 @@ export default class AppBase {
         // to the appropriate child Web3DLayer, and finally (back) to the
         // DOM to dispatch an event on the intended DOM target
         const redirectEvent = (evt:any) => {
-            for (const layer of this.webLayers) {
+            for (const layer of this.webContainers) {
                 const hit = layer.hitTest(this.raycaster.ray)
                 if (hit) {
                     hit.target.dispatchEvent(new evt.constructor(evt.type, evt))
@@ -136,7 +140,7 @@ export default class AppBase {
             if (grip) this.scene.add(grip)
 
             controller.addEventListener('selectstart',  ( event:any ) => {
-                for (const layer of this.webLayers) {
+                for (const layer of this.webContainers) {
                     const hit = layer.hitTest(controller)
                     if (hit) {
                         hit.target.click()
@@ -272,12 +276,12 @@ export default class AppBase {
         // })
     }
 
-    webLayers = new Set<WebLayer3D>()
+    webContainers = new Set<WebContainer3D>()
 
-    createWebLayerTree(el:HTMLDivElement, options:WebLayer3DOptions) {
-        const l = new WebLayer3D(el, options)
+    createWebLayerTree(el:HTMLDivElement, options:Partial<WebContainer3DOptions>) {
+        const l = new WebContainer3D(el, options)
         l.interactionRays = this.interactionRays
-        this.webLayers.add(l)
+        this.webContainers.add(l)
         this.scene.add(l)
         return l.rootLayer
     }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WebLayer3D } from 'ethereal';
+import { WebContainer3D } from '@etherealjs/web-layer/three/WebContainer3D';
 export interface EnterXREvent {
     type: 'enterxr';
 }
@@ -32,8 +32,8 @@ export default class AppBase {
     xrObjects: Map<any, THREE.Object3D>;
     loaded: Promise<unknown>;
     constructor();
-    webLayers: Set<WebLayer3D>;
-    registerWebLayer(layer: WebLayer3D): void;
+    webContainers: Set<WebContainer3D>;
+    registerWebLayer(layer: WebContainer3D): void;
     getXRObject3D(xrCoordinateSystem: any): THREE.Object3D;
     start(): Promise<void>;
     animate: () => void;

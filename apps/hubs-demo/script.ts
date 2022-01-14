@@ -1,7 +1,9 @@
-import {WebLayer3D, toDOM, THREE} from 'ethereal'
+import * as THREE from 'three'
+import {toDOM} from '@etherealjs/web-layer/core'
+import {WebContainer3D} from '@etherealjs/web-layer/three'
 
 const simpleDiv = toDOM('<div id="hello" style="width: 100px; height: 30px; background:red; position:absolute">Hi there!</div>')
-const simpleLayer = new WebLayer3D(simpleDiv)
+const simpleLayer = new WebContainer3D(simpleDiv)
 const simpleContainer = new THREE.Object3D
 simpleContainer.position.set(3.16, 1.7, 34)
 simpleContainer.matrixAutoUpdate = true
@@ -37,7 +39,7 @@ const cardVue = createApp(Card, {
 }).mount(document.createElement('div'))
 
 
-const cardLayer = new WebLayer3D(cardVue.$el)
+const cardLayer = new WebContainer3D(cardVue.$el)
 scene.add(cardLayer)
 
 

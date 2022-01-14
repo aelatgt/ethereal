@@ -3,16 +3,16 @@ import { Box3, Vector3, Quaternion, Matrix4, V_000, DIRECTION, V_111, Box2, Vect
 import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem'
 import { MemoizationCache } from './MemoizationCache'
 import { SpatialAdapter } from './SpatialAdapter'
-import { Bounds } from '@etherealjs/web-layer'
 
 const InternalRawState = Symbol("raw")
 const InternalCurrentState = Symbol("current")
 const InternalTargetState = Symbol("target")
 const InternalPreviousTargetState = Symbol("previousTarget")
 
-export class NodeState<N extends Node3D=Node3D> {
+export class NodeStateBase<N extends Node3D=Node3D> { constructor(public mode:'current'|'target', public metrics:SpatialMetrics<N>) {} }
+export class NodeState<N extends Node3D=Node3D> extends NodeStateBase<N> {
 
-    constructor(public mode:'current'|'target', public metrics:SpatialMetrics<N>) {}
+    constructor(mode:'current'|'target',metrics:SpatialMetrics<N>) { super(mode,metrics) }
     
     private _cache = new MemoizationCache
 
@@ -590,6 +590,8 @@ export class NodeState<N extends Node3D=Node3D> {
 
 }
 
+// hacky workaround for dealing with new class field initialization spec
+class SpatialMetricsBase<N extends Node3D=Node3D> { constructor(public system:EtherealLayoutSystem<N>, public node:N) {} }
 
 /**
  * Maintains current & target scenegraph state,
@@ -598,9 +600,9 @@ export class NodeState<N extends Node3D=Node3D> {
  * 
  * All metric values should be treated as read-only.
  */
-export class SpatialMetrics<N extends Node3D=Node3D> {
+export class SpatialMetrics<N extends Node3D=Node3D> extends SpatialMetricsBase<N> {
     
-    constructor(public system:EtherealLayoutSystem<N>, public node:N) {}
+    constructor(system:EtherealLayoutSystem<N>, node:N) { super(system, node) }
 
     private _cache = new MemoizationCache()
     

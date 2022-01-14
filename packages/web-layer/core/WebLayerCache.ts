@@ -1,22 +1,24 @@
 import { Bounds, Edges } from "./dom-utils"
 import Dexie, {Table, liveQuery, Subscription} from 'dexie'
+import {load} from '@loaders.gl/core';
+import {ImageLoader, ImageDataType} from '@loaders.gl/images';
 import {KTX2BasisUniversalTextureWriter} from '@loaders.gl/textures';
 
-
 export type StateHash = string
-export type CanvasHash = string
+export type TextureHash = string
 
 export interface LayerStateData {
     bounds: Bounds
     margin: Edges
     renderAttempts: number
-    canvasHash?: CanvasHash,
+    textureHash?: TextureHash,
     textureUrl?: string
 }
 
 export interface TextureData {
+    hash: TextureHash
     lastUsedTime: number
-    texture?: Blob
+    texture?: ArrayBuffer
 }
   
 export class TextureStore extends Dexie {
@@ -26,7 +28,7 @@ export class TextureStore extends Dexie {
     constructor(name:string) {
         super(name)
         this.version(1).stores({
-            textures: '&hash, renderAttempts, lastUsedTime'
+            textures: '&hash, lastUsedTime'
         })
     }
 }
@@ -39,53 +41,61 @@ export class WebLayerCache {
     }
     
     private _textureStore:TextureStore
-    private _textureUrls = new Map<CanvasHash, string>()
-    private _textureSubscriptions = new Map<CanvasHash, Subscription>()
+    private _textureUrls = new Map<TextureHash, string>()
+    private _textureSubscriptions = new Map<TextureHash, Subscription>()
     private _layerStateData = new Map<StateHash, LayerStateData>()
 
     getLayerStateData(hash:StateHash) {
         let data = this._layerStateData.get(hash)
         if (!data) {
             data = {bounds: new Bounds, margin: new Edges, renderAttempts: 0}
+            this._layerStateData.set(hash, data)
         }
-        if (data.canvasHash) {
-            data.textureUrl = this.getTextureURL(data.canvasHash)
+        if (data.textureHash) {
+            data.textureUrl = this.getTextureURL(data.textureHash)
         }
         return data
     }
 
-    async updateTexture(canvasHash:CanvasHash, canvas:HTMLCanvasElement) {
+    async updateTexture(textureHash:TextureHash, canvas:HTMLCanvasElement) {
         return new Promise((resolve) => {
             canvas.toBlob(async (blob) => {
-                if (!blob) return
-                const data = new Uint8Array(await blob.arrayBuffer())
-                const image = {data, width: canvas.width, height: canvas.height}
-                const basis = await KTX2BasisUniversalTextureWriter.encode(image, {})
-                const textureData = await this._textureStore.textures.get(canvasHash) || {lastUsedTime:Date.now(), texture:undefined}
-                textureData.texture = new Blob([basis], {type: 'image/ktx2'})
-                this._textureStore.textures.put(textureData)
-                resolve(null)
+                if (!blob) return resolve(null)
+                try {
+                    const imageData = await load(blob, ImageLoader, {image: {type: 'data'}}) as ImageDataType
+                    const ktx2Texture = await KTX2BasisUniversalTextureWriter.encode(imageData, {})
+                    const textureData = await this._textureStore.textures.get(textureHash) || {hash: textureHash, lastUsedTime:Date.now(), texture:undefined}
+                    textureData.texture = ktx2Texture
+                    this._textureStore.textures.put(textureData)                
+                } finally {
+                    resolve(null)
+                }
             })
         })
     }
 
-    getTextureURL(canvasHash:CanvasHash) {
-        let url = this._textureUrls.get(canvasHash)
+    async requestTextureData(textureHash:TextureHash) {
+        // this._textureStore.textures.update(textureHash, {lastUsedTime: Date.now()})
 
-        if (!this._textureSubscriptions.has(canvasHash)) {
+        if (!this._textureSubscriptions.has(textureHash)) {
 
-            const subscription = liveQuery(() => this._textureStore.textures.get(canvasHash)).subscribe((value) => {
-                if (value) {
-                    const previousBlobUrl = this._textureUrls.get(canvasHash)
+            const subscription = liveQuery(() => this._textureStore.textures.get(textureHash)).subscribe((value) => {
+                if (value && value.texture) {
+                    const previousBlobUrl = this._textureUrls.get(textureHash)
                     if (previousBlobUrl) URL.revokeObjectURL(previousBlobUrl)
-                    this._textureUrls.set(canvasHash, URL.createObjectURL(value.texture))
+                    this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([value.texture], {type: 'image/ktx2'})))
                 }
             })
 
-            this._textureSubscriptions.set(canvasHash, subscription)
+            this._textureSubscriptions.set(textureHash, subscription)
         }
 
-        return url
+        return this._textureStore.textures.get(textureHash)
+    }
+
+    getTextureURL(textureHash:TextureHash) {
+        if (!this._textureSubscriptions.has(textureHash)) this.requestTextureData(textureHash)
+        return this._textureUrls.get(textureHash)
     }
 
 }

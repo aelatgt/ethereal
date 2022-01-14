@@ -1,0 +1,51 @@
+import "fast-text-encoding";
+import { Bounds, Edges } from './dom-utils';
+import { WebLayerCache } from './WebLayerCache';
+export declare type EventCallback = (event: 'layerpainted' | 'layercreated' | 'layermoved', data: {
+    target: Element;
+}) => void;
+export declare class WebLayer {
+    element: Element;
+    eventCallback: EventCallback;
+    static CACHE: WebLayerCache;
+    static MINIMUM_RENDER_ATTEMPTS: number;
+    private static canvasPool;
+    id: string;
+    constructor(element: Element, eventCallback: EventCallback);
+    needsRefresh: boolean;
+    needsRemoval: boolean;
+    pseudoStates: {
+        hover: boolean;
+        active: boolean;
+        focus: boolean;
+        target: boolean;
+    };
+    svgImage: HTMLImageElement;
+    parentLayer?: WebLayer;
+    childLayers: WebLayer[];
+    pixelRatio?: number;
+    private _desiredStateHash;
+    private _rasterizingStateHash;
+    private _currentStateHash;
+    private _svgSrc;
+    private _svgDocument;
+    private _hashingCanvas;
+    private _domMetrics;
+    textureUrl?: string;
+    bounds: Bounds;
+    margin: Edges;
+    get depth(): number;
+    get rootLayer(): WebLayer;
+    traverseParentLayers(each: (layer: WebLayer) => void): void;
+    traverseLayers(each: (layer: WebLayer) => void): void;
+    traverseChildLayers(each: (layer: WebLayer) => void): void;
+    update(): void;
+    refresh(): void;
+    private _updateParentAndChildLayers;
+    private _tryConvertElementToWebLayer;
+    serializationReplacer: (node: Node) => string | undefined;
+    serialize(): Promise<void>;
+    rasterize(): Promise<void>;
+    render(): Promise<void>;
+    private _getParentsHTML;
+}

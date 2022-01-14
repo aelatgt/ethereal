@@ -1,47 +1,56 @@
 
-import * as _THREE from 'three'
-import type { CompressedTexture } from 'three'
-import { BasisTextureLoader } from 'three/examples/jsm/loaders/BasisTextureLoader'
+import { ClampToEdgeWrapping, CompressedTexture, LinearFilter, sRGBEncoding } from 'three'
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader'
 import { WebLayer3D } from './WebLayer3D'
-import { WebRenderer } from '../core/WebRenderer'
-
-if (self.THREE) {
-var THREE = self.THREE
-} else {
-var THREE = _THREE
-}
-
-export {THREE}
 
 export class WebLayerManager {
 
-    static instance = new WebLayerManager
+    static initialize(renderer:THREE.WebGLRenderer) {
+      WebLayerManager.instance = new WebLayerManager()
+      WebLayerManager.instance.textureLoader.detectSupport(renderer)
+    }
 
-    textureEncoding = THREE.sRGBEncoding
+    constructor() {
+      this.textureLoader.setTranscoderPath('https://unpkg.com/@loaders.gl/textures@3.1.4/dist/libs/')
+    }
 
-    texturesByUrl = new Map<string, CompressedTexture>()
+    static instance:WebLayerManager
+
+    textureEncoding = sRGBEncoding
+
+    texturesByUrl = new Map<string, CompressedTexture|'pending'|'error'>()
     layersUsingTexture = new WeakMap<CompressedTexture, Set<WebLayer3D>>()
-    textureLoader = new BasisTextureLoader
+    textureLoader = new KTX2Loader
     layersByElement = new WeakMap<Element, WebLayer3D>()
     layersByMesh = new WeakMap<THREE.Mesh, WebLayer3D>()
   
     pixelsPerUnit = 1000
   
     getTexture(url:string, layer?:WebLayer3D) {
-      if (this.texturesByUrl.has(url)) {
-        const texture = this.texturesByUrl.get(url)!
-        if (layer) this.layersUsingTexture.get(texture)?.add(layer)
-        return texture
-      } 
-      const texture = this.textureLoader.load(url, () => {}) as any as CompressedTexture
-      this.texturesByUrl.set(url, texture)
-      const layers = new Set<WebLayer3D>()
-      if (layer) layers.add(layer)
-      this.layersUsingTexture.set(texture, layers)
-      texture.wrapS = THREE.ClampToEdgeWrapping
-      texture.wrapT = THREE.ClampToEdgeWrapping
-      texture.minFilter = THREE.LinearFilter
-      texture.encoding = this.textureEncoding
+
+      let texture = this.texturesByUrl.get(url)!  
+      const isNotLoaded = typeof texture === 'string'
+
+      if (isNotLoaded) return undefined
+
+      if (texture) {
+        if (layer) this.layersUsingTexture.get(texture as CompressedTexture)?.add(layer)
+        return texture as CompressedTexture
+      }
+
+      this.textureLoader.loadAsync(url).then((t) => {
+        t.wrapS = ClampToEdgeWrapping
+        t.wrapT = ClampToEdgeWrapping
+        t.minFilter = LinearFilter
+        t.encoding = this.textureEncoding
+        this.layersUsingTexture.set(t, new Set<WebLayer3D>())
+        this.texturesByUrl.set(url, t)
+      }).catch(() => {
+        this.texturesByUrl.set(url, 'error')
+      })
+
+      this.texturesByUrl.set(url, 'pending')
+
       return texture
     }
 

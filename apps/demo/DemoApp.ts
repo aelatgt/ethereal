@@ -1,7 +1,6 @@
 import AppBase, { UpdateEvent, ExitXREvent, EnterXREvent } from './AppBase'
 
 import * as THREE from 'three'
-import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 // import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader'
 
@@ -68,13 +67,13 @@ export class DemoApp extends AppBase {
 
         const createRoomAdapter = () => {
             const adapter = this.system.getAdapter(this.room)
-            const layout = adapter.createLayout()
-            layout.orientation = Q_IDENTITY
-            layout.local.centerX = '0 m'
-            layout.local.centerZ = '0 m'
-            layout.local.bottom = '0 m'
-            layout.local.height = '6 m'
-            layout.aspect = 'preserve-3d'
+            // const layout = adapter.createLayout()
+            // layout.orientation = Q_IDENTITY
+            // layout.local.centerX = '0 m'
+            // layout.local.centerZ = '0 m'
+            // layout.local.bottom = '0 m'
+            // layout.local.height = '6 m'
+            // layout.aspect = 'preserve-3d'
 
             adapter.onUpdate = () => {
 
@@ -169,7 +168,7 @@ export class DemoApp extends AppBase {
 
         // this.renderer.gammaInput = true
         // this.renderer.gammaOutput = true
-        this.renderer.gammaFactor = 2.2
+        // this.renderer.gammaFactor = 2.2
     }
 
     loadSky() {

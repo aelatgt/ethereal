@@ -281,13 +281,15 @@ export class WebLayer {
       this._currentStateHash = svgHash
 
       // update the layer state data
+      console.log('serialized ' + svgHash)
       const data = WebLayer.CACHE.getLayerStateData(svgHash)
       data.bounds.copy(metrics.bounds)
       data.margin.copy(metrics.margin)
+      console.log(metrics.bounds)
 
       // if we've already processed this exact layer state several times, we should 
       // be confident about what it looks like, and don't need to rerender
-      if (data.renderAttempts >= WebLayer.MINIMUM_RENDER_ATTEMPTS && data.canvasHash) return
+      if (data.renderAttempts >= WebLayer.MINIMUM_RENDER_ATTEMPTS && data.textureHash) return
 
       // rasterize (and then render) the svg document 
       WebRenderer.addToRasterizeQueue(this)
@@ -323,10 +325,10 @@ export class WebLayer {
     }
 
     const svgHash = this._rasterizingStateHash
-    const data = WebLayer.CACHE.getLayerStateData(svgHash)
+    const stateData = WebLayer.CACHE.getLayerStateData(svgHash)
 
-    let { width, height } = data.bounds
-    let { left, top, right, bottom } = data.margin
+    let { width, height } = stateData.bounds
+    let { left, top, right, bottom } = stateData.margin
 
     const fullWidth = Math.max(width + left + right, 1)
     const fullHeight = Math.max(height + top + bottom, 1)
@@ -342,36 +344,41 @@ export class WebLayer {
     const canvasHash =
       WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData)))
     
-    const previousCanvasHash = data.canvasHash
-    data.canvasHash = canvasHash
+    const previousCanvasHash = stateData.textureHash
+    stateData.textureHash = canvasHash
     if (previousCanvasHash !== canvasHash) {
-      data.renderAttempts = 0
+      stateData.renderAttempts = 0
     }
 
-    data.renderAttempts++
+    stateData.renderAttempts++
 
-    if (data.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) {
+    if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) {
       if (this._desiredStateHash === this._rasterizingStateHash && !WebLayer.CACHE.getTextureURL(this._desiredStateHash))
         this._currentStateHash = this._desiredStateHash
       return
     }
 
-    setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2^data.renderAttempts)
+    setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2^stateData.renderAttempts)
 
-    if (previousCanvasHash === canvasHash && WebLayer.CACHE.getTextureURL(canvasHash)) return
+    const textureData = await WebLayer.CACHE.requestTextureData(canvasHash)
+
+    if (previousCanvasHash === canvasHash && textureData?.texture) return
  
     const pixelRatio =
       this.pixelRatio ||
       parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
       window.devicePixelRatio
-    const newCanvas = WebLayer.canvasPool.pop() || document.createElement('canvas')
-    let w = (newCanvas.width = fullWidth * pixelRatio)
-    let h = (newCanvas.height = fullHeight * pixelRatio)
-    const ctx = newCanvas.getContext('2d')!
+    const canvas = WebLayer.canvasPool.pop() || document.createElement('canvas')
+    let w = (canvas.width = fullWidth * pixelRatio)
+    let h = (canvas.height = fullHeight * pixelRatio)
+    const ctx = canvas.getContext('2d')!
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, w, h)
     ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, w, h)
-    WebLayer.CACHE.updateTexture(canvasHash, newCanvas)
+    
+    WebLayer.CACHE.updateTexture(canvasHash, canvas).then(() => {
+      WebLayer.canvasPool.push(canvas)
+    })
   }
 
   // Get all parents of the embeded html as these can effect the resulting styles

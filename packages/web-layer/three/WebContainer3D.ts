@@ -1,16 +1,17 @@
 import { Bounds } from '../core/dom-utils'
 import { WebRenderer, WebLayerOptions } from '../core/WebRenderer'
-import {getBounds, traverseChildElements, toDOM } from '../core/dom-utils'
+import { getBounds, traverseChildElements, toDOM } from '../core/dom-utils'
 import { ON_BEFORE_UPDATE, WebLayer3D } from './WebLayer3D'
 import { WebLayerManager } from './WebLayerManager'
+import { Object3D, Raycaster, Vector3 } from 'three'
 
 
 type Intersection = THREE.Intersection & {groupOrder:number}
 
 export type WebLayerHit = ReturnType<typeof WebContainer3D.prototype.hitTest> & {}
 
-const scratchVector = new THREE.Vector3()
-const scratchVector2 = new THREE.Vector3()
+const scratchVector = new Vector3()
+const scratchVector2 = new Vector3()
 const scratchBounds = new Bounds()
 const scratchBounds2 = new Bounds()
 
@@ -43,7 +44,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
  * Default dimensions: 1px = 0.001 world dimensions = 1mm (assuming meters)
  *     e.g., 500px width means 0.5meters
  */
- export class WebContainer3D extends THREE.Object3D {
+ export class WebContainer3D extends Object3D {
   
     // static computeNaturalDistance(
     //   projection: THREE.Matrix4 | THREE.Camera,
@@ -66,7 +67,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     public rootLayer!:WebLayer3D
   
     private _interactionRays = [] as Array<THREE.Ray | THREE.Object3D>
-    private _raycaster = new THREE.Raycaster()
+    private _raycaster = new Raycaster()
     private _hitIntersections = [] as Intersection[]
   
     constructor(elementOrHTML: Element|string, options: Partial<WebContainer3DOptions> = {}) {
@@ -115,7 +116,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     /**
      * Update all layers, recursively
      */
-     update() {
+    update() {
       this.rootLayer.update(true)
     }
   

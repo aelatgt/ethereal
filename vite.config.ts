@@ -7,7 +7,10 @@ import { resolve } from 'path'
 export default defineConfig({
   resolve: {
     conditions: ['source'],
-    mainFields: ['module','main']
+    mainFields: ['module','main'],
+    alias: {
+      "ethereal": "ethereal/ethereal"
+    }
   },
   server: {
     // hmr: {
@@ -15,6 +18,9 @@ export default defineConfig({
     // },
     host: true,
     https: true
+  },
+  optimizeDeps: {
+    exclude: ['@loaders.gl/worker-utils']
   },
   build: {
     outDir: "docs",

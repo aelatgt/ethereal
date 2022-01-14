@@ -1,4 +1,4 @@
-import { CompressedTexture, VideoTexture } from "three";
+import { ClampToEdgeWrapping, CompressedTexture, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture } from "three";
 import { WebLayer } from "../core/WebLayer";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
@@ -6,12 +6,28 @@ import { WebContainer3DOptions } from "./WebContainer3D";
 
 export const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE')
 
-const scratchVector = new THREE.Vector3()
-const scratchMatrix = new THREE.Matrix4
+const scratchVector = new Vector3()
+const scratchMatrix = new Matrix4
 
-export class WebLayer3D extends THREE.Object3D {
+/** Correct UVs to be compatible with `flipY=false` textures. */
+function flipY( geometry: PlaneGeometry ) {
 
-  static GEOMETRY = new THREE.PlaneGeometry(1, 1, 2, 2)
+  const uv = geometry.attributes.uv;
+
+  for ( let i = 0; i < uv.count; i ++ ) {
+
+    uv.setY( i, 1 - uv.getY( i ) );
+
+  }
+
+  return geometry;
+
+}
+
+export class WebLayer3D extends Object3D {
+
+  static GEOMETRY = flipY(new PlaneGeometry(1, 1, 2, 2))
+  static FLIPPED_GEOMETRY = flipY(new PlaneGeometry(1, 1, 2, 2))
 
   static shouldApplyDOMLayout(layer: WebLayer3D) {
     const should = layer.shouldApplyDOMLayout
@@ -28,6 +44,26 @@ export class WebLayer3D extends THREE.Object3D {
     this.name = element.id
     this._webLayer = WebRenderer.getClosestLayer(element)!
     ;(element as any).layer = this
+
+    // compressed textures need flipped geometry
+    const geometry = (this.element.nodeName === 'VIDEO') ? WebLayer3D.GEOMETRY : WebLayer3D.FLIPPED_GEOMETRY
+
+    this.contentMesh = new Mesh(
+      geometry,
+      new MeshBasicMaterial({
+        side: DoubleSide,
+        depthWrite: false,
+        transparent: true,
+        alphaTest: 0.001,
+        opacity: 1
+      })
+    )
+    this._boundsMesh = new Mesh(
+      geometry,
+      new MeshBasicMaterial({
+        visible: false
+      })
+    )
 
     this.add(this.contentMesh)
     this.add(this._boundsMesh)
@@ -65,10 +101,10 @@ export class WebLayer3D extends THREE.Object3D {
       const video = this._webLayer.element as HTMLVideoElement
       let t = this._videoTexture
       if (!t) {
-        t = new THREE.VideoTexture(video)
-        t.wrapS = THREE.ClampToEdgeWrapping
-        t.wrapT = THREE.ClampToEdgeWrapping
-        t.minFilter = THREE.LinearFilter
+        t = new VideoTexture(video)
+        t.wrapS = ClampToEdgeWrapping
+        t.wrapT = ClampToEdgeWrapping
+        t.minFilter = LinearFilter
         if (manager.textureEncoding) t.encoding = manager.textureEncoding
         this._videoTexture = t
       }
@@ -83,41 +119,27 @@ export class WebLayer3D extends THREE.Object3D {
     return t
   }
 
-  contentMesh = new THREE.Mesh(
-    WebLayer3D.GEOMETRY,
-    new THREE.MeshBasicMaterial({
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      transparent: true,
-      alphaTest: 0.001,
-      opacity: 1
-    })
-  )
+  contentMesh:Mesh
 
   /**
    * This non-visible mesh ensures that an adapted layer retains
    * its innerBounds, even if the content mesh is
    * independently adapted.
    */
-  private _boundsMesh = new THREE.Mesh(
-    WebLayer3D.GEOMETRY,
-    new THREE.MeshBasicMaterial({
-      visible: false
-    })
-  )
+  private _boundsMesh:Mesh
 
-  cursor = new THREE.Object3D()
+  cursor = new Object3D()
 
   /**
    * Allows correct shadow maps
    */
-  depthMaterial = new THREE.MeshDepthMaterial({
-    depthPacking: THREE.RGBADepthPacking,
+  depthMaterial = new MeshDepthMaterial({
+    depthPacking: RGBADepthPacking,
     alphaTest: 0.001
   })
 
-  domLayout = new THREE.Object3D()
-  domSize = new THREE.Vector3(1,1,1)
+  domLayout = new Object3D()
+  domSize = new Vector3(1,1,1)
 
   /**
    * Get the hover state
@@ -226,7 +248,7 @@ export class WebLayer3D extends THREE.Object3D {
     const mesh = this.contentMesh
     const texture = this.currentTexture
     const material = mesh.material as THREE.MeshBasicMaterial
-    if (texture && (texture.image && material.map !== texture)) {
+    if (texture && material.map !== texture) {
       const contentScale = this.contentMesh.scale
       const aspect = Math.abs(contentScale.x * this.scale.x / contentScale.y * this.scale.y)
       const targetAspect = this.domSize.x / this.domSize.y
@@ -235,7 +257,6 @@ export class WebLayer3D extends THREE.Object3D {
         material.map = texture
         this.depthMaterial['map'] = texture
         material.needsUpdate = true
-        texture.needsUpdate = true
         this.depthMaterial.needsUpdate = true
       }
     }
@@ -245,7 +266,7 @@ export class WebLayer3D extends THREE.Object3D {
     const mat = mesh.material as THREE.MeshBasicMaterial
     const isHidden = mat.opacity < 0.005
     if (isHidden) mesh.visible = false
-    else if (mesh.material.map) mesh.visible = true
+    else if (mat.map) mesh.visible = true
     if (this.needsRemoval && isHidden) {
       if (this.parent) this.parent.remove(this)
       this.dispose()

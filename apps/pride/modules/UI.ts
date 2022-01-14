@@ -1,7 +1,6 @@
 import * as THREE from 'three'
-import * as ethereal from 'ethereal'
-import {Q_IDENTITY, V_111, WebLayer3D, V_00} from 'ethereal'
-import {createApp} from 'vue'
+import {Q_IDENTITY, V_111} from 'ethereal'
+import { WebContainer3D } from '@etherealjs/web-layer/three/WebContainer3D'
 
 import {App} from '../main'
 import {UpdateEvent} from '../App'
@@ -11,38 +10,13 @@ import {createLabelUI} from './LabelUI'
 import { MeshPhongMaterial, MeshBasicMaterial, Vector3 } from 'three'
 import { Quaternion } from 'cannon'
 
-export default class UI {
-    augmentations: {[name: string]: THREE.Object3D} = {}
+class UIBase {
+    constructor(public app : App) {}
+}
+export default class UI extends UIBase {
 
-    pride = createPrideUI()
-    state = this.pride.state
-    main = this.app.createWebLayerTree( this.pride.vue.$el, {
-        onLayerCreate: (layer) => {
-            const adapter = this.app.system.getAdapter(layer)
-            adapter.opacity.enabled = true
-            adapter.onUpdate = () => layer.update()
-        }
-    })
-    
-    procedure = this.main.querySelector('#procedure')!
-    step = this.main.querySelector('#step')!
-    instruction = this.main.querySelector('#instruction')!
-    content = this.main.querySelector('#content')!
-    media = this.main.querySelector('#media')!
-    image = this.main.querySelector('#image')!
-    video = this.main.querySelector('#video')!
-    model = this.main.querySelector('#model')!
-    controls = this.main.querySelector('#controls')!
-    backButton = this.main.querySelector('#back')!
-    doneButton = this.main.querySelector('#done')!
-    recordButton = this.main.querySelector('#record')!
-    yesButton = this.main.querySelector('#yes')!
-    noButton = this.main.querySelector('#no')!
-    immersiveButton = this.main.querySelector('#immersive-toggle')!
-
-    // snubberBox = new THREE.BoxHelper(this.app.treadmill.snubber)
-
-    constructor(private app: App) {
+    constructor(public app: App) {
+        super(app)
 
         const setupPrideLayer = () => {
             const adapter = this.app.system.getAdapter(this.main)
@@ -324,6 +298,38 @@ export default class UI {
         })
     }
 
+
+    augmentations: {[name: string]: THREE.Object3D} = {}
+
+    pride = createPrideUI()
+    state = this.pride.state
+    main = this.app.createWebLayerTree( this.pride.vue.$el, {
+        onLayerCreate: (layer) => {
+            const adapter = this.app.system.getAdapter(layer)
+            adapter.opacity.enabled = true
+            adapter.onUpdate = () => layer.update()
+        }
+    })
+    
+    procedure = this.main.querySelector('#procedure')!
+    step = this.main.querySelector('#step')!
+    instruction = this.main.querySelector('#instruction')!
+    content = this.main.querySelector('#content')!
+    media = this.main.querySelector('#media')!
+    image = this.main.querySelector('#image')!
+    video = this.main.querySelector('#video')!
+    model = this.main.querySelector('#model')!
+    controls = this.main.querySelector('#controls')!
+    backButton = this.main.querySelector('#back')!
+    doneButton = this.main.querySelector('#done')!
+    recordButton = this.main.querySelector('#record')!
+    yesButton = this.main.querySelector('#yes')!
+    noButton = this.main.querySelector('#no')!
+    immersiveButton = this.main.querySelector('#immersive-toggle')!
+
+    // snubberBox = new THREE.BoxHelper(this.app.treadmill.snubber)
+
+
     updateAugmentations() {
         const prideObjects = this.state.pride.objects
 
@@ -360,7 +366,7 @@ export default class UI {
                         break
                     case 'label': 
                         const label = createLabelUI(prideObject.label)
-                        augmentation = new WebLayer3D(label.vue.$el)
+                        augmentation = new WebContainer3D(label.vue.$el)
                         break
                     default:
                         augmentation = new THREE.Object3D
@@ -376,7 +382,7 @@ export default class UI {
                 this.app.treadmill.snubber.add(augmentation)
                 augmentation.position.copy(prideObject.position as any).multiplyScalar(0.01)
 
-                if (augmentation instanceof WebLayer3D) {
+                if (augmentation instanceof WebContainer3D) {
                     augmentation.update()
                 } else {
                     // adapter.opacity.target = 0.2

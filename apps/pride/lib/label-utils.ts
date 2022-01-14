@@ -66,7 +66,7 @@ export function makeTextSprite( message: string, parameters: {
   texture.minFilter = THREE.LinearFilter
   texture.needsUpdate = true
 
-  const geometry = new THREE.PlaneGeometry(0.001 * canvas.width, 0.001 * canvas.height, 2, 2) as THREE.Geometry
+  const geometry = new THREE.PlaneGeometry(0.001 * canvas.width, 0.001 * canvas.height, 2, 2) as THREE.PlaneGeometry
   const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5 })
   const mesh = new THREE.Mesh(geometry, material)
   return mesh

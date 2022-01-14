@@ -3,13 +3,14 @@ import { DemoBase } from './DemoBase'
 import { DemoApp } from '../DemoApp'
 import { css } from '@emotion/css'
 import { Vector3 } from 'three'
-import { V_000, WebLayer3D } from 'ethereal'
+import { V_000 } from 'ethereal'
+import { WebContainer3D } from '@etherealjs/web-layer/three/WebContainer3D'
 
 export class GlobalAdaptivityDemo extends DemoBase {
 
     orientedContainerTop = new THREE.Object3D
 
-    logoLayer = new WebLayer3D(`
+    logo = new WebContainer3D(`
         <div id="logo" class=${css({
             display: 'inline',
             color: 'rgb(180,120,250)',
@@ -22,7 +23,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
         })}>ethereal.js</div>
     `)
 
-    infoLayer = new WebLayer3D(`
+    info = new WebContainer3D(`
         <div id="info" class=${css({
             display: 'inline',
             color: 'white',
@@ -90,12 +91,12 @@ export class GlobalAdaptivityDemo extends DemoBase {
             this.container.add(this.orientedContainerTop)
             const adapter = app.system.getAdapter(this.orientedContainerTop)
 
-            const layout = adapter.createLayout()
-            layout.local.centerX = {meters: 0}
-            layout.local.centerZ = {meters: 0}
-            layout.local.centerY = {percent: 50}
+            // const layout = adapter.createLayout()
+            // layout.local.centerX = {meters: 0}
+            // layout.local.centerZ = {meters: 0}
+            // layout.local.centerY = {percent: 50}
             adapter.onUpdate = () => {
-                layout.orientation = app.system.getState(this.container).viewAlignedOrientation
+                // layout.orientation = app.system.getState(this.container).viewAlignedOrientation
             }
         }
         setupTopAnchor()
@@ -105,7 +106,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
 
         
         const setupLogoLayer = () => {
-            const logo = this.logoLayer
+            const logo = this.logo
             ;(logo.contentMesh.material as THREE.MeshBasicMaterial).side = THREE.DoubleSide
             this.container.add(logo)
             const adapter = app.system.getAdapter(logo)
@@ -117,28 +118,28 @@ export class GlobalAdaptivityDemo extends DemoBase {
             // adapter.transition.threshold = 0.1
             // adapter.transition.easing = easing.anticipate
             
-            const layout = adapter.createLayout()
-            layout.local.left = {gt: {percent: -50}} // flexible left
-            layout.local.right = {lt: {percent: 50}} // flexible right
-            layout.local.bottom = {percent: 50, meters: 1} // fix to top of outer bounds
-            layout.local.bottom = {percent: 50, meters: 1} // fix to top of outer bounds
-            layout.local.centerZ = [{percent: -50},{percent: 50}] // fix to back or front of outer bounds
-            layout.visual.diagonal = {gt: {degrees: 5}}
-            // layout.bounds.centerZ = {gt:{percent: -50}, lt:{percent: 50}} // fix to back or front of outer bounds
-            layout.aspect = 'preserve-3d'
-            layout.visual.left = {gt: {percent: -50}}
-            layout.visual.right = {lt: {percent: 50}}
-            layout.visual.bottom = {gt: {percent: -50}}
-            layout.visual.top = {lt: {percent: 50}}
+            // const layout = adapter.createLayout()
+            // layout.local.left = {gt: {percent: -50}} // flexible left
+            // layout.local.right = {lt: {percent: 50}} // flexible right
+            // layout.local.bottom = {percent: 50, meters: 1} // fix to top of outer bounds
+            // layout.local.bottom = {percent: 50, meters: 1} // fix to top of outer bounds
+            // layout.local.centerZ = [{percent: -50},{percent: 50}] // fix to back or front of outer bounds
+            // layout.visual.diagonal = {gt: {degrees: 5}}
+            // // layout.bounds.centerZ = {gt:{percent: -50}, lt:{percent: 50}} // fix to back or front of outer bounds
+            // layout.aspect = 'preserve-3d'
+            // layout.visual.left = {gt: {percent: -50}}
+            // layout.visual.right = {lt: {percent: 50}}
+            // layout.visual.bottom = {gt: {percent: -50}}
+            // layout.visual.top = {lt: {percent: 50}}
 
-            layout.objectives.unshift({evaluate: (state) => {
-                return 0 - (state.occludingPercent +  state.occludedPercent)  ** 4
-            }})
+            // layout.objectives.unshift({evaluate: (state) => {
+            //     return 0 - (state.occludingPercent +  state.occludedPercent)  ** 4
+            // }})
 
             adapter.onUpdate = () => {
                 // const relativeViewPosition = system.getState(this.orientedContainerTop).relativeViewPosition
                 // layout.bounds.back = {percent: (relativeViewPosition.y > 0) ? -50 : 50}
-                layout.orientation = app.system.getState(this.container).viewAlignedOrientation
+                // layout.orientation = app.system.getState(this.container).viewAlignedOrientation
                 logo.update()
             }
 
@@ -146,8 +147,8 @@ export class GlobalAdaptivityDemo extends DemoBase {
         }
         setupLogoLayer()
         
-        // const info = this.infoLayer
-        // this.container.add(this.infoLayer)
+        // const info = this.info
+        // this.container.add(this.info)
         // info.add(new LayoutHelper)
         // adapt(info, ({transition, layout, optimize}) => {
         //     transition.duration = 1
@@ -185,18 +186,18 @@ export class GlobalAdaptivityDemo extends DemoBase {
         //         SpatialMetrics.get(this.container).getClosestOrthogonalOrientationOf(BehaviorManager.currentCamera, orientation)
         //     // },
         //     // postUpdate: () => {
-        //         if (this.infoLayer.layout.orientation.equals(orientation)) {
-        //             this.infoLayer.transitioner.duration = 0.5
+        //         if (this.info.layout.orientation.equals(orientation)) {
+        //             this.info.transitioner.duration = 0.5
         //         } else {
-        //             this.infoLayer.transitioner.duration = 1
+        //             this.info.transitioner.duration = 1
         //         }
-        //         this.logoLayer.layout.orientation.copy(orientation)
-        //         this.infoLayer.layout.orientation.copy(orientation)
+        //         this.logo.layout.orientation.copy(orientation)
+        //         this.info.layout.orientation.copy(orientation)
         //         this.orientedContainerTop.layout.orientation.copy(orientation)
         //     }
         // })
 
-        // BehaviorManager.addBehavior(this.logoLayer, () => {
+        // BehaviorManager.addBehavior(this.logo, () => {
         //     BehaviorManager.ensureUpdate(this.orientedContainerTop)
         //     const camera = BehaviorManager.currentCamera
         //     const cameraPositionTop = SpatialMetrics.get(this.orientedContainerTop).getPositionOf(camera, vectors.get())
@@ -216,7 +217,7 @@ export class GlobalAdaptivityDemo extends DemoBase {
         //     info.update()
         // })
 
-        // BehaviorManager.addBehavior(this.logoLayer, this.logoClippingBehavior)
-        // BehaviorManager.addBehavior(this.infoLayer, this.infoClippingBehavior)
+        // BehaviorManager.addBehavior(this.logo, this.logoClippingBehavior)
+        // BehaviorManager.addBehavior(this.info, this.infoClippingBehavior)
     }
 }

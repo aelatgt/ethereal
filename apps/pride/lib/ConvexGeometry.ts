@@ -5,23 +5,11 @@
  */
 
 import * as THREE from 'three'
+import {mergeVertices} from 'three/examples/jsm/utils/BufferGeometryUtils';
 //@ts-ignore
 import {QuickHull} from './QuickHull.js'
 
-// ConvexGeometry
-export class ConvexGeometry extends THREE.Geometry {
-
-    constructor(public points:THREE.Vector3[]) {
-        super()
-        this.fromBufferGeometry( new ConvexBufferGeometry( points ) );
-        this.mergeVertices();
-    }
-
-}
-
-// ConvexBufferGeometry
-
-export class ConvexBufferGeometry extends THREE.BufferGeometry { 
+export class ConvexGeometry extends THREE.BufferGeometry { 
 
     constructor(public points:THREE.Vector3[]) {
         super()
@@ -67,7 +55,9 @@ export class ConvexBufferGeometry extends THREE.BufferGeometry {
 
         // build geometry
 
-        this.addAttribute( 'position', new THREE.Float32BufferAttribute( vertices, 3 ) );
-        this.addAttribute( 'normal', new THREE.Float32BufferAttribute( normals, 3 ) );
+        this.setAttribute( 'position', new THREE.Float32BufferAttribute( vertices, 3 ) );
+        this.setAttribute( 'normal', new THREE.Float32BufferAttribute( normals, 3 ) );
+
+        mergeVertices(this)
     }
 }

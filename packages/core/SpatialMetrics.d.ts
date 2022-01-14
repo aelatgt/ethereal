@@ -3,9 +3,12 @@ import { EtherealLayoutSystem, Node3D } from './EtherealLayoutSystem';
 declare const InternalCurrentState: unique symbol;
 declare const InternalTargetState: unique symbol;
 declare const InternalPreviousTargetState: unique symbol;
-export declare class NodeState<N extends Node3D = Node3D> {
+export declare class NodeStateBase<N extends Node3D = Node3D> {
     mode: 'current' | 'target';
     metrics: SpatialMetrics<N>;
+    constructor(mode: 'current' | 'target', metrics: SpatialMetrics<N>);
+}
+export declare class NodeState<N extends Node3D = Node3D> extends NodeStateBase<N> {
     constructor(mode: 'current' | 'target', metrics: SpatialMetrics<N>);
     private _cache;
     invalidate(): void;
@@ -221,6 +224,11 @@ export declare class NodeState<N extends Node3D = Node3D> {
      */
     visualAverageEdgeLength(): void;
 }
+declare class SpatialMetricsBase<N extends Node3D = Node3D> {
+    system: EtherealLayoutSystem<N>;
+    node: N;
+    constructor(system: EtherealLayoutSystem<N>, node: N);
+}
 /**
  * Maintains current & target scenegraph state,
  * and efficiently/reactively compute spatial metrics
@@ -228,9 +236,7 @@ export declare class NodeState<N extends Node3D = Node3D> {
  *
  * All metric values should be treated as read-only.
  */
-export declare class SpatialMetrics<N extends Node3D = Node3D> {
-    system: EtherealLayoutSystem<N>;
-    node: N;
+export declare class SpatialMetrics<N extends Node3D = Node3D> extends SpatialMetricsBase<N> {
     constructor(system: EtherealLayoutSystem<N>, node: N);
     private _cache;
     needsUpdate: boolean;

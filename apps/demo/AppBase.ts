@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { WebLayer3D } from 'ethereal'
+import { WebContainer3D } from '@etherealjs/web-layer/three/WebContainer3D'
+import { WebLayerManager } from '@etherealjs/web-layer/three/WebLayerManager'
 import Stats from 'stats.js'
 import { BlendFunction, BloomEffect, SMAAEffect, SMAAPreset, SSAOEffect, EffectComposer, EffectPass, NormalPass, RenderPass } from "postprocessing"
 
@@ -17,9 +18,12 @@ export interface UpdateEvent {
     elapsedTime: number
 }
 
+declare type VRDisplay = {}
+declare type VRDisplayEvent = {display:any}
+
 let lastConnectedVRDisplay: VRDisplay
 window.addEventListener('vrdisplayconnect', (evt) => {
-    lastConnectedVRDisplay = (evt as VRDisplayEvent).display;
+    lastConnectedVRDisplay = (evt as any as VRDisplayEvent).display;
 }, false)
 
 var stats = new Stats();
@@ -81,12 +85,14 @@ export default class AppBase {
 
     loaded = new Promise((resolve) => {
         THREE.DefaultLoadingManager.onLoad = () => {
-            resolve()
+            resolve(undefined)
         }
     })
 
     // lastFrameTime = -1
     constructor() {
+
+        WebLayerManager.initialize(this.renderer)
 
         this.scene.add(this.dolly)
         this.dolly.add(this.camera)
@@ -146,7 +152,7 @@ export default class AppBase {
         // to the appropriate child Web3DLayer, and finally (back) to the
         // DOM to dispatch an event on the intended DOM target
         const redirectEvent = (evt:any) => {
-            for (const layer of this.webLayers) {
+            for (const layer of this.webContainers) {
                 const hit = layer.hitTest(this.raycaster.ray)
                 if (hit) {
                     hit.target.dispatchEvent(new evt.constructor(evt.type, evt))
@@ -157,11 +163,11 @@ export default class AppBase {
         }
     }
 
-    webLayers = new Set<WebLayer3D>()
+    webContainers = new Set<WebContainer3D>()
 
-    registerWebLayer(layer:WebLayer3D) {
+    registerWebContainer(layer:WebContainer3D) {
         layer.interactionRays = [this.raycaster.ray]
-        this.webLayers.add(layer)
+        this.webContainers.add(layer)
     }
 
     // requestVuforiaTrackableFromDataSet() {}

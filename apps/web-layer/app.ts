@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { WebLayer3D, WebLayer3DBase } from 'ethereal'
+import { WebContainer3D, WebLayer3D, WebLayerManager } from '@etherealjs/web-layer/three'
 import TodoMVC, { filters } from './TodoMVC'
 import * as vue from 'vue'
 import dat from 'dat.gui'
@@ -42,6 +42,7 @@ const interval = setInterval(() => {
 const scene = new THREE.Scene()
 const clock = new THREE.Clock()
 const renderer = ((window as any).renderer = new THREE.WebGLRenderer({ antialias: false }))
+WebLayerManager.initialize(renderer)
 renderer.setClearColor(new THREE.Color('#151513'))
 renderer.setPixelRatio(window.devicePixelRatio)
 renderer.shadowMap.enabled = true
@@ -129,7 +130,7 @@ crosshair.position.z = -2
 camera.add(crosshair)
 
 // magic: convert DOM hierarchy to WebLayer3D heirarchy
-const todoLayer = ((window as any).todoLayer = new WebLayer3D(todoVue.$el, {
+const todoContainer = ((window as any).todoLayer = new WebContainer3D(todoVue.$el, {
   pixelRatio: window.devicePixelRatio,
   onLayerCreate(layer) {
     layer.cursor.add(new THREE.Mesh(cursorGeometry))
@@ -142,9 +143,9 @@ const todoLayer = ((window as any).todoLayer = new WebLayer3D(todoVue.$el, {
     }
   }
 }))
-scene.add(todoLayer)
+scene.add(todoContainer)
 
-function makeShadowMaterial(layer: WebLayer3DBase) {
+function makeShadowMaterial(layer: WebLayer3D) {
   return new THREE.MeshPhongMaterial({
     alphaTest: 0.01,
     side: THREE.DoubleSide,
@@ -158,7 +159,7 @@ function makeShadowMaterial(layer: WebLayer3DBase) {
   })
 }
 
-function makeDefaultMaterial(layer: WebLayer3DBase) {
+function makeDefaultMaterial(layer: WebLayer3D) {
   return new THREE.MeshBasicMaterial({
     transparent: true,
     alphaTest: 0.001,
@@ -169,12 +170,12 @@ function makeDefaultMaterial(layer: WebLayer3DBase) {
 // shadows
 function toggleShadows(enabled:boolean) {
   if (enabled) {
-    todoLayer.traverseLayersPreOrder(layer => {
+    todoContainer.rootLayer.traverseLayersPreOrder(layer => {
       layer.contentMesh.material = makeShadowMaterial(layer)
     })
     // scene.add(shadowCameraHelper)
   } else {
-    todoLayer.traverseLayersPreOrder(layer => {
+    todoContainer.rootLayer.traverseLayersPreOrder(layer => {
       layer.contentMesh.material = makeDefaultMaterial(layer)
     })
     // scene.remove(shadowCameraHelper)
@@ -183,7 +184,7 @@ function toggleShadows(enabled:boolean) {
 
 function toggleDOM(enabled:boolean) {
   // show/hide the Vue-managed DOM
-  const containerStyle = todoLayer.element.parentElement!.style
+  const containerStyle = todoContainer.rootLayer.element.parentElement!.style
   if (enabled) {
     containerStyle.top = ''
     containerStyle.bottom = '0px'
@@ -194,12 +195,12 @@ function toggleDOM(enabled:boolean) {
   } else {
     containerStyle.top = '-100000px'
   }
-  todoLayer.setNeedsRefresh()
+  todoContainer.rootLayer.setNeedsRefresh()
 }
 
 // enable hover-state rendering
 const mouseRays = [raycaster.ray]
-todoLayer.interactionRays = mouseRays
+todoContainer.interactionRays = mouseRays
 
 // setup interaction
 document.documentElement.addEventListener('gesturestart', e => e.preventDefault(), {
@@ -240,7 +241,7 @@ function onTouchStart(event:TouchEvent) {
 // to the appropriate child Web3DLayer, and finally (back) to the
 // DOM to dispatch an event on the intended DOM target
 function redirectEvent(evt:any) {
-  const hit = todoLayer.hitTest(raycaster.ray)
+  const hit = todoContainer.hitTest(raycaster.ray)
   if (hit) {
     hit.target.dispatchEvent(new evt.constructor(evt.type, evt))
     hit.target.focus()
@@ -287,7 +288,7 @@ scene.add(controller5)
 function onSelect(evt: THREE.Event) {
   const controller = evt.target as THREE.Object3D
   raycaster.ray.set(controller.position, controller.getWorldDirection(new THREE.Vector3()).negate())
-  const hit = todoLayer.hitTest(raycaster.ray)
+  const hit = todoContainer.hitTest(raycaster.ray)
   if (hit) {
     hit.target.click()
     hit.target.focus()
@@ -315,9 +316,9 @@ function animate() {
       todoLayerTargetPosition.copy(currentTargetPosition)
       todoLayerTargetQuaternion.copy(camera.quaternion)
     }
-    todoLayer.position.lerp(todoLayerTargetPosition, lerpValue)
-    todoLayer.quaternion.slerp(todoLayerTargetQuaternion, lerpValue)
-    todoLayer.interactionRays = immersiveRays
+    todoContainer.position.lerp(todoLayerTargetPosition, lerpValue)
+    todoContainer.quaternion.slerp(todoLayerTargetQuaternion, lerpValue)
+    todoContainer.interactionRays = immersiveRays
   } else {
     const width = renderer.domElement.offsetWidth
     const height = renderer.domElement.offsetHeight
@@ -338,9 +339,9 @@ function animate() {
     camera.updateWorldMatrix(true, true)
     camera.lookAt(scene.position)
     renderer.setSize(width, height, false)
-    todoLayer.position.set(0, 0, 0)
-    todoLayer.quaternion.set(0, 0, 0, 1)
-    todoLayer.interactionRays = mouseRays
+    todoContainer.position.set(0, 0, 0)
+    todoContainer.quaternion.set(0, 0, 0, 1)
+    todoContainer.interactionRays = mouseRays
     // update our interaction ray
     // important: make sure camera pose is updated first!
     raycaster.setFromCamera(pointer, camera)
@@ -351,18 +352,18 @@ function animate() {
 
   if (Controls.layout === 'custom') {
     // todoLayer.contentOpacity.target = 0
-    const h1Layer = todoLayer.querySelector('h1')!
-    const infoLayer = todoLayer.querySelector('.info')!
-    const mainLayer = todoLayer.querySelector('.todoapp')!
+    const h1Layer = todoContainer.querySelector('h1')!
+    const infoLayer = todoContainer.querySelector('.info')!
+    const mainLayer = todoContainer.querySelector('.todoapp')!
     h1Layer.position.set(-0.4, 0.05, 0)
     infoLayer.position.set(-0.2, -0.05, 0)
     mainLayer.position.set(0.2, 0, 0)
     // mainLayer.contentOpacity.target = 0
   } else {
-    todoLayer.position.z = 0
+    todoContainer.position.z = 0
   }
 
-  todoLayer.traverseWebLayers(layer => {
+  todoContainer.rootLayer.traverseLayersPreOrder(layer => {
     // layer.transitioner.multiplier = Controls.lerpSpeed
     // layer.content.transitioner.multiplier = Controls.lerpSpeed
 
@@ -381,7 +382,7 @@ function animate() {
     //   layer.scale.y = 0.001
     // }
 
-    hover: if (Controls.hoverEffect && layer.hover) {
+    hover: if (Controls.hoverEffect && layer.pseudoStates.hover) {
       if (layer.element.matches('.todo *, .toggle, .destroy, a')) {
         layer.scale.multiplyScalar(1.02)
         break hover
@@ -390,7 +391,7 @@ function animate() {
   })
 
   // update transitions
-  todoLayer.update()
+  todoContainer.update()
   // ethereal.update(deltaTime)
 
   // render!
