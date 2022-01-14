@@ -319,7 +319,9 @@ export class WebLayer {
 
   async render() {
 
-    if (!this.svgImage.complete || this.svgImage.currentSrc !== this.svgImage.src) {
+    const svgSrc = this._svgSrc
+
+    if (!this.svgImage.complete || this.svgImage.currentSrc !== svgSrc) {
       setTimeout(() => WebRenderer.addToRenderQueue(this),100)
       return
     }
@@ -341,42 +343,44 @@ export class WebLayer {
     hctx.imageSmoothingEnabled = false
     hctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, hw, hh)
     const hashData = hctx.getImageData(0, 0, hw, hh).data
-    const canvasHash =
+    
+    const textureHash =
       WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData)))
     
     const previousCanvasHash = stateData.textureHash
-    stateData.textureHash = canvasHash
-    if (previousCanvasHash !== canvasHash) {
+    stateData.textureHash = textureHash
+    if (previousCanvasHash !== textureHash) {
       stateData.renderAttempts = 0
     }
 
     stateData.renderAttempts++
 
-    if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) {
-      if (this._desiredStateHash === this._rasterizingStateHash && !WebLayer.CACHE.getTextureURL(this._desiredStateHash))
-        this._currentStateHash = this._desiredStateHash
+    if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && WebLayer.CACHE.getTextureURL(textureHash)) {
       return
     }
 
     setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2^stateData.renderAttempts)
 
-    const textureData = await WebLayer.CACHE.requestTextureData(canvasHash)
+    const textureData = await WebLayer.CACHE.requestTextureData(textureHash)
 
-    if (previousCanvasHash === canvasHash && textureData?.texture) return
+    if (previousCanvasHash === textureHash && textureData?.texture) return
+
+    if (this.svgImage.currentSrc !== svgSrc) return
  
     const pixelRatio =
       this.pixelRatio ||
       parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
       window.devicePixelRatio
     const canvas = WebLayer.canvasPool.pop() || document.createElement('canvas')
-    let w = (canvas.width = fullWidth * pixelRatio)
-    let h = (canvas.height = fullHeight * pixelRatio)
+    let w = (canvas.width = Math.max(fullWidth * pixelRatio, 32))
+    let h = (canvas.height = Math.max(fullHeight * pixelRatio, 32))
+
     const ctx = canvas.getContext('2d')!
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, w, h)
     ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, w, h)
-    
-    WebLayer.CACHE.updateTexture(canvasHash, canvas).then(() => {
+
+    WebLayer.CACHE.updateTexture(textureHash, canvas).then(() => {
       WebLayer.canvasPool.push(canvas)
     })
   }
