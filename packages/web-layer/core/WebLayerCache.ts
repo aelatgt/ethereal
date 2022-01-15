@@ -1,5 +1,7 @@
 import { Bounds, Edges } from "./dom-utils"
 import Dexie, {Table, liveQuery, Subscription} from 'dexie'
+import {load} from '@loaders.gl/core';
+import {ImageLoader, ImageDataType} from '@loaders.gl/images';
 import {KTX2BasisUniversalTextureWriter} from '@loaders.gl/textures';
 
 export type StateHash = string
@@ -60,7 +62,7 @@ export class WebLayerCache {
             canvas.toBlob(async (blob) => {
                 if (!blob) return resolve(null)
                 try {
-                    const imageData = {data: new Uint8Array(await blob.arrayBuffer()), width: canvas.width, height: canvas.width}
+                    const imageData = await load(blob, ImageLoader, {image: {type: 'data'}}) as ImageDataType
                     const ktx2Texture = await KTX2BasisUniversalTextureWriter.encode(imageData, {})
                     const textureData = await this._textureStore.textures.get(textureHash) || {hash: textureHash, lastUsedTime:Date.now(), texture:undefined}
                     textureData.texture = ktx2Texture
