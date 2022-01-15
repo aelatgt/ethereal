@@ -8,6 +8,7 @@ export class WebLayerManager {
     static initialize(renderer:THREE.WebGLRenderer) {
       WebLayerManager.instance = new WebLayerManager()
       WebLayerManager.instance.textureLoader.detectSupport(renderer)
+      WebLayerManager.instance.textureLoader.setWorkerLimit(navigator.hardwareConcurrency || 4)
     }
 
     constructor() {
