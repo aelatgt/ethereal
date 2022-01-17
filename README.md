@@ -14,10 +14,12 @@ This library rasterizes the DOM by allowing you to organize it into separate ind
 ```ts
 import {WebContainer3D, WebLayerManager} from '@etherealjs/web-layer/three'
 
-WebLayerMan
+WebLayerManager.intialize(renderer)
+
+const webContainer = new WebContainer3D(el)
+scene.add(webContainer)
+
 ```
-
-
 # @etherealjs/spatial-optimizer (wip)
 
 A library designed for metaheuristic optimization of spatial variables and objectives
