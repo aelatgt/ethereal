@@ -17,16 +17,22 @@
     "three": ">=0.130.0"
   },
   "dependencies": {
-    "@loaders.gl/core": "^3.1.4",
-    "@loaders.gl/textures": "^3.1.4",
     "@juggle/resize-observer": "^3.2.0",
+    "@loaders.gl/core": "^3.1.4",
+    "@loaders.gl/images": "^3.1.4",
+    "@loaders.gl/textures": "^3.1.4",
     "dexie": "^3.2.0",
     "fast-sha256": "latest",
     "fast-text-encoding": "latest",
     "resize-observer-polyfill": "latest"
   },
-  "scripts": {
-    "build": "tsc"
+  "devDependencies": {
+    "esbuild": "^0.14.11"
+  },
+  "scripts": {    
+    "build": "tsc && npm run build:worker && npm run build:encoder",
+    "build:worker": "esbuild core/textures/KTX2Worker.ts --bundle --outfile=core/textures/KTX2Worker.bundle.txt",
+    "build:encoder": "esbuild core/textures/KTX2Encoder.ts --bundle --format=esm --outfile=core/textures/KTX2Encoder.bundle.js"
   },
   "type": "module"
 }

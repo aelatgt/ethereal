@@ -1,4 +1,4 @@
-import { CompressedTexture, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, Vector3, VideoTexture } from "three";
+import { CompressedTexture, Mesh, MeshDepthMaterial, Object3D, PlaneGeometry, Vector3, VideoTexture } from "three";
 import { WebLayer } from "../core/WebLayer";
 import { Bounds, Edges } from "../core/dom-utils";
 import { WebContainer3DOptions } from "./WebContainer3D";
@@ -7,6 +7,7 @@ export declare class WebLayer3D extends Object3D {
     element: Element;
     options: WebContainer3DOptions;
     static GEOMETRY: PlaneGeometry;
+    static FLIPPED_GEOMETRY: PlaneGeometry;
     static shouldApplyDOMLayout(layer: WebLayer3D): boolean;
     private _camera?;
     constructor(element: Element, options: WebContainer3DOptions);
@@ -17,7 +18,7 @@ export declare class WebLayer3D extends Object3D {
     private _videoTexture?;
     textures: Set<CompressedTexture>;
     get currentTexture(): VideoTexture | CompressedTexture | undefined;
-    contentMesh: Mesh<PlaneGeometry, MeshBasicMaterial>;
+    contentMesh: Mesh;
     /**
      * This non-visible mesh ensures that an adapted layer retains
      * its innerBounds, even if the content mesh is

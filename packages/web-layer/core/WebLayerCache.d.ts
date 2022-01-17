@@ -25,6 +25,7 @@ export declare class WebLayerCache {
     private _textureUrls;
     private _textureSubscriptions;
     private _layerStateData;
+    private _encoder;
     getLayerStateData(hash: StateHash): LayerStateData;
     updateTexture(textureHash: TextureHash, canvas: HTMLCanvasElement): Promise<unknown>;
     requestTextureData(textureHash: TextureHash): Promise<TextureData | undefined>;

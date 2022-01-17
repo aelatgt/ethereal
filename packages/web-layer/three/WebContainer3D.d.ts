@@ -64,7 +64,7 @@ export declare class WebContainer3D extends Object3D {
     /** Get the content mesh of the root layer
      * @deprecated
     */
-    get contentMesh(): import("three").Mesh<import("three").PlaneGeometry, import("three").MeshBasicMaterial>;
+    get contentMesh(): import("three").Mesh<import("three").BufferGeometry, import("three").Material | import("three").Material[]>;
     private _previousHoverLayers;
     private _contentMeshes;
     private _prepareHitTest;

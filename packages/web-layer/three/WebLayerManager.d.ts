@@ -2,11 +2,12 @@ import { CompressedTexture } from 'three';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader';
 import { WebLayer3D } from './WebLayer3D';
 export declare class WebLayerManager {
+    static DEFAULT_TRANSCODER_PATH: string;
     static initialize(renderer: THREE.WebGLRenderer): void;
-    constructor();
     static instance: WebLayerManager;
+    constructor();
     textureEncoding: import("three").TextureEncoding;
-    texturesByUrl: Map<string, CompressedTexture | "pending">;
+    texturesByUrl: Map<string, "error" | CompressedTexture | "pending">;
     layersUsingTexture: WeakMap<CompressedTexture, Set<WebLayer3D>>;
     textureLoader: KTX2Loader;
     layersByElement: WeakMap<Element, WebLayer3D>;
