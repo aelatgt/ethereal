@@ -1,7 +1,7 @@
 {
   "name": "@etherealjs/web-layer",
   "description": "Use web content in WebGL scenes!",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "author": "Gheric Speiginer",
   "keywords": [
     "3D",
@@ -29,7 +29,7 @@
   "devDependencies": {
     "esbuild": "^0.14.11"
   },
-  "scripts": {    
+  "scripts": {
     "build": "tsc && npm run build:worker && npm run build:encoder",
     "build:worker": "esbuild core/textures/KTX2Worker.ts --bundle --outfile=core/textures/KTX2Worker.bundle.txt",
     "build:encoder": "esbuild core/textures/KTX2Encoder.ts --bundle --format=esm --outfile=core/textures/KTX2Encoder.bundle.js"
