@@ -1,8 +1,7 @@
 {
     "extends": "./tsconfig.json",
-    "exclude": ["**/node_modules", "apps", "vite.config.ts"],
+    "exclude": ["**/node_modules", "apps", "vite.config.ts", "packages/core"],
     "compilerOptions": {
-        "noEmit": false,
-        "emitDeclarationOnly": true,
+        "noEmit": false
     }
 }
