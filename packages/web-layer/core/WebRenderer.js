@@ -391,6 +391,13 @@ export class WebRenderer {
                 if (target.data === record.oldValue) {
                     continue;
                 }
+                if (target.parentElement?.tagName.toLowerCase() === 'style') {
+                    // if the style tag has changed, we need to remove it from the embedded styles cache
+                    // to reprocess later
+                    const style = target.parentElement;
+                    const rootNode = style.getRootNode();
+                    this.embeddedStyles.get(rootNode)?.delete(style);
+                }
             }
             const target = record.target.nodeType === Node.ELEMENT_NODE
                 ? record.target

@@ -234,11 +234,11 @@ export class WebLayer {
             // set the current layer hash
             this._currentStateHash = svgHash;
             // update the layer state data
-            console.log('serialized ' + svgHash);
+            // console.log('serialized ' + svgHash)
             const data = WebLayer.CACHE.getLayerStateData(svgHash);
             data.bounds.copy(metrics.bounds);
             data.margin.copy(metrics.margin);
-            console.log(metrics.bounds);
+            // console.log(metrics.bounds)
             // if we've already processed this exact layer state several times, we should 
             // be confident about what it looks like, and don't need to rerender
             if (data.renderAttempts >= WebLayer.MINIMUM_RENDER_ATTEMPTS && data.textureHash)
