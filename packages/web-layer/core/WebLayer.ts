@@ -25,6 +25,10 @@ export type EventCallback = (
 
 const encoder = new TextEncoder();
 
+function nearestPowerOf2(n:number) {
+  return 1 << 31 - Math.clz32(n);
+}
+
 export class WebLayer {
   static CACHE = new WebLayerCache()  
   static MINIMUM_RENDER_ATTEMPTS = 3
@@ -281,11 +285,11 @@ export class WebLayer {
       this._currentStateHash = svgHash
 
       // update the layer state data
-      console.log('serialized ' + svgHash)
+      // console.log('serialized ' + svgHash)
       const data = WebLayer.CACHE.getLayerStateData(svgHash)
       data.bounds.copy(metrics.bounds)
       data.margin.copy(metrics.margin)
-      console.log(metrics.bounds)
+      // console.log(metrics.bounds)
 
       // if we've already processed this exact layer state several times, we should 
       // be confident about what it looks like, and don't need to rerender
@@ -372,8 +376,9 @@ export class WebLayer {
       parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
       window.devicePixelRatio
     const canvas = WebLayer.canvasPool.pop() || document.createElement('canvas')
-    let w = (canvas.width = Math.max(fullWidth * pixelRatio, 32))
-    let h = (canvas.height = Math.max(fullHeight * pixelRatio, 32))
+
+    let w = (canvas.width = nearestPowerOf2(Math.max(fullWidth * pixelRatio, 32)))
+    let h = (canvas.height = nearestPowerOf2(Math.max(fullHeight * pixelRatio, 32)))
 
     const ctx = canvas.getContext('2d')!
     ctx.imageSmoothingEnabled = false

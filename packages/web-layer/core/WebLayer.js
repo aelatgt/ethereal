@@ -5,6 +5,9 @@ import * as sha256 from 'fast-sha256';
 import { serializeToString, serializeAttribute, serializeAttributeValue } from './xml-serializer';
 import { WebLayerCache } from './WebLayerCache';
 const encoder = new TextEncoder();
+function nearestPowerOf2(n) {
+    return 1 << 31 - Math.clz32(n);
+}
 export class WebLayer {
     element;
     eventCallback;
@@ -305,8 +308,8 @@ export class WebLayer {
             parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)) ||
             window.devicePixelRatio;
         const canvas = WebLayer.canvasPool.pop() || document.createElement('canvas');
-        let w = (canvas.width = Math.max(fullWidth * pixelRatio, 32));
-        let h = (canvas.height = Math.max(fullHeight * pixelRatio, 32));
+        let w = (canvas.width = nearestPowerOf2(Math.max(fullWidth * pixelRatio, 32)));
+        let h = (canvas.height = nearestPowerOf2(Math.max(fullHeight * pixelRatio, 32)));
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
         ctx.clearRect(0, 0, w, h);
