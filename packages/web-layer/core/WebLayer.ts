@@ -394,8 +394,9 @@ export class WebLayer {
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, textureWidth, textureHeight)
     ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, textureWidth, textureHeight)
+    const imageData = ctx.getImageData(0,0, textureWidth, textureHeight)
 
-    WebLayer.CACHE.updateTexture(textureHash, canvas).then(() => {
+    WebLayer.CACHE.updateTexture(textureHash, imageData).then(() => {
       WebLayer.canvasPool.push(canvas)
     })
   }

@@ -61,11 +61,9 @@ export class WebLayerCache {
         return data
     }
 
-    async updateTexture(textureHash:TextureHash, canvas:HTMLCanvasElement) {
+    async updateTexture(textureHash:TextureHash, imageData:ImageData) {
         return new Promise(async (resolve) => {
             try {
-                const context = canvas.getContext('2d')!
-                const imageData = context.getImageData(0,0,canvas.width, canvas.height)
                 const ktx2Texture = await this._encoder.encode(imageData as any)
                 const textureData = await this._textureStore.textures.get(textureHash) || 
                     {hash: textureHash, renderAttempts: 0, lastUsedTime:Date.now(), texture:undefined}
