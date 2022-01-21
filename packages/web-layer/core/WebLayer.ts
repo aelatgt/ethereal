@@ -374,9 +374,7 @@ export class WebLayer {
 
     stateData.renderAttempts++
 
-    const textureRenderAttempts = WebLayer.CACHE.getTextureData(textureHash)?.renderAttempts || 0
-
-    if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && textureRenderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) {
+    if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && WebLayer.CACHE.getTextureData(textureHash)?.texture) {
       return
     }
 
@@ -384,7 +382,9 @@ export class WebLayer {
 
     const textureData = await WebLayer.CACHE.requestTextureData(textureHash)
 
-    if (previousCanvasHash === textureHash && textureData?.texture) return
+    if (previousCanvasHash === textureHash && 
+        textureData?.texture && 
+        textureData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) return
 
     if (this.svgImage.currentSrc !== svgSrc) return
  

@@ -308,13 +308,14 @@ export class WebLayer {
             stateData.renderAttempts = 0;
         }
         stateData.renderAttempts++;
-        const textureRenderAttempts = WebLayer.CACHE.getTextureData(textureHash)?.renderAttempts || 0;
-        if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && textureRenderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) {
+        if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && WebLayer.CACHE.getTextureData(textureHash)?.texture) {
             return;
         }
         setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2 ^ stateData.renderAttempts);
         const textureData = await WebLayer.CACHE.requestTextureData(textureHash);
-        if (previousCanvasHash === textureHash && textureData?.texture)
+        if (previousCanvasHash === textureHash &&
+            textureData?.texture &&
+            textureData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS)
             return;
         if (this.svgImage.currentSrc !== svgSrc)
             return;
