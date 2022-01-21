@@ -30,7 +30,7 @@ function nearestPowerOf2(n:number) {
 }
 
 function nextPowerOf2(n:number) {
-  return nearestPowerOf2(n*2)
+  return nearestPowerOf2((n-1)*2)
 }
 
 export class WebLayer {
@@ -371,7 +371,9 @@ export class WebLayer {
 
     stateData.renderAttempts++
 
-    if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && WebLayer.CACHE.getTextureURL(textureHash)) {
+    const textureRenderAttempts = WebLayer.CACHE.getTextureData(textureHash)?.renderAttempts || 0
+
+    if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && textureRenderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) {
       return
     }
 
