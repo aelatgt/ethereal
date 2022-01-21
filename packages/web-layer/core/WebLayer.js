@@ -9,7 +9,7 @@ function nearestPowerOf2(n) {
     return 1 << 31 - Math.clz32(n);
 }
 function nextPowerOf2(n) {
-    return nearestPowerOf2(n * 2);
+    return nearestPowerOf2((n - 1) * 2);
 }
 export class WebLayer {
     element;
@@ -305,7 +305,8 @@ export class WebLayer {
             stateData.renderAttempts = 0;
         }
         stateData.renderAttempts++;
-        if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && WebLayer.CACHE.getTextureURL(textureHash)) {
+        const textureRenderAttempts = WebLayer.CACHE.getTextureData(textureHash)?.renderAttempts || 0;
+        if (stateData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS && textureRenderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) {
             return;
         }
         setTimeout(() => WebRenderer.addToRenderQueue(this), (500 + Math.random() * 1000) * 2 ^ stateData.renderAttempts);
@@ -321,7 +322,8 @@ export class WebLayer {
         ctx.imageSmoothingEnabled = false;
         ctx.clearRect(0, 0, textureWidth, textureHeight);
         ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, textureWidth, textureHeight);
-        WebLayer.CACHE.updateTexture(textureHash, canvas).then(() => {
+        const imageData = ctx.getImageData(0, 0, textureWidth, textureHeight);
+        WebLayer.CACHE.updateTexture(textureHash, imageData).then(() => {
             WebLayer.canvasPool.push(canvas);
         });
     }

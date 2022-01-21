@@ -2,7 +2,7 @@ import { Bounds, Edges } from "./dom-utils"
 import Dexie, { Table, liveQuery, Subscription } from 'dexie'
 
 // @ts-ignore
-import KTX2Encoder from './textures/KTX2Encoder.bundle.js';
+import { KTX2Encoder } from './textures/KTX2Encoder.bundle.js';
 import type { KTX2Encoder as KTX2EncoderType } from './textures/KTX2Encoder'
 
 export type StateHash = string

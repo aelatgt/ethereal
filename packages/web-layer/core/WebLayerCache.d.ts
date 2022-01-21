@@ -11,6 +11,7 @@ export interface LayerStateData {
 }
 export interface TextureData {
     hash: TextureHash;
+    renderAttempts: number;
     lastUsedTime: number;
     texture?: ArrayBuffer;
 }
@@ -23,11 +24,13 @@ export declare class WebLayerCache {
     constructor(name?: string);
     private _textureStore;
     private _textureUrls;
+    private _textureData;
     private _textureSubscriptions;
     private _layerStateData;
     private _encoder;
     getLayerStateData(hash: StateHash): LayerStateData;
-    updateTexture(textureHash: TextureHash, canvas: HTMLCanvasElement): Promise<unknown>;
+    updateTexture(textureHash: TextureHash, imageData: ImageData): Promise<unknown>;
     requestTextureData(textureHash: TextureHash): Promise<TextureData | undefined>;
+    getTextureData(textureHash: TextureHash): TextureData | undefined;
     getTextureURL(textureHash: TextureHash): string | undefined;
 }
