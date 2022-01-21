@@ -6,6 +6,10 @@ export interface LayerStateData {
     bounds: Bounds;
     margin: Edges;
     renderAttempts: number;
+    fullWidth: number;
+    fullHeight: number;
+    textureWidth: number;
+    textureHeight: number;
     textureHash?: TextureHash;
     textureUrl?: string;
 }

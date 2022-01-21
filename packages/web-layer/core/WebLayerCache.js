@@ -25,7 +25,15 @@ export class WebLayerCache {
     getLayerStateData(hash) {
         let data = this._layerStateData.get(hash);
         if (!data) {
-            data = { bounds: new Bounds, margin: new Edges, renderAttempts: 0 };
+            data = {
+                bounds: new Bounds,
+                margin: new Edges,
+                renderAttempts: 0,
+                fullWidth: 1,
+                fullHeight: 1,
+                textureWidth: 32,
+                textureHeight: 32
+            };
             this._layerStateData.set(hash, data);
         }
         if (data.textureHash) {
