@@ -291,7 +291,14 @@ export class WebLayer {
         hctx.imageSmoothingEnabled = false;
         hctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, hw, hh);
         const hashData = hctx.getImageData(0, 0, hw, hh).data;
-        const textureHash = WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData)));
+        const pixelRatio = this.pixelRatio ||
+            parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)) ||
+            window.devicePixelRatio;
+        const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32) * pixelRatio;
+        const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32) * pixelRatio;
+        const textureHash = WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData))) +
+            '?w=' + textureWidth +
+            ';h=' + textureHeight;
         const previousCanvasHash = stateData.textureHash;
         stateData.textureHash = textureHash;
         if (previousCanvasHash !== textureHash) {
@@ -307,16 +314,13 @@ export class WebLayer {
             return;
         if (this.svgImage.currentSrc !== svgSrc)
             return;
-        const pixelRatio = this.pixelRatio ||
-            parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)) ||
-            window.devicePixelRatio;
         const canvas = WebLayer.canvasPool.pop() || document.createElement('canvas');
-        let w = (canvas.width = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32));
-        let h = (canvas.height = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32));
+        canvas.width = textureWidth;
+        canvas.height = textureHeight;
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        ctx.clearRect(0, 0, w, h);
-        ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, w, h);
+        ctx.clearRect(0, 0, textureWidth, textureHeight);
+        ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, textureWidth, textureHeight);
         WebLayer.CACHE.updateTexture(textureHash, canvas).then(() => {
             WebLayer.canvasPool.push(canvas);
         });
