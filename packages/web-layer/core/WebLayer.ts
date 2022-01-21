@@ -29,6 +29,10 @@ function nearestPowerOf2(n:number) {
   return 1 << 31 - Math.clz32(n);
 }
 
+function nextPowerOf2(n:number) {
+  return nearestPowerOf2(n*2)
+}
+
 export class WebLayer {
   static CACHE = new WebLayerCache()  
   static MINIMUM_RENDER_ATTEMPTS = 3
@@ -377,8 +381,8 @@ export class WebLayer {
       window.devicePixelRatio
     const canvas = WebLayer.canvasPool.pop() || document.createElement('canvas')
 
-    let w = (canvas.width = nearestPowerOf2(Math.max(fullWidth * pixelRatio, 32)))
-    let h = (canvas.height = nearestPowerOf2(Math.max(fullHeight * pixelRatio, 32)))
+    let w = (canvas.width = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32))
+    let h = (canvas.height = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32))
 
     const ctx = canvas.getContext('2d')!
     ctx.imageSmoothingEnabled = false
