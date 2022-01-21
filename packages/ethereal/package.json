@@ -1,7 +1,7 @@
 {
   "name": "ethereal",
   "description": "An Engine for Web-Based Immersive UI!",
-  "version": "3.0.8",
+  "version": "3.0.9",
   "author": "Gheric Speiginer",
   "bugs": "https://github.com/aelatgt/ethereal/issues",
   "dependencies": {
