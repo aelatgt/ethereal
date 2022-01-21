@@ -294,8 +294,8 @@ export class WebLayer {
         const pixelRatio = this.pixelRatio ||
             parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)) ||
             window.devicePixelRatio;
-        const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32) * pixelRatio;
-        const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32) * pixelRatio;
+        const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32);
+        const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32);
         const textureHash = WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData))) +
             '?w=' + textureWidth +
             ';h=' + textureHeight;
