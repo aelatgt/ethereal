@@ -12,6 +12,10 @@ export interface LayerStateData {
     bounds: Bounds
     margin: Edges
     renderAttempts: number
+    fullWidth: number,
+    fullHeight: number,
+    textureWidth: number,
+    textureHeight: number,
     textureHash?: TextureHash,
     textureUrl?: string
 }
@@ -52,7 +56,15 @@ export class WebLayerCache {
     getLayerStateData(hash:StateHash) {
         let data = this._layerStateData.get(hash)
         if (!data) {
-            data = {bounds: new Bounds, margin: new Edges, renderAttempts: 0}
+            data = {
+                bounds: new Bounds, 
+                margin: new Edges, 
+                renderAttempts: 0, 
+                fullWidth:1, 
+                fullHeight:1, 
+                textureWidth:32, 
+                textureHeight:32
+            }
             this._layerStateData.set(hash, data)
         }
         if (data.textureHash) {

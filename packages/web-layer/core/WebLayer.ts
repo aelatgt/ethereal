@@ -236,12 +236,12 @@ export class WebLayer {
     
     getBounds(layerElement, metrics.bounds, this.parentLayer?.element)
     getMargin(layerElement, metrics.margin)
-    let { width, height } = metrics.bounds
+    const { width, height } = metrics.bounds
     // add margins
-    width += Math.max(metrics.margin.left, 0) + Math.max(metrics.margin.right, 0)
-    height += Math.max(metrics.margin.top, 0) + Math.max(metrics.margin.bottom, 0)
+    const fullWidth = width + Math.max(metrics.margin.left, 0) + Math.max(metrics.margin.right, 0)
+    const fullHeight = height + Math.max(metrics.margin.top, 0) + Math.max(metrics.margin.bottom, 0)
 
-    if (width * height > 0) {
+    if (fullWidth * fullHeight > 0) {
       getPadding(layerElement, metrics.padding)
       getBorder(layerElement, metrics.border)
 
@@ -265,25 +265,35 @@ export class WebLayer {
             WebRenderer.getPsuedoAttributes(this.pseudoStates))
       const docString =
         '<svg width="' +
-        width +
+        fullWidth +
         '" height="' +
-        height +
+        fullHeight +
         '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
         svgCSS.join('\n') +
         ']]></style></defs><foreignObject x="0" y="0" width="' +
-        (width+1) +
+        (fullWidth+1) +
         '" height="' +
-        (height+1) +
+        (fullHeight+1) +
         '">' +
         parentsHTML[0] +
         layerHTML +
         parentsHTML[1] +
         '</foreignObject></svg>'
+
+      const pixelRatio =
+        this.pixelRatio ||
+        parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
+        window.devicePixelRatio
+      
+      const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32)
+      const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32)
+
       const svgDoc = this._svgDocument = docString
       const svgHash = this._desiredStateHash = WebRenderer.arrayBufferToBase64(sha256.hash(encoder.encode(svgDoc))) +
-        '?w=' + width +
-        ';h=' + height
-
+        '?w=' + fullWidth +
+        ';h=' + fullHeight + 
+        ';tw=' + textureWidth +
+        ';th=' + textureHeight
 
       // set the current layer hash
       this._currentStateHash = svgHash
@@ -293,6 +303,10 @@ export class WebLayer {
       const data = WebLayer.CACHE.getLayerStateData(svgHash)
       data.bounds.copy(metrics.bounds)
       data.margin.copy(metrics.margin)
+      data.fullWidth = fullWidth
+      data.fullHeight = fullHeight
+      data.textureWidth = textureWidth
+      data.textureHeight = textureHeight
       // console.log(metrics.bounds)
 
       // if we've already processed this exact layer state several times, we should 
@@ -336,12 +350,7 @@ export class WebLayer {
 
     const svgHash = this._rasterizingStateHash
     const stateData = WebLayer.CACHE.getLayerStateData(svgHash)
-
-    let { width, height } = stateData.bounds
-    let { left, top, right, bottom } = stateData.margin
-
-    const fullWidth = Math.max(width + left + right, 1)
-    const fullHeight = Math.max(height + top + bottom, 1)
+    const {fullWidth, fullHeight, textureWidth, textureHeight} = stateData
 
     const hashingCanvas = this._hashingCanvas
     let hw = hashingCanvas.width
@@ -352,12 +361,6 @@ export class WebLayer {
     hctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, hw, hh)
     const hashData = hctx.getImageData(0, 0, hw, hh).data
 
-    const pixelRatio =
-      this.pixelRatio ||
-      parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
-      window.devicePixelRatio
-    const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32)
-    const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32)
     const textureHash =
       WebRenderer.arrayBufferToBase64(sha256.hash(new Uint8Array(hashData))) +
       '?w=' + textureWidth +
