@@ -32,7 +32,8 @@ export class WebLayerCache {
                 fullWidth: 1,
                 fullHeight: 1,
                 textureWidth: 32,
-                textureHeight: 32
+                textureHeight: 32,
+                pixelRatio: 1
             };
             this._layerStateData.set(hash, data);
         }

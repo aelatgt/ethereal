@@ -10,6 +10,7 @@ export interface LayerStateData {
     fullHeight: number;
     textureWidth: number;
     textureHeight: number;
+    pixelRatio: number;
     textureHash?: TextureHash;
     textureUrl?: string;
 }

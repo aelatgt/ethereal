@@ -24,7 +24,6 @@ export declare class WebLayer {
     parentLayer?: WebLayer;
     childLayers: WebLayer[];
     pixelRatio?: number;
-    private _desiredStateHash;
     private _rasterizingStateHash;
     private _currentStateHash;
     private _svgSrc;
