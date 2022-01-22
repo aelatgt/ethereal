@@ -67,7 +67,6 @@ export class WebLayer {
   childLayers = [] as WebLayer[]
   pixelRatio?: number
 
-  private _desiredStateHash = ''
   private _rasterizingStateHash = ''
   private _currentStateHash = ''
 
@@ -209,7 +208,7 @@ export class WebLayer {
       // instead, replace nested layers with an invisible placerholder that is the same width/height
       // downsides of this are that we lose subpixel precision. To avoid any rendering issues,
       // each sublayer should have explictly defined sizes (no fit-content or auto sizing). 
-      const extraStyle = `box-sizing:border-box;max-width:${bounds.width+1}px;max-height:${bounds.height+1}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
+      const extraStyle = `box-sizing:border-box;max-width:${bounds.width}px;max-height:${bounds.height}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
       let addedStyle = false
       for (const attr of layer.element.attributes) {
         if (attr.name === 'src') continue
@@ -245,17 +244,18 @@ export class WebLayer {
       getPadding(layerElement, metrics.padding)
       getBorder(layerElement, metrics.border)
 
+      const pixelRatio =
+        this.pixelRatio ||
+        parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
+        window.devicePixelRatio
+
       // create svg markup
       const elementAttribute = WebRenderer.attributeHTML(WebRenderer.ELEMENT_UID_ATTRIBUTE,''+this.id)
       const computedStyle = getComputedStyle(layerElement)
       const needsInlineBlock = computedStyle.display === 'inline'
       WebRenderer.updateInputAttributes(layerElement)
-      const parentsHTML = this._getParentsHTML(layerElement)
-      parentsHTML[0] = parentsHTML[0].replace(
-        'html',
-        'html ' + WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE + '="" '
-      )
-
+      
+      const parentsHTML = this._getParentsHTML(layerElement, fullWidth, fullHeight, pixelRatio)
       const svgCSS = await WebRenderer.getAllEmbeddedStyles(layerElement)
       let layerHTML = await serializeToString(layerElement, this.serializationReplacer)
       
@@ -263,33 +263,30 @@ export class WebLayer {
             `${elementAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
             `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
             WebRenderer.getPsuedoAttributes(this.pseudoStates))
+            
+      const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32)
+      const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32)
+      
       const docString =
         '<svg width="' +
-        fullWidth +
+        textureWidth +
         '" height="' +
-        fullHeight +
+        textureHeight +
         '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
         svgCSS.join('\n') +
         ']]></style></defs><foreignObject x="0" y="0" width="' +
-        (fullWidth+1) +
+        fullWidth*pixelRatio +
         '" height="' +
-        (fullHeight+1) +
+        fullHeight*pixelRatio +
         '">' +
         parentsHTML[0] +
         layerHTML +
         parentsHTML[1] +
         '</foreignObject></svg>'
 
-      const pixelRatio =
-        this.pixelRatio ||
-        parseFloat(this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
-        window.devicePixelRatio
       
-      const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32)
-      const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32)
-
       const svgDoc = this._svgDocument = docString
-      const svgHash = this._desiredStateHash = WebRenderer.arrayBufferToBase64(sha256.hash(encoder.encode(svgDoc))) +
+      const svgHash = WebRenderer.arrayBufferToBase64(sha256.hash(encoder.encode(svgDoc))) +
         '?w=' + fullWidth +
         ';h=' + fullHeight + 
         ';tw=' + textureWidth +
@@ -307,6 +304,7 @@ export class WebLayer {
       data.fullHeight = fullHeight
       data.textureWidth = textureWidth
       data.textureHeight = textureHeight
+      data.pixelRatio = pixelRatio
       // console.log(metrics.bounds)
 
       // if we've already processed this exact layer state several times, we should 
@@ -334,7 +332,10 @@ export class WebLayer {
       this.svgImage.onerror = (error) => {
         reject(error)
       }
-      this._rasterizingStateHash = this._desiredStateHash
+      const svgHash = this._rasterizingStateHash = this._currentStateHash
+      const stateData = WebLayer.CACHE.getLayerStateData(svgHash)
+      this.svgImage.width = stateData.textureWidth
+      this.svgImage.height = stateData.textureHeight
       this.svgImage.src = (this._svgSrc = 'data:image/svg+xml;utf8,' + encodeURIComponent(this._svgDocument))
     })
   }
@@ -350,15 +351,25 @@ export class WebLayer {
 
     const svgHash = this._rasterizingStateHash
     const stateData = WebLayer.CACHE.getLayerStateData(svgHash)
-    const {fullWidth, fullHeight, textureWidth, textureHeight} = stateData
+    const {fullWidth, fullHeight, textureWidth, textureHeight, pixelRatio} = stateData
+
+    const sourceWidth = Math.floor(fullWidth*pixelRatio)
+    const sourceHeight = Math.floor(fullHeight*pixelRatio)
 
     const hashingCanvas = this._hashingCanvas
     let hw = hashingCanvas.width
     let hh = hashingCanvas.height
+
+    // this non-blocking api would be nice, but causes chrome to taint the canvas...
+    // const hashImageBitmap = await createImageBitmap(this.svgImage, 0,0, textureWidth, textureHeight, {
+    //   resizeWidth: hw,
+    //   resizeHeight: hh,
+    //   resizeQuality: 'low'
+    // })    
     const hctx = hashingCanvas.getContext('2d')!
     hctx.clearRect(0, 0, hw, hh)
     hctx.imageSmoothingEnabled = false
-    hctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, hw, hh)
+    hctx.drawImage(this.svgImage, 0, 0, sourceWidth, sourceHeight, 0, 0, hw, hh)
     const hashData = hctx.getImageData(0, 0, hw, hh).data
 
     const textureHash =
@@ -382,12 +393,16 @@ export class WebLayer {
 
     const textureData = await WebLayer.CACHE.requestTextureData(textureHash)
 
-    if (previousCanvasHash === textureHash && 
-        textureData?.texture && 
-        textureData.renderAttempts > WebLayer.MINIMUM_RENDER_ATTEMPTS) return
+    if (textureData?.texture && textureData.renderAttempts > 2) return
 
-    if (this.svgImage.currentSrc !== svgSrc) return
+    if (!this.svgImage.complete || this.svgImage.currentSrc !== svgSrc) return
  
+    // this non-blocking api would be nice, but causes chrome to taint the canvas...
+    // const imageBitmap = await createImageBitmap(this.svgImage, 0,0, sourceWidth, sourceHeight, {
+    //   resizeWidth: textureWidth,
+    //   resizeHeight: textureHeight,
+    //   resizeQuality: 'high'
+    // })    
     
     const canvas = WebLayer.canvasPool.pop() || document.createElement('canvas')
     canvas.width = textureWidth
@@ -396,7 +411,7 @@ export class WebLayer {
     const ctx = canvas.getContext('2d')!
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, textureWidth, textureHeight)
-    ctx.drawImage(this.svgImage, 0, 0, fullWidth, fullHeight, 0, 0, textureWidth, textureHeight)
+    ctx.drawImage(this.svgImage, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight)
     const imageData = ctx.getImageData(0,0, textureWidth, textureHeight)
 
     WebLayer.CACHE.updateTexture(textureHash, imageData).then(() => {
@@ -405,7 +420,7 @@ export class WebLayer {
   }
 
   // Get all parents of the embeded html as these can effect the resulting styles
-  private _getParentsHTML(element: Element) {
+  private _getParentsHTML(element: Element, fullWidth:number, fullHeight:number, pixelRatio:number) {
     const opens = []
     const closes = []
     const metrics = this._domMetrics
@@ -424,9 +439,8 @@ export class WebLayer {
         '<' +
         tag +
         (tag === 'html'
-          ? ` xmlns="http://www.w3.org/1999/xhtml" style="--x-width:${
-              metrics.bounds.width}px;--x-height:${metrics.bounds.height}px;--x-inline-top:${
-              metrics.border.top + metrics.margin.top + metrics.padding.top}px; ${style}" `
+          ? ` ${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}="" xmlns="http://www.w3.org/1999/xhtml"
+             style="${getPixelRatioStyling(pixelRatio)} --x-width:${metrics.bounds.width}px; --x-height:${metrics.bounds.height}px; --x-inline-top:${metrics.border.top + metrics.margin.top + metrics.padding.top}px; ${style} width:${fullWidth}px; height:${fullHeight}px;" `
           : ` style="${style}" ${WebRenderer.RENDERING_PARENT_ATTRIBUTE}="" `) +
         attributes +
         ' >'
@@ -438,3 +452,28 @@ export class WebLayer {
     return [opens.join(''), closes.join('')]
   }
 }
+
+/**
+ * Get cross-compatible rasterization styles for scaling up web content
+ * 
+ * When rasterising an image w/ SVG data url into a Canvas;
+ * Chrome scales the SVG web content before rasterizing (pretty)
+ * Safari scales the SVG web content *after* rasterizing (not pretty)
+ * Same result if using `transform: scale(x)` inside the SVG web content
+ * 
+ * Solution: use `zoom:x` instead of `transform: scale(x)`, 
+ * as this allows Safari and Chrome to correctly scale up the web content before rasterizing it.
+ * 
+ * BUT: Firefox does not support zoom style :(
+ * Thankfully, Firefox rasterizes properly with `transform: scale(x)`
+ * 
+ * Since Safari is the odd one out, we'll test for that. 
+ * 
+ */
+function getPixelRatioStyling(pixelRatio:number) {
+  const isSafari = isSafariRegex.test(navigator.userAgent)
+  if (isSafari) return `zoom:${pixelRatio}; `
+  return `transform: scale(${pixelRatio}); transform-origin: top left; `
+}
+
+const isSafariRegex = /^((?!chrome|android).)*safari/i
