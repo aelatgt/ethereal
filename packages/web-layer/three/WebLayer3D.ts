@@ -2,7 +2,7 @@ import { ClampToEdgeWrapping, CompressedTexture, DoubleSide, LinearFilter, Matri
 import { WebLayer } from "../core/WebLayer";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
-import { WebContainer3DOptions } from "./WebContainer3D";
+import { WebContainer3D } from "./WebContainer3D";
 
 export const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE')
 
@@ -39,7 +39,7 @@ export class WebLayer3D extends Object3D {
 
   private _camera?:THREE.PerspectiveCamera
 
-  constructor(public element: Element, public options: WebContainer3DOptions) {
+  constructor(public element: Element, public container: WebContainer3D) {
     super()
     this.name = element.id
     this._webLayer = WebRenderer.getClosestLayer(element)!
@@ -55,7 +55,8 @@ export class WebLayer3D extends Object3D {
         depthWrite: false,
         transparent: true,
         alphaTest: 0.001,
-        opacity: 1
+        opacity: 1,
+        toneMapped: false
       })
     )
     this._boundsMesh = new Mesh(
@@ -80,8 +81,8 @@ export class WebLayer3D extends Object3D {
 
     this._boundsMesh.matrixAutoUpdate = true
 
-    this.options.manager.layersByElement.set(this.element, this)
-    this.options.manager.layersByMesh.set(this.contentMesh, this)
+    this.container.options.manager.layersByElement.set(this.element, this)
+    this.container.options.manager.layersByMesh.set(this.contentMesh, this)
   }
 
   protected _webLayer : WebLayer
@@ -94,8 +95,14 @@ export class WebLayer3D extends Object3D {
 
   textures = new Set<CompressedTexture>()
 
-  get currentTexture() {
-    const manager = this.options.manager
+  private _previousTexture?:VideoTexture|CompressedTexture
+
+  get domState() {
+    return this._webLayer.currentDOMState
+  }
+
+  get texture() {
+    const manager = this.container.manager
 
     if (this._webLayer.element.tagName === 'VIDEO') {
       const video = this._webLayer.element as HTMLVideoElement
@@ -111,7 +118,7 @@ export class WebLayer3D extends Object3D {
       return t
     }
 
-    const textureUrl = this._webLayer.textureUrl 
+    const textureUrl = this._webLayer.currentDOMState?.texture.url
 
     let t = textureUrl ? manager.getTexture(textureUrl, this) : undefined
     if (t) this.textures.add(t)
@@ -142,10 +149,17 @@ export class WebLayer3D extends Object3D {
   domSize = new Vector3(1,1,1)
 
   /**
+   * The desired pseudo state (changing this will set needsRefresh to true)
+   */
+  get desiredPseudoStates() {
+    return this._webLayer.desiredPseudoState
+  }
+
+  /**
    * Get the hover state
    */
   get pseudoStates() {
-    return this._webLayer.pseudoStates
+    return this._webLayer.currentDOMState?.pseudo
   }
 
   /**
@@ -166,8 +180,8 @@ export class WebLayer3D extends Object3D {
     return this._webLayer.needsRefresh
   }
 
-  setNeedsRefresh() {
-    this._webLayer.traverseLayers(WebRenderer.setLayerNeedsRefresh)
+  setNeedsRefresh(recurse=true) {
+    this._webLayer.setNeedsRefresh(recurse)
   }
 
   /** If true, this layer needs to be removed from the scene */
@@ -175,13 +189,13 @@ export class WebLayer3D extends Object3D {
     return this._webLayer.needsRemoval
   }
 
-  bounds = new Bounds
-  margin = new Edges
+  bounds = new Bounds()
+  margin = new Edges()
 
   get parentWebLayer(): WebLayer3D | undefined {
     return (
       this._webLayer.parentLayer &&
-      this.options.manager.layersByElement.get(this._webLayer.parentLayer.element)
+      this.container.manager.layersByElement.get(this._webLayer.parentLayer.element)
     )
   }
 
@@ -205,17 +219,16 @@ export class WebLayer3D extends Object3D {
   /**
    * Refresh from DOM (potentially slow, call only when needed)
    */
-  public refresh(recurse=false) {
-    this._webLayer.refresh()
+  public refresh(recurse=false, serializeSync=false) {
+    this._webLayer.refresh(serializeSync)
     this.childWebLayers.length = 0
     for (const c of this._webLayer.childLayers) {
-      const child = this.options.manager.layersByElement
+      const child = this.container.manager.layersByElement
         .get(WebRenderer.getClosestLayer(c.element)?.element!)
       if (!child) continue
       this.childWebLayers.push(child)
-      if (recurse) child.refresh(recurse)
+      if (recurse) child.refresh(recurse, serializeSync)
     }
-    this._refreshVideoBounds()
   }
 
   private updateLayout() {
@@ -237,7 +250,7 @@ export class WebLayer3D extends Object3D {
         this._renderZ = this._viewZ
       }
   
-      this.contentMesh.renderOrder = (this.options.renderOrderOffset || 0) + 
+      this.contentMesh.renderOrder = (this.container.options.renderOrderOffset || 0) + 
         (1 - Math.log(this._renderZ + 1) / Math.log(this._camera.far + 1))+
         (this.depth + this.index * 0.001)*0.0000001
   
@@ -246,7 +259,7 @@ export class WebLayer3D extends Object3D {
 
   private updateContent() {
     const mesh = this.contentMesh
-    const texture = this.currentTexture
+    const texture = this.texture
     const material = mesh.material as THREE.MeshBasicMaterial
     if (texture && material.map !== texture) {
       const contentScale = this.contentMesh.scale
@@ -271,10 +284,7 @@ export class WebLayer3D extends Object3D {
       if (this.parent) this.parent.remove(this)
       this.dispose()
     }
-  }
-
-  get container() {
-    return this.options.manager.layersByElement.get(this._webLayer.rootLayer.element)!
+    this._refreshVideoBounds()
   }
 
   /** INTERNAL */
@@ -283,7 +293,6 @@ export class WebLayer3D extends Object3D {
   protected _doUpdate() {
     this[ON_BEFORE_UPDATE]()
 
-    this._webLayer.update()
     // content must update before layout
     this.updateContent()
     this.updateLayout()
@@ -301,9 +310,17 @@ export class WebLayer3D extends Object3D {
     this._boundsMesh.scale.copy(this.domSize)
     this._boundsMesh.quaternion.set(0,0,0,1)
 
-    if (this.needsRefresh && this.options.autoRefresh !== false) 
+    if (this.needsRefresh && this.container.options.autoRefresh !== false) 
       this.refresh()
-    WebRenderer.scheduleTasksIfNeeded()
+
+    if (this._previousTexture !== this.texture) {
+      if (this.texture) this.container.manager.renderer.initTexture(this.texture)
+      this._previousTexture = this.texture
+      this.container.options.onLayerPaint?.(this)
+    }
+
+    this._webLayer.update()
+    this.container.manager.scheduleTasksIfNeeded()
   }
 
   update(recurse=false) {
@@ -315,7 +332,7 @@ export class WebLayer3D extends Object3D {
     const element = this.element.querySelector(selector) || 
                     this.element.shadowRoot?.querySelector(selector)
     if (element) {
-      return this.options.manager.layersByElement.get(element)
+      return this.container.manager.layersByElement.get(element)
     }
     return undefined
   }
@@ -351,17 +368,21 @@ export class WebLayer3D extends Object3D {
 
   dispose() {
     WebRenderer.disposeLayer(this._webLayer)
-    this.options.manager.disposeLayer(this)
+    this.container.manager.disposeLayer(this)
     for (const child of this.childWebLayers) child.dispose()
   }
 
   private _refreshVideoBounds() {
     if (this.element.nodeName === 'VIDEO') {
+
+      const domState = this.domState
+      if (!domState) return
+
       const video = this.element as HTMLVideoElement
-      const texture = this.currentTexture!
+      const texture = this.texture!
       const computedStyle = getComputedStyle(this.element)
       const { objectFit } = computedStyle
-      const { width: viewWidth, height: viewHeight } = this.bounds.copy(this._webLayer.bounds)
+      const { width: viewWidth, height: viewHeight } = this.bounds.copy(domState.bounds)
       const { videoWidth, videoHeight } = video
       const videoRatio = videoWidth / videoHeight
       const viewRatio = viewWidth / viewHeight
@@ -400,6 +421,7 @@ export class WebLayer3D extends Object3D {
           texture.repeat.set(1, 1)
           break
       }
+      domState.bounds.copy(this.bounds)
     }
   }
 
@@ -409,23 +431,24 @@ export class WebLayer3D extends Object3D {
       return
     }
 
-    const {bounds: currentBounds, margin: currentMargin} = this._webLayer
+    const currentState = this._webLayer.currentDOMState
 
-    if (!currentBounds || !currentMargin) return
+    if (!currentState) return
+
+    const {bounds: currentBounds, margin: currentMargin} = currentState
 
     this.domLayout.position.set(0,0,0)
     this.domLayout.scale.set(1, 1, 1)
     this.domLayout.quaternion.set(0, 0, 0, 1)
 
-    const isVideo = this.element.nodeName === 'VIDEO'
-    const bounds = isVideo ? this.bounds : this.bounds.copy(currentBounds)
-    const margin = isVideo ? this.margin : this.margin.copy(currentMargin)
+    const bounds = this.bounds.copy(currentBounds)
+    const margin = this.margin.copy(currentMargin)
 
     const fullWidth = bounds.width + margin.left + margin.right
     const fullHeight = bounds.height + margin.top + margin.bottom
     const width = bounds.width
     const height = bounds.height
-    const pixelSize = 1 / this.options.manager.pixelsPerUnit
+    const pixelSize = 1 / this.container.manager.pixelsPerUnit
 
     this.domSize.set(
       Math.max(pixelSize * (width + margin.left + margin.right), 10e-6),

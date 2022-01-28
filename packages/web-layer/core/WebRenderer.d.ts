@@ -1,6 +1,8 @@
 import { EventCallback, WebLayer } from './WebLayer';
 import { Matrix4 } from 'three/src/math/Matrix4';
+import { WebLayerManagerBase } from './WebLayerManagerBase';
 export interface WebLayerOptions {
+    manager: WebLayerManagerBase;
     /**
      * Inject and apply only these stylesheets.
      * This only has an effect when passing a detached DOM element
@@ -31,32 +33,19 @@ export declare class WebRenderer {
     private static _nextUID;
     static generateElementUID(): string;
     static serializer: XMLSerializer;
+    static getPsuedoAttributes(states: typeof WebLayer.prototype.desiredPseudoState): string;
     static rootLayers: Map<Element, WebLayer>;
     static layers: Map<Element, WebLayer>;
-    private static mutationObservers;
-    private static resizeObservers;
-    static serializeQueue: WebLayer[];
-    static rasterizeQueue: WebLayer[];
-    static renderQueue: WebLayer[];
     static readonly focusElement: HTMLElement | null;
     static readonly activeElement: Element | null;
     static readonly targetElement: Element | null;
-    static getPsuedoAttributes(states: typeof WebLayer.prototype.pseudoStates): string;
+    private static mutationObservers;
+    private static resizeObservers;
     static rootNodeObservers: Map<Document | ShadowRoot, MutationObserver>;
-    static containerStyleElement: HTMLStyleElement;
+    private static containerStyleElement;
     static initRootNodeObservation(element: Element): void;
-    static addToSerializeQueue(layer: WebLayer): void;
-    static addToRasterizeQueue(layer: WebLayer): void;
-    static addToRenderQueue(layer: WebLayer): void;
-    static TASK_ASYNC_MAX_COUNT: number;
-    static TASK_SYNC_MAX_TIME: number;
-    static rasterizeTaskCount: number;
-    private static _runTasks;
-    static tasksPending: boolean;
-    static scheduleTasksIfNeeded(): void;
-    static scheduleIdle(cb: (deadline?: RequestIdleCallbackDeadline) => any): void;
     static setLayerNeedsRefresh(layer: WebLayer): void;
-    static createLayerTree(element: Element, hostingOptions: WebLayerOptions, eventCallback: EventCallback): WebLayer;
+    static createLayerTree(element: Element, options: WebLayerOptions, eventCallback: EventCallback): WebLayer;
     static disposeLayer(layer: WebLayer): void;
     static getClosestLayer(element: Element, inclusive?: boolean): WebLayer | undefined;
     static parseCSSTransform(computedStyle: CSSStyleDeclaration, width: number, height: number, pixelSize: number, out?: Matrix4): Matrix4 | null;
@@ -65,7 +54,6 @@ export declare class WebRenderer {
     private static startMutationObserver;
     private static _handleMutations;
     private static _triggerRefresh;
-    private static _addDynamicPseudoClassRules;
     static arrayBufferToBase64(bytes: Uint8Array): string;
     static attributeCSS(name: string, value?: string): string;
     static attributeHTML(name: string, value?: string): string;

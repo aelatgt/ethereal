@@ -22,6 +22,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     autoRefresh?: boolean
     onLayerCreate?(layer: WebLayer3D): void
     onLayerPaint?(layer: WebLayer3D): void
+    // onLayerDOMChange?(layer: WebLayer3D): void
     renderOrderOffset?: number
   }
 
@@ -79,19 +80,15 @@ export interface WebContainer3DOptions extends WebLayerOptions {
   
       const element = typeof elementOrHTML === 'string' ? toDOM(elementOrHTML) : elementOrHTML
   
-      WebRenderer.createLayerTree(element, options, (event, { target }) => {
+      WebRenderer.createLayerTree(element, options as WebContainer3DOptions, (event, { target }) => {
         if (event === 'layercreated') {
-          const layer = new WebLayer3D(target, this.options)
+          const layer = (target as any).layer || new WebLayer3D(target, this)
           if (target === element) {
             layer[ON_BEFORE_UPDATE] = () => this._updateInteractions()
             this.rootLayer = layer
             this.add(layer)
           } else layer.parentWebLayer?.add(layer)
           this.options.onLayerCreate?.(layer)
-        } else if (event === 'layerpainted') {
-          const layer = WebRenderer.layers.get(target)!
-          const layer3D = this.options.manager.layersByElement.get(layer.element)!
-          this.options.onLayerPaint?.(layer3D)
         } else if (event === 'layermoved') {
           const layer = this.options.manager.layersByElement.get(target)!
           layer.parentWebLayer?.add(layer)
@@ -100,6 +97,10 @@ export interface WebContainer3DOptions extends WebLayerOptions {
   
       this.refresh()
       this.update()
+    }
+
+    get manager() {
+        return this.options.manager
     }
   
     /**
@@ -111,6 +112,34 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     }
     set interactionRays(rays: Array<THREE.Ray | THREE.Object3D>) {
       this._interactionRays = rays
+    }
+
+    /**
+     * Update all layers until they are rasterized and textures have been uploaded to the GPU
+     */
+    updateUntilReady() {
+        const layersRemaining = new Set<WebLayer3D>()
+
+        this.rootLayer.refresh(true, true)
+        this.rootLayer.traverseLayersPreOrder((layer) => {
+            const domState = layer.domState!
+            if (domState.fullWidth * domState.fullHeight > 0) {
+                layersRemaining.add(layer)
+            }
+        })
+
+        return new Promise((resolve)=> {
+            const intervalHandle = setInterval(() => {
+                this.update()
+                for (const layer of layersRemaining) {
+                    if (layer.texture) layersRemaining.delete(layer)
+                }
+                if (layersRemaining.size === 0) {
+                    clearInterval(intervalHandle)
+                    resolve(undefined)
+                }
+            }, 20)
+        })
     }
   
     /**
@@ -148,9 +177,9 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     private _contentMeshes = [] as THREE.Mesh[]
   
     private _prepareHitTest = (layer:WebLayer3D) => {
-      if (layer.pseudoStates.hover) this._previousHoverLayers.add(layer)
+      if (layer.desiredPseudoStates.hover) this._previousHoverLayers.add(layer)
       layer.cursor.visible = false
-      layer.pseudoStates.hover = false
+      layer.desiredPseudoStates.hover = false
       this._contentMeshes.push(layer.contentMesh)
     }
   
@@ -195,7 +224,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
           const layer = intersection.object.parent as WebLayer3D
           layer.cursor.position.copy(intersection.point)
           layer.cursor.visible = true
-          layer.pseudoStates.hover = true
+          layer.desiredPseudoStates.hover = true
           if (!prevHover.has(layer)) {
             layer.setNeedsRefresh()
           }
@@ -203,7 +232,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
       }
   
       for (const layer of prevHover) {
-        if (!layer.pseudoStates.hover) {
+        if (!layer.desiredPseudoStates.hover) {
           layer.setNeedsRefresh()
         }
       }

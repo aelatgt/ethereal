@@ -1,23 +1,25 @@
 import { CompressedTexture, Mesh, MeshDepthMaterial, Object3D, PlaneGeometry, Vector3, VideoTexture } from "three";
 import { WebLayer } from "../core/WebLayer";
 import { Bounds, Edges } from "../core/dom-utils";
-import { WebContainer3DOptions } from "./WebContainer3D";
+import { WebContainer3D } from "./WebContainer3D";
 export declare const ON_BEFORE_UPDATE: unique symbol;
 export declare class WebLayer3D extends Object3D {
     element: Element;
-    options: WebContainer3DOptions;
+    container: WebContainer3D;
     static GEOMETRY: PlaneGeometry;
     static FLIPPED_GEOMETRY: PlaneGeometry;
     static shouldApplyDOMLayout(layer: WebLayer3D): boolean;
     private _camera?;
-    constructor(element: Element, options: WebContainer3DOptions);
+    constructor(element: Element, container: WebContainer3D);
     protected _webLayer: WebLayer;
     private _localZ;
     private _viewZ;
     private _renderZ;
     private _videoTexture?;
     textures: Set<CompressedTexture>;
-    get currentTexture(): VideoTexture | CompressedTexture | undefined;
+    private _previousTexture?;
+    get domState(): import("../core/WebLayerManagerBase").LayerState | undefined;
+    get texture(): VideoTexture | CompressedTexture | undefined;
     contentMesh: Mesh;
     /**
      * This non-visible mesh ensures that an adapted layer retains
@@ -33,6 +35,15 @@ export declare class WebLayer3D extends Object3D {
     domLayout: Object3D<import("three").Event>;
     domSize: Vector3;
     /**
+     * The desired pseudo state (changing this will set needsRefresh to true)
+     */
+    get desiredPseudoStates(): {
+        hover: boolean;
+        active: boolean;
+        focus: boolean;
+        target: boolean;
+    };
+    /**
      * Get the hover state
      */
     get pseudoStates(): {
@@ -40,7 +51,7 @@ export declare class WebLayer3D extends Object3D {
         active: boolean;
         focus: boolean;
         target: boolean;
-    };
+    } | undefined;
     /**
      * Get the layer depth (distance from this layer's element and the parent layer's element)
      */
@@ -50,7 +61,7 @@ export declare class WebLayer3D extends Object3D {
      */
     get index(): number;
     get needsRefresh(): boolean;
-    setNeedsRefresh(): void;
+    setNeedsRefresh(recurse?: boolean): void;
     /** If true, this layer needs to be removed from the scene */
     get needsRemoval(): boolean;
     bounds: Bounds;
@@ -74,10 +85,9 @@ export declare class WebLayer3D extends Object3D {
     /**
      * Refresh from DOM (potentially slow, call only when needed)
      */
-    refresh(recurse?: boolean): void;
+    refresh(recurse?: boolean, serializeSync?: boolean): void;
     private updateLayout;
     private updateContent;
-    get container(): WebLayer3D;
     /** INTERNAL */
     private [ON_BEFORE_UPDATE];
     protected _doUpdate(): void;

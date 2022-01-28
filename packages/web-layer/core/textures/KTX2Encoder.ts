@@ -8,7 +8,7 @@ const workerURL = URL.createObjectURL(workerBlob)
 export type EncodeResponse = {texture:ArrayBuffer, error?:string}
 
 export class KTX2Encoder {
-	pool = new WorkerPool
+	pool = new WorkerPool(2)
 
 	constructor() {
 		this.pool.setWorkerCreator(() => new Worker(workerURL))

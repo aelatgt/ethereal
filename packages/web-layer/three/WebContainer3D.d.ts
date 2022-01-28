@@ -41,12 +41,17 @@ export declare class WebContainer3D extends Object3D {
     private _raycaster;
     private _hitIntersections;
     constructor(elementOrHTML: Element | string, options?: Partial<WebContainer3DOptions>);
+    get manager(): WebLayerManager;
     /**
      * A list of Rays to be used for interaction.
      * Can only be set on a root WebLayer3D instance.
      */
     get interactionRays(): Array<THREE.Ray | THREE.Object3D>;
     set interactionRays(rays: Array<THREE.Ray | THREE.Object3D>);
+    /**
+     * Update all layers until they are rasterized and textures have been uploaded to the GPU
+     */
+    updateUntilReady(): Promise<unknown>;
     /**
      * Update all layers, recursively
      */

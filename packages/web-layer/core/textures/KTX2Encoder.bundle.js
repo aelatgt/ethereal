@@ -68,7 +68,7 @@ var WorkerPool = class {
 var workerBlob = new Blob([KTX2Worker_bundle_default], { type: "text/javascript" });
 var workerURL = URL.createObjectURL(workerBlob);
 var KTX2Encoder = class {
-  pool = new WorkerPool();
+  pool = new WorkerPool(2);
   constructor() {
     this.pool.setWorkerCreator(() => new Worker(workerURL));
   }

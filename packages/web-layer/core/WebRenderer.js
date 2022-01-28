@@ -18,8 +18,6 @@ function ensureElementIsInDocument(element, options) {
 }
 const scratchMat1 = new Matrix4();
 const scratchMat2 = new Matrix4();
-const textDecoder = new TextDecoder();
-const microtask = Promise.resolve();
 export class WebRenderer {
     static ATTRIBUTE_PREFIX = 'xr';
     static get ELEMENT_UID_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-uid'; }
@@ -37,17 +35,6 @@ export class WebRenderer {
     static _nextUID = 0;
     static generateElementUID() { return '' + (this._nextUID++); }
     static serializer = new XMLSerializer();
-    static rootLayers = new Map();
-    static layers = new Map();
-    static mutationObservers = new Map();
-    static resizeObservers = new Map();
-    static serializeQueue = [];
-    static rasterizeQueue = [];
-    static renderQueue = [];
-    // static readonly virtualHoverElements = new Set<Element>()
-    static focusElement = null; // i.e., element is ready to receive input
-    static activeElement = null; // i.e., button element is being "pressed down"
-    static targetElement = null; // i.e., the element whose ID matches the url #hash
     // static containsHover(element: Element) {
     //   for (const t of this.virtualHoverElements) {
     //     if (element.contains(t)) return true
@@ -60,6 +47,14 @@ export class WebRenderer {
             `${states.active ? `${this.ACTIVE_ATTRIBUTE}="" ` : ' '}` +
             `${states.target ? `${this.TARGET_ATTRIBUTE}="" ` : ' '}`);
     }
+    static rootLayers = new Map();
+    static layers = new Map();
+    static focusElement = null; // i.e., element is ready to receive input
+    static activeElement = null; // i.e., button element is being "pressed down"
+    static targetElement = null; // i.e., the element whose ID matches the url #hash
+    static mutationObservers = new Map();
+    static resizeObservers = new Map();
+    // static readonly virtualHoverElements = new Set<Element>()
     static rootNodeObservers = new Map();
     static containerStyleElement;
     static initRootNodeObservation(element) {
@@ -68,17 +63,19 @@ export class WebRenderer {
         const styleRoot = 'head' in rootNode ? rootNode.head : rootNode;
         if (this.rootNodeObservers.get(rootNode))
             return;
-        const containerStyle = this.containerStyleElement = document.createElement('style');
-        document.head.appendChild(containerStyle);
-        containerStyle.innerHTML = `
-      [${WebRenderer.RENDERING_CONTAINER_ATTRIBUTE}] {
-        all: initial;
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        top: 0px;
-      }
-    `;
+        if (!this.containerStyleElement) {
+            const containerStyle = this.containerStyleElement = document.createElement('style');
+            document.head.appendChild(containerStyle);
+            containerStyle.innerHTML = `
+        [${WebRenderer.RENDERING_CONTAINER_ATTRIBUTE}] {
+          all: initial;
+          position: fixed;
+          width: 100%;
+          height: 100%;
+          top: 0px;
+        }
+      `;
+        }
         const renderingStyles = `
     [${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] * {
       transform: none !important;
@@ -191,71 +188,13 @@ export class WebRenderer {
         });
         this.rootNodeObservers.set(rootNode, observer);
     }
-    static addToSerializeQueue(layer) {
-        if (this.serializeQueue.indexOf(layer) === -1)
-            this.serializeQueue.push(layer);
-    }
-    static addToRasterizeQueue(layer) {
-        if (this.rasterizeQueue.indexOf(layer) === -1)
-            this.rasterizeQueue.push(layer);
-    }
-    static addToRenderQueue(layer) {
-        if (this.renderQueue.indexOf(layer) === -1)
-            this.renderQueue.push(layer);
-    }
-    static TASK_ASYNC_MAX_COUNT = 2; // since rasterization is async, limit simultaneous rasterizations
-    static TASK_SYNC_MAX_TIME = 200;
-    static rasterizeTaskCount = 0;
-    static _runTasks() {
-        WebRenderer.tasksPending = false;
-        const serializeQueue = WebRenderer.serializeQueue;
-        const rasterizeQueue = WebRenderer.rasterizeQueue;
-        const renderQueue = WebRenderer.renderQueue;
-        const maxSyncTime = WebRenderer.TASK_SYNC_MAX_TIME / 2;
-        let startTime = performance.now();
-        while (renderQueue.length && performance.now() - startTime < maxSyncTime) {
-            renderQueue.shift().render();
-        }
-        startTime = performance.now();
-        while (serializeQueue.length && performance.now() - startTime < maxSyncTime) {
-            serializeQueue.shift().serialize();
-        }
-        if (rasterizeQueue.length &&
-            WebRenderer.rasterizeTaskCount < WebRenderer.TASK_ASYNC_MAX_COUNT) {
-            WebRenderer.rasterizeTaskCount++;
-            rasterizeQueue
-                .shift()
-                .rasterize()
-                .finally(() => {
-                WebRenderer.rasterizeTaskCount--;
-            });
-        }
-    }
-    static tasksPending = false;
-    static scheduleTasksIfNeeded() {
-        if (this.tasksPending ||
-            (WebRenderer.serializeQueue.length === 0 &&
-                WebRenderer.renderQueue.length === 0 &&
-                (WebRenderer.rasterizeQueue.length === 0 ||
-                    WebRenderer.rasterizeTaskCount === WebRenderer.TASK_ASYNC_MAX_COUNT)))
-            return;
-        this.tasksPending = true;
-        WebRenderer.scheduleIdle(WebRenderer._runTasks);
-    }
-    static scheduleIdle(cb) {
-        // if ("requestIdleCallback" in self) {
-        //   requestIdleCallback(cb)
-        // } else {
-        setTimeout(cb, 1);
-        // }
-    }
     static setLayerNeedsRefresh(layer) {
         layer.needsRefresh = true;
     }
-    static createLayerTree(element, hostingOptions, eventCallback) {
+    static createLayerTree(element, options, eventCallback) {
         if (WebRenderer.getClosestLayer(element))
             throw new Error('A root WebLayer for the given element already exists');
-        ensureElementIsInDocument(element, hostingOptions);
+        ensureElementIsInDocument(element, options);
         WebRenderer.initRootNodeObservation(element);
         const observer = new MutationObserver(WebRenderer._handleMutations);
         this.mutationObservers.set(element, observer);
@@ -276,7 +215,7 @@ export class WebRenderer {
         element.addEventListener('focus', this._triggerRefresh, { capture: true });
         element.addEventListener('blur', this._triggerRefresh, { capture: true });
         element.addEventListener('transitionend', this._triggerRefresh, { capture: true });
-        const layer = new WebLayer(element, eventCallback);
+        const layer = new WebLayer(options.manager, element, eventCallback);
         this.rootLayers.set(element, layer);
         return layer;
     }
@@ -429,40 +368,42 @@ export class WebRenderer {
                 : layer.traverseLayers(WebRenderer.setLayerNeedsRefresh);
         }
     };
-    static _addDynamicPseudoClassRules(doc) {
-        const sheets = doc.styleSheets;
-        for (let i = 0; i < sheets.length; i++) {
-            try {
-                const sheet = sheets[i];
-                const rules = sheet.cssRules;
-                if (!rules)
-                    continue;
-                const newRules = [];
-                for (var j = 0; j < rules.length; j++) {
-                    if (rules[j].cssText.indexOf(':hover') > -1) {
-                        newRules.push(rules[j].cssText.replace(new RegExp(':hover', 'g'), `[${WebRenderer.HOVER_ATTRIBUTE}]`));
-                    }
-                    if (rules[j].cssText.indexOf(':active') > -1) {
-                        newRules.push(rules[j].cssText.replace(new RegExp(':active', 'g'), `[${WebRenderer.ACTIVE_ATTRIBUTE}]`));
-                    }
-                    if (rules[j].cssText.indexOf(':focus') > -1) {
-                        newRules.push(rules[j].cssText.replace(new RegExp(':focus', 'g'), `[${WebRenderer.FOCUS_ATTRIBUTE}]`));
-                    }
-                    if (rules[j].cssText.indexOf(':target') > -1) {
-                        newRules.push(rules[j].cssText.replace(new RegExp(':target', 'g'), `[${WebRenderer.TARGET_ATTRIBUTE}]`));
-                    }
-                    var idx = newRules.indexOf(rules[j].cssText);
-                    if (idx > -1) {
-                        newRules.splice(idx, 1);
-                    }
-                }
-                for (var j = 0; j < newRules.length; j++) {
-                    sheet.insertRule(newRules[j]);
-                }
-            }
-            catch (e) { }
-        }
-    }
+    // private static _addDynamicPseudoClassRules(doc:Document|ShadowRoot) {
+    //   const sheets = doc.styleSheets
+    //   for (let i = 0; i < sheets.length; i++) {
+    //     try {
+    //       const sheet = sheets[i] as CSSStyleSheet
+    //       const rules = sheet.cssRules
+    //       if (!rules) continue
+    //       const newRules = []
+    //       for (var j = 0; j < rules.length; j++) {
+    //         if (rules[j].cssText.indexOf(':hover') > -1) {
+    //           newRules.push(rules[j].cssText.replace(new RegExp(':hover', 'g'), `[${WebRenderer.HOVER_ATTRIBUTE}]`))
+    //         }
+    //         if (rules[j].cssText.indexOf(':active') > -1) {
+    //           newRules.push(
+    //             rules[j].cssText.replace(new RegExp(':active', 'g'), `[${WebRenderer.ACTIVE_ATTRIBUTE}]`)
+    //           )
+    //         }
+    //         if (rules[j].cssText.indexOf(':focus') > -1) {
+    //           newRules.push(rules[j].cssText.replace(new RegExp(':focus', 'g'), `[${WebRenderer.FOCUS_ATTRIBUTE}]`))
+    //         }
+    //         if (rules[j].cssText.indexOf(':target') > -1) {
+    //           newRules.push(
+    //             rules[j].cssText.replace(new RegExp(':target', 'g'), `[${WebRenderer.TARGET_ATTRIBUTE}]`)
+    //           )
+    //         }
+    //         var idx = newRules.indexOf(rules[j].cssText)
+    //         if (idx > -1) {
+    //           newRules.splice(idx, 1)
+    //         }
+    //       }
+    //       for (var j = 0; j < newRules.length; j++) {
+    //         sheet.insertRule(newRules[j])
+    //       }
+    //     } catch (e) {}
+    //   }
+    // }
     static arrayBufferToBase64(bytes) {
         var binary = '';
         var len = bytes.byteLength;

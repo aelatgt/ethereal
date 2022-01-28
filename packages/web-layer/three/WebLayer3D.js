@@ -14,7 +14,7 @@ function flipY(geometry) {
 }
 export class WebLayer3D extends Object3D {
     element;
-    options;
+    container;
     static GEOMETRY = flipY(new PlaneGeometry(1, 1, 2, 2));
     static FLIPPED_GEOMETRY = flipY(new PlaneGeometry(1, 1, 2, 2));
     static shouldApplyDOMLayout(layer) {
@@ -28,10 +28,10 @@ export class WebLayer3D extends Object3D {
         return false;
     }
     _camera;
-    constructor(element, options) {
+    constructor(element, container) {
         super();
         this.element = element;
-        this.options = options;
+        this.container = container;
         this.name = element.id;
         this._webLayer = WebRenderer.getClosestLayer(element);
         element.layer = this;
@@ -42,7 +42,8 @@ export class WebLayer3D extends Object3D {
             depthWrite: false,
             transparent: true,
             alphaTest: 0.001,
-            opacity: 1
+            opacity: 1,
+            toneMapped: false
         }));
         this._boundsMesh = new Mesh(geometry, new MeshBasicMaterial({
             visible: false
@@ -58,8 +59,8 @@ export class WebLayer3D extends Object3D {
             this._camera = camera;
         };
         this._boundsMesh.matrixAutoUpdate = true;
-        this.options.manager.layersByElement.set(this.element, this);
-        this.options.manager.layersByMesh.set(this.contentMesh, this);
+        this.container.options.manager.layersByElement.set(this.element, this);
+        this.container.options.manager.layersByMesh.set(this.contentMesh, this);
     }
     _webLayer;
     _localZ = 0;
@@ -67,8 +68,12 @@ export class WebLayer3D extends Object3D {
     _renderZ = 0;
     _videoTexture;
     textures = new Set();
-    get currentTexture() {
-        const manager = this.options.manager;
+    _previousTexture;
+    get domState() {
+        return this._webLayer.currentDOMState;
+    }
+    get texture() {
+        const manager = this.container.manager;
         if (this._webLayer.element.tagName === 'VIDEO') {
             const video = this._webLayer.element;
             let t = this._videoTexture;
@@ -83,7 +88,7 @@ export class WebLayer3D extends Object3D {
             }
             return t;
         }
-        const textureUrl = this._webLayer.textureUrl;
+        const textureUrl = this._webLayer.currentDOMState?.texture.url;
         let t = textureUrl ? manager.getTexture(textureUrl, this) : undefined;
         if (t)
             this.textures.add(t);
@@ -107,10 +112,16 @@ export class WebLayer3D extends Object3D {
     domLayout = new Object3D();
     domSize = new Vector3(1, 1, 1);
     /**
+     * The desired pseudo state (changing this will set needsRefresh to true)
+     */
+    get desiredPseudoStates() {
+        return this._webLayer.desiredPseudoState;
+    }
+    /**
      * Get the hover state
      */
     get pseudoStates() {
-        return this._webLayer.pseudoStates;
+        return this._webLayer.currentDOMState?.pseudo;
     }
     /**
      * Get the layer depth (distance from this layer's element and the parent layer's element)
@@ -127,18 +138,18 @@ export class WebLayer3D extends Object3D {
     get needsRefresh() {
         return this._webLayer.needsRefresh;
     }
-    setNeedsRefresh() {
-        this._webLayer.traverseLayers(WebRenderer.setLayerNeedsRefresh);
+    setNeedsRefresh(recurse = true) {
+        this._webLayer.setNeedsRefresh(recurse);
     }
     /** If true, this layer needs to be removed from the scene */
     get needsRemoval() {
         return this._webLayer.needsRemoval;
     }
-    bounds = new Bounds;
-    margin = new Edges;
+    bounds = new Bounds();
+    margin = new Edges();
     get parentWebLayer() {
         return (this._webLayer.parentLayer &&
-            this.options.manager.layersByElement.get(this._webLayer.parentLayer.element));
+            this.container.manager.layersByElement.get(this._webLayer.parentLayer.element));
     }
     childWebLayers = [];
     /**
@@ -158,19 +169,18 @@ export class WebLayer3D extends Object3D {
     /**
      * Refresh from DOM (potentially slow, call only when needed)
      */
-    refresh(recurse = false) {
-        this._webLayer.refresh();
+    refresh(recurse = false, serializeSync = false) {
+        this._webLayer.refresh(serializeSync);
         this.childWebLayers.length = 0;
         for (const c of this._webLayer.childLayers) {
-            const child = this.options.manager.layersByElement
+            const child = this.container.manager.layersByElement
                 .get(WebRenderer.getClosestLayer(c.element)?.element);
             if (!child)
                 continue;
             this.childWebLayers.push(child);
             if (recurse)
-                child.refresh(recurse);
+                child.refresh(recurse, serializeSync);
         }
-        this._refreshVideoBounds();
     }
     updateLayout() {
         this._updateDOMLayout();
@@ -185,14 +195,14 @@ export class WebLayer3D extends Object3D {
             else {
                 this._renderZ = this._viewZ;
             }
-            this.contentMesh.renderOrder = (this.options.renderOrderOffset || 0) +
+            this.contentMesh.renderOrder = (this.container.options.renderOrderOffset || 0) +
                 (1 - Math.log(this._renderZ + 1) / Math.log(this._camera.far + 1)) +
                 (this.depth + this.index * 0.001) * 0.0000001;
         }
     }
     updateContent() {
         const mesh = this.contentMesh;
-        const texture = this.currentTexture;
+        const texture = this.texture;
         const material = mesh.material;
         if (texture && material.map !== texture) {
             const contentScale = this.contentMesh.scale;
@@ -219,15 +229,12 @@ export class WebLayer3D extends Object3D {
                 this.parent.remove(this);
             this.dispose();
         }
-    }
-    get container() {
-        return this.options.manager.layersByElement.get(this._webLayer.rootLayer.element);
+        this._refreshVideoBounds();
     }
     /** INTERNAL */
     [ON_BEFORE_UPDATE]() { }
     _doUpdate() {
         this[ON_BEFORE_UPDATE]();
-        this._webLayer.update();
         // content must update before layout
         this.updateContent();
         this.updateLayout();
@@ -242,9 +249,16 @@ export class WebLayer3D extends Object3D {
         this._boundsMesh.position.set(0, 0, 0);
         this._boundsMesh.scale.copy(this.domSize);
         this._boundsMesh.quaternion.set(0, 0, 0, 1);
-        if (this.needsRefresh && this.options.autoRefresh !== false)
+        if (this.needsRefresh && this.container.options.autoRefresh !== false)
             this.refresh();
-        WebRenderer.scheduleTasksIfNeeded();
+        if (this._previousTexture !== this.texture) {
+            if (this.texture)
+                this.container.manager.renderer.initTexture(this.texture);
+            this._previousTexture = this.texture;
+            this.container.options.onLayerPaint?.(this);
+        }
+        this._webLayer.update();
+        this.container.manager.scheduleTasksIfNeeded();
     }
     update(recurse = false) {
         if (recurse)
@@ -256,7 +270,7 @@ export class WebLayer3D extends Object3D {
         const element = this.element.querySelector(selector) ||
             this.element.shadowRoot?.querySelector(selector);
         if (element) {
-            return this.options.manager.layersByElement.get(element);
+            return this.container.manager.layersByElement.get(element);
         }
         return undefined;
     }
@@ -285,17 +299,20 @@ export class WebLayer3D extends Object3D {
     }
     dispose() {
         WebRenderer.disposeLayer(this._webLayer);
-        this.options.manager.disposeLayer(this);
+        this.container.manager.disposeLayer(this);
         for (const child of this.childWebLayers)
             child.dispose();
     }
     _refreshVideoBounds() {
         if (this.element.nodeName === 'VIDEO') {
+            const domState = this.domState;
+            if (!domState)
+                return;
             const video = this.element;
-            const texture = this.currentTexture;
+            const texture = this.texture;
             const computedStyle = getComputedStyle(this.element);
             const { objectFit } = computedStyle;
-            const { width: viewWidth, height: viewHeight } = this.bounds.copy(this._webLayer.bounds);
+            const { width: viewWidth, height: viewHeight } = this.bounds.copy(domState.bounds);
             const { videoWidth, videoHeight } = video;
             const videoRatio = videoWidth / videoHeight;
             const viewRatio = viewWidth / viewHeight;
@@ -336,26 +353,27 @@ export class WebLayer3D extends Object3D {
                     texture.repeat.set(1, 1);
                     break;
             }
+            domState.bounds.copy(this.bounds);
         }
     }
     _updateDOMLayout() {
         if (this.needsRemoval) {
             return;
         }
-        const { bounds: currentBounds, margin: currentMargin } = this._webLayer;
-        if (!currentBounds || !currentMargin)
+        const currentState = this._webLayer.currentDOMState;
+        if (!currentState)
             return;
+        const { bounds: currentBounds, margin: currentMargin } = currentState;
         this.domLayout.position.set(0, 0, 0);
         this.domLayout.scale.set(1, 1, 1);
         this.domLayout.quaternion.set(0, 0, 0, 1);
-        const isVideo = this.element.nodeName === 'VIDEO';
-        const bounds = isVideo ? this.bounds : this.bounds.copy(currentBounds);
-        const margin = isVideo ? this.margin : this.margin.copy(currentMargin);
+        const bounds = this.bounds.copy(currentBounds);
+        const margin = this.margin.copy(currentMargin);
         const fullWidth = bounds.width + margin.left + margin.right;
         const fullHeight = bounds.height + margin.top + margin.bottom;
         const width = bounds.width;
         const height = bounds.height;
-        const pixelSize = 1 / this.options.manager.pixelsPerUnit;
+        const pixelSize = 1 / this.container.manager.pixelsPerUnit;
         this.domSize.set(Math.max(pixelSize * (width + margin.left + margin.right), 10e-6), Math.max(pixelSize * (height + margin.top + margin.bottom), 10e-6), 1);
         const parentLayer = this.parentWebLayer;
         if (!parentLayer)

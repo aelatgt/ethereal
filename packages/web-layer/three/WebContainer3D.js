@@ -56,7 +56,7 @@ export class WebContainer3D extends Object3D {
         const element = typeof elementOrHTML === 'string' ? toDOM(elementOrHTML) : elementOrHTML;
         WebRenderer.createLayerTree(element, options, (event, { target }) => {
             if (event === 'layercreated') {
-                const layer = new WebLayer3D(target, this.options);
+                const layer = target.layer || new WebLayer3D(target, this);
                 if (target === element) {
                     layer[ON_BEFORE_UPDATE] = () => this._updateInteractions();
                     this.rootLayer = layer;
@@ -66,11 +66,6 @@ export class WebContainer3D extends Object3D {
                     layer.parentWebLayer?.add(layer);
                 this.options.onLayerCreate?.(layer);
             }
-            else if (event === 'layerpainted') {
-                const layer = WebRenderer.layers.get(target);
-                const layer3D = this.options.manager.layersByElement.get(layer.element);
-                this.options.onLayerPaint?.(layer3D);
-            }
             else if (event === 'layermoved') {
                 const layer = this.options.manager.layersByElement.get(target);
                 layer.parentWebLayer?.add(layer);
@@ -78,6 +73,9 @@ export class WebContainer3D extends Object3D {
         });
         this.refresh();
         this.update();
+    }
+    get manager() {
+        return this.options.manager;
     }
     /**
      * A list of Rays to be used for interaction.
@@ -88,6 +86,32 @@ export class WebContainer3D extends Object3D {
     }
     set interactionRays(rays) {
         this._interactionRays = rays;
+    }
+    /**
+     * Update all layers until they are rasterized and textures have been uploaded to the GPU
+     */
+    updateUntilReady() {
+        const layersRemaining = new Set();
+        this.rootLayer.refresh(true, true);
+        this.rootLayer.traverseLayersPreOrder((layer) => {
+            const domState = layer.domState;
+            if (domState.fullWidth * domState.fullHeight > 0) {
+                layersRemaining.add(layer);
+            }
+        });
+        return new Promise((resolve) => {
+            const intervalHandle = setInterval(() => {
+                this.update();
+                for (const layer of layersRemaining) {
+                    if (layer.texture)
+                        layersRemaining.delete(layer);
+                }
+                if (layersRemaining.size === 0) {
+                    clearInterval(intervalHandle);
+                    resolve(undefined);
+                }
+            }, 20);
+        });
     }
     /**
      * Update all layers, recursively
@@ -118,10 +142,10 @@ export class WebContainer3D extends Object3D {
     _previousHoverLayers = new Set();
     _contentMeshes = [];
     _prepareHitTest = (layer) => {
-        if (layer.pseudoStates.hover)
+        if (layer.desiredPseudoStates.hover)
             this._previousHoverLayers.add(layer);
         layer.cursor.visible = false;
-        layer.pseudoStates.hover = false;
+        layer.desiredPseudoStates.hover = false;
         this._contentMeshes.push(layer.contentMesh);
     };
     // private _intersectionGetGroupOrder(i:Intersection) {
@@ -160,14 +184,14 @@ export class WebContainer3D extends Object3D {
                 const layer = intersection.object.parent;
                 layer.cursor.position.copy(intersection.point);
                 layer.cursor.visible = true;
-                layer.pseudoStates.hover = true;
+                layer.desiredPseudoStates.hover = true;
                 if (!prevHover.has(layer)) {
                     layer.setNeedsRefresh();
                 }
             }
         }
         for (const layer of prevHover) {
-            if (!layer.pseudoStates.hover) {
+            if (!layer.desiredPseudoStates.hover) {
                 layer.setNeedsRefresh();
             }
         }

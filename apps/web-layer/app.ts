@@ -382,7 +382,7 @@ function animate() {
     //   layer.scale.y = 0.001
     // }
 
-    hover: if (Controls.hoverEffect && layer.pseudoStates.hover) {
+    hover: if (Controls.hoverEffect && layer.pseudoStates?.hover) {
       if (layer.element.matches('.todo *, .toggle, .destroy, a')) {
         layer.scale.multiplyScalar(1.02)
         break hover

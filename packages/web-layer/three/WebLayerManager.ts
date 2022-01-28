@@ -3,20 +3,25 @@ import { ClampToEdgeWrapping, CompressedTexture, LinearFilter, sRGBEncoding } fr
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader'
 import { WebLayer3D } from './WebLayer3D'
 import { VERSION } from '@loaders.gl/textures/dist/lib/utils/version'
-export class WebLayerManager {
+import { WebLayerManagerBase } from '../core/WebLayerManagerBase'
+export class WebLayerManager extends WebLayerManagerBase {
 
     static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@${VERSION}/dist/libs/`
 
     static initialize(renderer:THREE.WebGLRenderer) {
       WebLayerManager.instance = new WebLayerManager()
+      WebLayerManager.instance.renderer = renderer
       WebLayerManager.instance.textureLoader.detectSupport(renderer)
     }
 
     static instance:WebLayerManager
 
     constructor() {
+      super()
       this.textureLoader.setTranscoderPath(WebLayerManager.DEFAULT_TRANSCODER_PATH)
     }
+
+    renderer!:THREE.WebGLRenderer
 
     textureEncoding = sRGBEncoding
 
@@ -54,6 +59,10 @@ export class WebLayerManager {
       this.texturesByUrl.set(url, 'pending')
 
       return texture
+    }
+
+    requestTexture(url:string, layer?:WebLayer3D) {
+      
     }
 
     disposeLayer(layer:WebLayer3D) {

@@ -41,7 +41,7 @@ export default class UI extends UIBase {
 
 
             adapter.onUpdate = () => {
-                this.main.options.autoRefresh = (this.app.timeSinceLastResize > 100)
+                this.main.container.options.autoRefresh = (this.app.timeSinceLastResize > 100)
                 this.main.update()
                 // we only want to move the entire pride UI into an immersive layout
                 // on devices that offer an immersive interaction space (e.g., Quest/Hololens)
