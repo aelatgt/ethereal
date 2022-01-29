@@ -89,15 +89,13 @@ export class WebLayer {
         }
         this.previousDOMStateHash = this.currentDOMStateHash;
     }
-    refresh(serializeSync = false) {
+    async refresh() {
+        this.currentDOMStateHash = undefined;
         this.needsRefresh = false;
         this._updateParentAndChildLayers();
-        if (serializeSync)
-            this.manager.serialize(this);
-        else {
-            this.currentDOMStateHash = undefined;
-            this.manager.addToSerializeQueue(this);
-        }
+        const result = await this.manager.addToSerializeQueue(this);
+        if (result.needsRasterize)
+            await this.manager.addToRasterizeQueue(result.svgHash, result.svgUrl);
     }
     _updateParentAndChildLayers() {
         const element = this.element;

@@ -1,5 +1,6 @@
 import { Bounds, Edges } from "./dom-utils";
 import Dexie, { Table } from 'dexie';
+import type { KTX2Encoder as KTX2EncoderType } from './textures/KTX2Encoder';
 import { WebRenderer } from "./WebRenderer";
 import { WebLayer } from "./WebLayer";
 export declare type StateHash = string;
@@ -40,21 +41,26 @@ export declare class WebLayerManagerBase {
     private _textureStore;
     private _textureUrls;
     private _textureData;
-    private _textureSubscriptions;
     private _layerState;
-    private _encoder;
-    serializeQueue: WebLayer[];
+    serializeQueue: {
+        layer: WebLayer;
+        resolve: (val: any) => void;
+        promise: any;
+    }[];
     rasterizeQueue: {
         hash: StateHash;
         url: string;
+        resolve: (val: any) => void;
+        promise: any;
     }[];
     MINIMUM_RENDER_ATTEMPTS: number;
     canvasPool: HTMLCanvasElement[];
     imagePool: HTMLImageElement[];
-    encoder: TextEncoder;
+    textEncoder: TextEncoder;
+    ktx2Encoder: KTX2EncoderType;
     useCreateImageBitmap: boolean;
     getLayerState(hash: StateHash): LayerState;
-    updateTexture(textureHash: TextureHash, imageData: ImageData): Promise<unknown>;
+    updateTexture(textureHash: TextureHash, imageData: ImageData): Promise<void>;
     requestTextureData(textureHash: TextureHash): Promise<TextureData | undefined>;
     getTextureData(textureHash: TextureHash): TextureData | undefined;
     getTextureURL(textureHash: TextureHash): string | undefined;
@@ -65,9 +71,13 @@ export declare class WebLayerManagerBase {
     MAX_RASTERIZE_TASK_COUNT: number;
     scheduleTasksIfNeeded(): void;
     private _runTasks;
-    addToSerializeQueue(layer: WebLayer): void;
-    serialize(layer: WebLayer): Promise<void>;
+    addToSerializeQueue(layer: WebLayer): ReturnType<typeof WebLayerManagerBase.prototype.serialize>;
+    serialize(layer: WebLayer): Promise<{
+        svgHash: string;
+        svgUrl: string;
+        needsRasterize: boolean;
+    }>;
     rasterize(stateHash: StateHash, svgUrl: SVGUrl): Promise<void>;
     getImageData(svgImage: HTMLImageElement, sourceWidth: number, sourceHeight: number, textureWidth: number, textureHeight: number): Promise<ImageData>;
-    addToRasterizeQueue(hash: StateHash, url: string): void;
+    addToRasterizeQueue(hash: StateHash, url: string): ReturnType<typeof WebLayerManagerBase.prototype.rasterize>;
 }

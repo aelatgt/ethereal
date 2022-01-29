@@ -1,4 +1,4 @@
-import { ClampToEdgeWrapping, CompressedTexture, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture } from "three";
+import { ClampToEdgeWrapping, CompressedTexture, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, Texture } from "three";
 import { WebLayer } from "../core/WebLayer";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
@@ -91,11 +91,11 @@ export class WebLayer3D extends Object3D {
   private _viewZ = 0
   private _renderZ = 0
 
-  private _videoTexture?:VideoTexture
+  private _mediaTexture?:VideoTexture|Texture
 
   textures = new Set<CompressedTexture>()
 
-  private _previousTexture?:VideoTexture|CompressedTexture
+  private _previousTexture?:VideoTexture|CompressedTexture|Texture
 
   get domState() {
     return this._webLayer.currentDOMState
@@ -104,19 +104,33 @@ export class WebLayer3D extends Object3D {
   get texture() {
     const manager = this.container.manager
 
-    if (this._webLayer.element.tagName === 'VIDEO') {
-      const video = this._webLayer.element as HTMLVideoElement
-      let t = this._videoTexture
+    if (this.element.tagName === 'VIDEO') {
+      const video = this.element as HTMLVideoElement
+      let t = this._mediaTexture
       if (!t) {
         t = new VideoTexture(video)
         t.wrapS = ClampToEdgeWrapping
         t.wrapT = ClampToEdgeWrapping
         t.minFilter = LinearFilter
         if (manager.textureEncoding) t.encoding = manager.textureEncoding
-        this._videoTexture = t
+        this._mediaTexture = t
       }
       return t
     }
+
+    // if (this.element.tagName === 'IMG') {
+    //   const img = this.element as HTMLImageElement
+    //   let t = this._mediaTexture
+    //   if (!t) {
+    //     t = new Texture(img)
+    //     t.wrapS = ClampToEdgeWrapping
+    //     t.wrapT = ClampToEdgeWrapping
+    //     t.minFilter = LinearFilter
+    //     if (manager.textureEncoding) t.encoding = manager.textureEncoding
+    //     this._mediaTexture = t
+    //   }
+    //   return t
+    // }
 
     const textureUrl = this._webLayer.currentDOMState?.texture.url
 
@@ -219,16 +233,18 @@ export class WebLayer3D extends Object3D {
   /**
    * Refresh from DOM (potentially slow, call only when needed)
    */
-  public refresh(recurse=false, serializeSync=false) {
-    this._webLayer.refresh(serializeSync)
+  public async refresh(recurse=false) : Promise<void> {
+    const refreshing = []
+    refreshing.push(this._webLayer.refresh())
     this.childWebLayers.length = 0
     for (const c of this._webLayer.childLayers) {
       const child = this.container.manager.layersByElement
         .get(WebRenderer.getClosestLayer(c.element)?.element!)
       if (!child) continue
       this.childWebLayers.push(child)
-      if (recurse) child.refresh(recurse, serializeSync)
+      if (recurse) refreshing.push(child.refresh(recurse))
     }
+    return Promise.all(refreshing).then(()=>{})
   }
 
   private updateLayout() {

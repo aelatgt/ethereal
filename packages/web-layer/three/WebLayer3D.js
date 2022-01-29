@@ -66,7 +66,7 @@ export class WebLayer3D extends Object3D {
     _localZ = 0;
     _viewZ = 0;
     _renderZ = 0;
-    _videoTexture;
+    _mediaTexture;
     textures = new Set();
     _previousTexture;
     get domState() {
@@ -74,9 +74,9 @@ export class WebLayer3D extends Object3D {
     }
     get texture() {
         const manager = this.container.manager;
-        if (this._webLayer.element.tagName === 'VIDEO') {
-            const video = this._webLayer.element;
-            let t = this._videoTexture;
+        if (this.element.tagName === 'VIDEO') {
+            const video = this.element;
+            let t = this._mediaTexture;
             if (!t) {
                 t = new VideoTexture(video);
                 t.wrapS = ClampToEdgeWrapping;
@@ -84,10 +84,23 @@ export class WebLayer3D extends Object3D {
                 t.minFilter = LinearFilter;
                 if (manager.textureEncoding)
                     t.encoding = manager.textureEncoding;
-                this._videoTexture = t;
+                this._mediaTexture = t;
             }
             return t;
         }
+        // if (this.element.tagName === 'IMG') {
+        //   const img = this.element as HTMLImageElement
+        //   let t = this._mediaTexture
+        //   if (!t) {
+        //     t = new Texture(img)
+        //     t.wrapS = ClampToEdgeWrapping
+        //     t.wrapT = ClampToEdgeWrapping
+        //     t.minFilter = LinearFilter
+        //     if (manager.textureEncoding) t.encoding = manager.textureEncoding
+        //     this._mediaTexture = t
+        //   }
+        //   return t
+        // }
         const textureUrl = this._webLayer.currentDOMState?.texture.url;
         let t = textureUrl ? manager.getTexture(textureUrl, this) : undefined;
         if (t)
@@ -169,8 +182,9 @@ export class WebLayer3D extends Object3D {
     /**
      * Refresh from DOM (potentially slow, call only when needed)
      */
-    refresh(recurse = false, serializeSync = false) {
-        this._webLayer.refresh(serializeSync);
+    async refresh(recurse = false) {
+        const refreshing = [];
+        refreshing.push(this._webLayer.refresh());
         this.childWebLayers.length = 0;
         for (const c of this._webLayer.childLayers) {
             const child = this.container.manager.layersByElement
@@ -179,8 +193,9 @@ export class WebLayer3D extends Object3D {
                 continue;
             this.childWebLayers.push(child);
             if (recurse)
-                child.refresh(recurse, serializeSync);
+                refreshing.push(child.refresh(recurse));
         }
+        return Promise.all(refreshing).then(() => { });
     }
     updateLayout() {
         this._updateDOMLayout();

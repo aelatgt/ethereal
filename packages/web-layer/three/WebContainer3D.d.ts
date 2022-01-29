@@ -51,7 +51,7 @@ export declare class WebContainer3D extends Object3D {
     /**
      * Update all layers until they are rasterized and textures have been uploaded to the GPU
      */
-    updateUntilReady(): Promise<unknown>;
+    updateUntilReady(): Promise<void>;
     /**
      * Update all layers, recursively
      */

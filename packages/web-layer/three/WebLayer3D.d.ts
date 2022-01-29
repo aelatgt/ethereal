@@ -1,4 +1,4 @@
-import { CompressedTexture, Mesh, MeshDepthMaterial, Object3D, PlaneGeometry, Vector3, VideoTexture } from "three";
+import { CompressedTexture, Mesh, MeshDepthMaterial, Object3D, PlaneGeometry, Vector3, VideoTexture, Texture } from "three";
 import { WebLayer } from "../core/WebLayer";
 import { Bounds, Edges } from "../core/dom-utils";
 import { WebContainer3D } from "./WebContainer3D";
@@ -15,11 +15,11 @@ export declare class WebLayer3D extends Object3D {
     private _localZ;
     private _viewZ;
     private _renderZ;
-    private _videoTexture?;
+    private _mediaTexture?;
     textures: Set<CompressedTexture>;
     private _previousTexture?;
     get domState(): import("../core/WebLayerManagerBase").LayerState | undefined;
-    get texture(): VideoTexture | CompressedTexture | undefined;
+    get texture(): VideoTexture | Texture | CompressedTexture | undefined;
     contentMesh: Mesh;
     /**
      * This non-visible mesh ensures that an adapted layer retains
@@ -85,7 +85,7 @@ export declare class WebLayer3D extends Object3D {
     /**
      * Refresh from DOM (potentially slow, call only when needed)
      */
-    refresh(recurse?: boolean, serializeSync?: boolean): void;
+    refresh(recurse?: boolean): Promise<void>;
     private updateLayout;
     private updateContent;
     /** INTERNAL */

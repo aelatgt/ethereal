@@ -90,28 +90,13 @@ export class WebContainer3D extends Object3D {
     /**
      * Update all layers until they are rasterized and textures have been uploaded to the GPU
      */
-    updateUntilReady() {
-        const layersRemaining = new Set();
-        this.rootLayer.refresh(true, true);
-        this.rootLayer.traverseLayersPreOrder((layer) => {
-            const domState = layer.domState;
-            if (domState.fullWidth * domState.fullHeight > 0) {
-                layersRemaining.add(layer);
-            }
-        });
-        return new Promise((resolve) => {
-            const intervalHandle = setInterval(() => {
-                this.update();
-                for (const layer of layersRemaining) {
-                    if (layer.texture)
-                        layersRemaining.delete(layer);
-                }
-                if (layersRemaining.size === 0) {
-                    clearInterval(intervalHandle);
-                    resolve(undefined);
-                }
-            }, 20);
-        });
+    async updateUntilReady() {
+        const intervalHandle = setInterval(() => {
+            this.update();
+        }, 20);
+        await this.rootLayer.refresh(true);
+        this.manager.ktx2Encoder.pool.dispose();
+        clearInterval(intervalHandle);
     }
     /**
      * Update all layers, recursively

@@ -38,7 +38,7 @@ export declare class WebLayer {
     traverseLayers(each: (layer: WebLayer) => void): void;
     traverseChildLayers(each: (layer: WebLayer) => void): void;
     update(): void;
-    refresh(serializeSync?: boolean): void;
+    refresh(): Promise<void>;
     private _updateParentAndChildLayers;
     private _tryConvertElementToWebLayer;
 }

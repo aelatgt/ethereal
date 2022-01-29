@@ -81,24 +81,27 @@ export class WebLayerManagerBase {
 
     constructor(name = "web-layer-cache") {
         this._textureStore = new TextureStore(name)
+
+        window.addEventListener("blur", (event) => {
+            this._textureStore.textures.bulkPut(Array.from(this._textureData.values()))
+        })
     }
     
     private _textureStore:TextureStore
     private _textureUrls = new Map<TextureHash, string>()
     private _textureData = new Map<TextureHash, TextureData>()
-    private _textureSubscriptions = new Map<TextureHash, Subscription>()
 
     private _layerState = new Map<StateHash, LayerState>()
-    private _encoder = new KTX2Encoder() as KTX2EncoderType
 
-    serializeQueue = [] as WebLayer[]
-    rasterizeQueue = [] as Array<{hash:StateHash, url:string}>
+    serializeQueue = [] as {layer:WebLayer, resolve:(val:any)=>void, promise:any}[]
+    rasterizeQueue = [] as {hash:StateHash, url:string, resolve:(val:any)=>void, promise:any}[]
 
     MINIMUM_RENDER_ATTEMPTS = 3
     canvasPool: HTMLCanvasElement[] = []
     imagePool: HTMLImageElement[] = []
 
-    encoder = new TextEncoder();
+    textEncoder = new TextEncoder();
+    ktx2Encoder = new KTX2Encoder() as KTX2EncoderType
 
     useCreateImageBitmap = false
 
@@ -134,50 +137,39 @@ export class WebLayerManagerBase {
     }
 
     async updateTexture(textureHash:TextureHash, imageData:ImageData) {
-        return new Promise(async (resolve) => {
-            try {
-                const ktx2Texture = await this._encoder.encode(imageData as any)
-                const textureData = await this._textureStore.textures.get(textureHash) || 
-                    {hash: textureHash, renderAttempts: 0, lastUsedTime:Date.now(), texture:undefined}
-                textureData.texture = ktx2Texture
-                this._textureStore.textures.put(textureData)                
-            } finally {
-                resolve(null)
-            }
-        })
+        const ktx2Texture = await this.ktx2Encoder.encode(imageData as any)
+        const textureData = this._textureData.get(textureHash) || 
+            {hash: textureHash, renderAttempts: 0, lastUsedTime:Date.now(), texture:undefined}
+        textureData.texture = ktx2Texture
+        this._textureData.set(textureHash, textureData)            
     }
 
     async requestTextureData(textureHash:TextureHash) {
-        // this._textureStore.textures.update(textureHash, {lastUsedTime: Date.now()})
-
-        if (!this._textureSubscriptions.has(textureHash)) {
-
-            const subscription = liveQuery(() => this._textureStore.textures.get(textureHash)).subscribe((value) => {
-                if (value) {
-                    this._textureData.set(textureHash, value)
-                    const previousBlobUrl = this._textureUrls.get(textureHash)
-                    if (previousBlobUrl) URL.revokeObjectURL(previousBlobUrl)
-                    if (value.texture) {
-                        this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([value.texture], {type: 'image/ktx2'})))
-                    } else {
-                        this._textureUrls.delete(textureHash)
-                    }
-                }
-            })
-
-            this._textureSubscriptions.set(textureHash, subscription)
+        if (!this._textureData.has(textureHash)) {
+            const textureData = await this._textureStore.textures.get(textureHash)
+            if (textureData && !this._textureData.has(textureHash)) {
+                this._textureData.set(textureHash, textureData)
+            }
         }
 
-        return this._textureStore.textures.get(textureHash)
+        const textureData = this._textureData.get(textureHash)
+        const textureDataBuffer = textureData?.texture
+
+        if (!this._textureUrls.has(textureHash) && textureDataBuffer) {
+            await void
+            this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([textureDataBuffer], {type: 'image/ktx2'})))
+        }
+
+        return this._textureData.get(textureHash)
     }
 
     getTextureData(textureHash:TextureHash) {
-        if (!this._textureSubscriptions.has(textureHash)) this.requestTextureData(textureHash)
+        if (!this._textureData.has(textureHash)) setTimeout(() => this.requestTextureData(textureHash), 1)
         return this._textureData.get(textureHash)
     }
 
     getTextureURL(textureHash:TextureHash) {
-        if (!this._textureSubscriptions.has(textureHash)) this.requestTextureData(textureHash)
+        if (!this._textureUrls.has(textureHash)) setTimeout(() => this.requestTextureData(textureHash), 1)
         return this._textureUrls.get(textureHash)
     }
 
@@ -185,7 +177,7 @@ export class WebLayerManagerBase {
     serializePendingCount = 0
     rasterizePendingCount = 0
 
-    MAX_SERIALIZE_TASK_COUNT = 15
+    MAX_SERIALIZE_TASK_COUNT = 10
     MAX_RASTERIZE_TASK_COUNT = 10
   
     scheduleTasksIfNeeded() {
@@ -199,38 +191,46 @@ export class WebLayerManagerBase {
         const serializeQueue = this.serializeQueue
         const rasterizeQueue = this.rasterizeQueue
 
-        console.log("serialize task size", serializeQueue.length)
-        console.log("rasterize task size", rasterizeQueue.length)
+        console.log("serialize task size", serializeQueue.length, serializeQueue)
+        console.log("rasterize task size", rasterizeQueue.length, rasterizeQueue)
 
         while (serializeQueue.length > 0 && this.serializePendingCount < this.MAX_RASTERIZE_TASK_COUNT) {
             this.serializePendingCount++
-            this.serialize(serializeQueue.shift()!).finally(() => {
+            const {layer, resolve} = serializeQueue.shift()!
+            this.serialize(layer).then((val) => {
                 this.serializePendingCount--
+                resolve(val)
             })
         }
 
-        rasterizeQueue.sort((a, b) => {
-            const aState = this.getLayerState(a.hash)
-            const bState = this.getLayerState(b.hash)
-            const aSize = aState.fullWidth + aState.fullHeight + aState.fullWidth * aState.fullHeight
-            const bSize = bState.fullWidth + bState.fullHeight + bState.fullWidth * bState.fullHeight
-            return aSize - bSize
-        })
+        // rasterizeQueue.sort((a, b) => {
+        //     const aState = this.getLayerState(a.hash)
+        //     const bState = this.getLayerState(b.hash)
+        //     const aSize = aState.fullWidth + aState.fullHeight + aState.fullWidth * aState.fullHeight
+        //     const bSize = bState.fullWidth + bState.fullHeight + bState.fullWidth * bState.fullHeight
+        //     return aSize - bSize
+        // })
 
         while (rasterizeQueue.length > 0 && this.rasterizePendingCount < this.MAX_SERIALIZE_TASK_COUNT) {
             this.rasterizePendingCount++
-            const {hash, url} = rasterizeQueue.shift()!
+            const {hash, url, resolve} = rasterizeQueue.shift()!
             this.rasterize(hash, url).finally(() => {
                 this.rasterizePendingCount--
+                resolve(undefined)
             })
         }
         
         this.tasksPending = false
     }
 
-    addToSerializeQueue(layer:WebLayer) {
+    addToSerializeQueue(layer:WebLayer) : ReturnType<typeof WebLayerManagerBase.prototype.serialize>{
+        const inQueue = this.serializeQueue.find((v) => v.layer === layer)
+        if (inQueue) return console.log('in serialize queue'), inQueue.promise
         layer.currentDOMStateHash = undefined
-        this.serializeQueue.push(layer)
+        let resolve!:(v:any)=>any
+        const promise = new Promise((r) => {resolve = r})
+        this.serializeQueue.push({layer, resolve, promise})
+        return promise as Promise<any>
     }
 
     async serialize(layer:WebLayer) {      
@@ -290,18 +290,18 @@ export class WebLayerManagerBase {
         
         const svgUrl = 'data:image/svg+xml;utf8,' + encodeURIComponent(docString)
 
-        const svgHashBuffer = await crypto.subtle.digest('SHA-1', this.encoder.encode(docString))
-        const svgHash = bufferToHex(svgHashBuffer) +
+        const stateHashBuffer = await crypto.subtle.digest('SHA-1', this.textEncoder.encode(docString))
+        const stateHash = bufferToHex(stateHashBuffer) +
             '?w=' + fullWidth +
             ';h=' + fullHeight + 
             ';tw=' + textureWidth +
             ';th=' + textureHeight
         
-        layer.currentDOMStateHash = svgHash
+        layer.currentDOMStateHash = stateHash
 
         // update the layer state data
         // console.log('serialized ' + svgHash)
-        const data = this.getLayerState(svgHash)
+        const data = this.getLayerState(stateHash)
         data.bounds.copy(metrics.bounds)
         data.margin.copy(metrics.margin)
         data.fullWidth = fullWidth
@@ -314,13 +314,11 @@ export class WebLayerManagerBase {
         // @ts-ignore
         layer._svgUrl = svgUrl
 
-        if (fullWidth * fullHeight > 0 && layer.element.nodeName !== "VIDEO") {
-            // if we've already processed this exact layer state several times, we should 
-            // be confident about what it looks like, and don't need to rerender
-            if (data.renderAttempts >= this.MINIMUM_RENDER_ATTEMPTS && data.texture.hash) return
-            // rasterize (and then render) the svg document 
-            this.addToRasterizeQueue(svgHash, svgUrl)
-        }
+        const nodeName = layer.element.nodeName
+        const needsRasterize = fullWidth * fullHeight > 0 && nodeName !== "VIDEO"
+            && (data.renderAttempts < this.MINIMUM_RENDER_ATTEMPTS || !data.texture.hash)
+
+        return {svgHash: stateHash, svgUrl, needsRasterize}
     }
 
     async rasterize(stateHash:StateHash, svgUrl:SVGUrl) {
@@ -375,15 +373,16 @@ export class WebLayerManagerBase {
         // in case the svg image wasn't finished loading, we should try again a few times
         setTimeout(() => this.addToRasterizeQueue(stateHash, svgUrl), (500 + Math.random() * 1000) * 2^stateData.renderAttempts)
 
-        const textureData = await this.requestTextureData(textureHash)
-
+        const textureData = this.getTextureData(textureHash)
         if (textureData?.texture) return
     
         const imageData = await this.getImageData(svgImage, sourceWidth, sourceHeight, textureWidth, textureHeight)
 
-        this.updateTexture(textureHash, imageData).then(() => {
+        try{
+            await this.updateTexture(textureHash, imageData)
+        } finally {
             this.imagePool.push(svgImage)
-        })
+        }
     }
 
     async getImageData(svgImage:HTMLImageElement, sourceWidth:number, sourceHeight:number, textureWidth:number, textureHeight:number) : Promise<ImageData> {
@@ -421,8 +420,13 @@ export class WebLayerManagerBase {
         return imageData
     }
 
-    addToRasterizeQueue(hash:StateHash, url:string) {
-        this.rasterizeQueue.push({hash, url})
+    addToRasterizeQueue(hash:StateHash, url:string) : ReturnType<typeof WebLayerManagerBase.prototype.rasterize> {
+        const inQueue = this.rasterizeQueue.find((v) => v.hash === hash)
+        if (inQueue) return console.log('in rasterize queue'),inQueue.promise
+        let resolve!:(v:any)=>any
+        const promise = new Promise((r) => {resolve = r})
+        this.rasterizeQueue.push({hash, url, resolve, promise})
+        return promise as Promise<void>
     }
 
 }

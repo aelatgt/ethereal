@@ -117,29 +117,17 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     /**
      * Update all layers until they are rasterized and textures have been uploaded to the GPU
      */
-    updateUntilReady() {
-        const layersRemaining = new Set<WebLayer3D>()
+    async updateUntilReady() {
 
-        this.rootLayer.refresh(true, true)
-        this.rootLayer.traverseLayersPreOrder((layer) => {
-            const domState = layer.domState!
-            if (domState.fullWidth * domState.fullHeight > 0) {
-                layersRemaining.add(layer)
-            }
-        })
+      const intervalHandle = setInterval(() => {
+          this.update()
+      }, 20)
 
-        return new Promise((resolve)=> {
-            const intervalHandle = setInterval(() => {
-                this.update()
-                for (const layer of layersRemaining) {
-                    if (layer.texture) layersRemaining.delete(layer)
-                }
-                if (layersRemaining.size === 0) {
-                    clearInterval(intervalHandle)
-                    resolve(undefined)
-                }
-            }, 20)
-        })
+      await this.rootLayer.refresh(true)
+
+      this.manager.ktx2Encoder.pool.dispose()
+
+      clearInterval(intervalHandle)
     }
   
     /**
