@@ -117,8 +117,8 @@ export class WebLayerManagerBase {
     _runTasks = () => {
         const serializeQueue = this.serializeQueue;
         const rasterizeQueue = this.rasterizeQueue;
-        console.log("serialize task size", serializeQueue.length, serializeQueue);
-        console.log("rasterize task size", rasterizeQueue.length, rasterizeQueue);
+        // console.log("serialize task size", serializeQueue.length, serializeQueue)
+        // console.log("rasterize task size", rasterizeQueue.length, rasterizeQueue)
         while (serializeQueue.length > 0 && this.serializePendingCount < this.MAX_RASTERIZE_TASK_COUNT) {
             this.serializePendingCount++;
             const { layer, resolve } = serializeQueue.shift();
@@ -147,7 +147,7 @@ export class WebLayerManagerBase {
     addToSerializeQueue(layer) {
         const inQueue = this.serializeQueue.find((v) => v.layer === layer);
         if (inQueue)
-            return console.log('in serialize queue'), inQueue.promise;
+            return inQueue.promise;
         layer.currentDOMStateHash = undefined;
         let resolve;
         const promise = new Promise((r) => { resolve = r; });
@@ -305,7 +305,7 @@ export class WebLayerManagerBase {
     addToRasterizeQueue(hash, url) {
         const inQueue = this.rasterizeQueue.find((v) => v.hash === hash);
         if (inQueue)
-            return console.log('in rasterize queue'), inQueue.promise;
+            return inQueue.promise;
         let resolve;
         const promise = new Promise((r) => { resolve = r; });
         this.rasterizeQueue.push({ hash, url, resolve, promise });
