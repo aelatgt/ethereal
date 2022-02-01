@@ -26,7 +26,7 @@ function flipY( geometry: PlaneGeometry ) {
 
 export class WebLayer3D extends Object3D {
 
-  static GEOMETRY = flipY(new PlaneGeometry(1, 1, 2, 2))
+  static GEOMETRY = new PlaneGeometry(1, 1, 2, 2)
   static FLIPPED_GEOMETRY = flipY(new PlaneGeometry(1, 1, 2, 2))
 
   static shouldApplyDOMLayout(layer: WebLayer3D) {
