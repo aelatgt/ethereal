@@ -7,7 +7,11 @@ const worker: Worker = self as any;
 
 worker.onmessage = async (msg:MessageEvent<ImageDataType>) => {
     try {
-        const texture = await KTX2BasisUniversalTextureWriter.encode(msg.data)
+        const texture = await KTX2BasisUniversalTextureWriter.encode(msg.data, {
+            useSRGB: true,
+            encodeUASTC: true,
+            mipmaps: true
+        })
         const response : EncodeResponse = {texture}
         worker.postMessage(response, [texture])
     } catch (err:any) {
