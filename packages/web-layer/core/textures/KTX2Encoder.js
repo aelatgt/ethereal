@@ -3,7 +3,7 @@ import { WorkerPool } from '../WorkerPool';
 const workerBlob = new Blob([KTX2WorkerBody], { type: "text/javascript" });
 const workerURL = URL.createObjectURL(workerBlob);
 export class KTX2Encoder {
-    pool = new WorkerPool(2);
+    pool = new WorkerPool(1);
     constructor() {
         this.pool.setWorkerCreator(() => new Worker(workerURL));
     }
