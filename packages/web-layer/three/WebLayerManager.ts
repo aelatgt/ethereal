@@ -2,11 +2,10 @@
 import { ClampToEdgeWrapping, CompressedTexture, LinearFilter, sRGBEncoding } from 'three'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader'
 import { WebLayer3D } from './WebLayer3D'
-import { VERSION } from '@loaders.gl/textures/dist/lib/utils/version'
 import { WebLayerManagerBase } from '../core/WebLayerManagerBase'
 export class WebLayerManager extends WebLayerManagerBase {
 
-    static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@${VERSION}/dist/libs/`
+    static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@$3.1.7/dist/libs/`
 
     static initialize(renderer:THREE.WebGLRenderer) {
       WebLayerManager.instance = new WebLayerManager()
