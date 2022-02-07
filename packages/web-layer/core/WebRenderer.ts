@@ -1,5 +1,5 @@
 import {EventCallback, WebLayer} from './WebLayer'
-import { Matrix4 } from 'three/src/math/Matrix4'
+import { Matrix4 } from 'three'
 import { ResizeObserver as Polyfill } from '@juggle/resize-observer'
 import { WebLayerManagerBase } from './WebLayerManagerBase'
 const ResizeObserver:typeof Polyfill = (self as any).ResizeObserver || Polyfill

@@ -1,5 +1,5 @@
 import { EventCallback, WebLayer } from './WebLayer';
-import { Matrix4 } from 'three/src/math/Matrix4';
+import { Matrix4 } from 'three';
 import { WebLayerManagerBase } from './WebLayerManagerBase';
 export interface WebLayerOptions {
     manager: WebLayerManagerBase;

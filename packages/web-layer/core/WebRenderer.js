@@ -1,5 +1,5 @@
 import { WebLayer } from './WebLayer';
-import { Matrix4 } from 'three/src/math/Matrix4';
+import { Matrix4 } from 'three';
 import { ResizeObserver as Polyfill } from '@juggle/resize-observer';
 const ResizeObserver = self.ResizeObserver || Polyfill;
 function ensureElementIsInDocument(element, options) {
