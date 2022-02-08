@@ -9,13 +9,14 @@ export declare class WebLayerManager extends WebLayerManagerBase {
     constructor();
     renderer: THREE.WebGLRenderer;
     textureEncoding: import("three").TextureEncoding;
-    texturesByUrl: Map<string, "error" | CompressedTexture | "pending">;
+    texturesByUrl: Map<string, CompressedTexture>;
     layersUsingTexture: WeakMap<CompressedTexture, Set<WebLayer3D>>;
     textureLoader: KTX2Loader;
     layersByElement: WeakMap<Element, WebLayer3D>;
     layersByMesh: WeakMap<import("three").Mesh<import("three").BufferGeometry, import("three").Material | import("three").Material[]>, WebLayer3D>;
     pixelsPerUnit: number;
     getTexture(url: string, layer?: WebLayer3D): CompressedTexture | undefined;
-    requestTexture(url: string, layer?: WebLayer3D): void;
+    _texturePromise: Map<string, (value?: any) => void>;
+    requestTexture(url: string): void;
     disposeLayer(layer: WebLayer3D): void;
 }

@@ -77,29 +77,29 @@ export class WebLayerManagerBase {
             { hash: textureHash, renderAttempts: 0, lastUsedTime: Date.now(), texture: undefined };
         textureData.texture = ktx2Texture;
         this._textureData.set(textureHash, textureData);
+        this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([ktx2Texture], { type: 'image/ktx2' })));
+        this._textureDataResolver.get(textureHash)?.();
     }
+    _textureDataResolver = new Map();
     async requestTextureData(textureHash) {
-        if (!this._textureData.has(textureHash)) {
-            const textureData = await this._textureStore.textures.get(textureHash);
-            if (textureData && !this._textureData.has(textureHash)) {
-                this._textureData.set(textureHash, textureData);
-            }
+        if (!this._textureDataResolver.has(textureHash)) {
+            return new Promise(async (resolve) => {
+                this._textureDataResolver.set(textureHash, resolve);
+                const textureData = await this._textureStore.textures.get(textureHash);
+                if (textureData?.texture && !this._textureData.has(textureHash)) {
+                    this._textureData.set(textureHash, textureData);
+                    this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([textureData.texture], { type: 'image/ktx2' })));
+                    resolve(undefined);
+                }
+            });
         }
-        const textureData = this._textureData.get(textureHash);
-        const textureDataBuffer = textureData?.texture;
-        if (!this._textureUrls.has(textureHash) && textureDataBuffer) {
-            await void this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([textureDataBuffer], { type: 'image/ktx2' })));
-        }
-        return this._textureData.get(textureHash);
     }
     getTextureData(textureHash) {
-        if (!this._textureData.has(textureHash))
-            setTimeout(() => this.requestTextureData(textureHash), 1);
+        this.requestTextureData(textureHash);
         return this._textureData.get(textureHash);
     }
     getTextureURL(textureHash) {
-        if (!this._textureUrls.has(textureHash))
-            setTimeout(() => this.requestTextureData(textureHash), 1);
+        this.requestTextureData(textureHash);
         return this._textureUrls.get(textureHash);
     }
     tasksPending = false;

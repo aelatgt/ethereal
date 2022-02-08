@@ -61,7 +61,8 @@ export declare class WebLayerManagerBase {
     useCreateImageBitmap: boolean;
     getLayerState(hash: StateHash): LayerState;
     updateTexture(textureHash: TextureHash, imageData: ImageData): Promise<void>;
-    requestTextureData(textureHash: TextureHash): Promise<TextureData | undefined>;
+    _textureDataResolver: Map<string, (value?: any) => void>;
+    requestTextureData(textureHash: TextureHash): Promise<unknown>;
     getTextureData(textureHash: TextureHash): TextureData | undefined;
     getTextureURL(textureHash: TextureHash): string | undefined;
     tasksPending: boolean;

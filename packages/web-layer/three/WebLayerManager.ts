@@ -2,7 +2,7 @@
 import { ClampToEdgeWrapping, CompressedTexture, LinearFilter, sRGBEncoding } from 'three'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader'
 import { WebLayer3D } from './WebLayer3D'
-import { WebLayerManagerBase } from '../core/WebLayerManagerBase'
+import { TextureHash, WebLayerManagerBase } from '../core/WebLayerManagerBase'
 export class WebLayerManager extends WebLayerManagerBase {
 
     static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@3.1.7/dist/libs/`
@@ -24,7 +24,7 @@ export class WebLayerManager extends WebLayerManagerBase {
 
     textureEncoding = sRGBEncoding
 
-    texturesByUrl = new Map<string, CompressedTexture|'pending'|'error'>()
+    texturesByUrl = new Map<string, CompressedTexture>()
     layersUsingTexture = new WeakMap<CompressedTexture, Set<WebLayer3D>>()
     textureLoader = new KTX2Loader
     layersByElement = new WeakMap<Element, WebLayer3D>()
@@ -33,35 +33,33 @@ export class WebLayerManager extends WebLayerManagerBase {
     pixelsPerUnit = 1000
   
     getTexture(url:string, layer?:WebLayer3D) {
-
-      let texture = this.texturesByUrl.get(url)!  
-      const isNotLoaded = typeof texture === 'string'
-
-      if (isNotLoaded) return undefined
-
+      this._requestTexture(url)
+      const texture = this.texturesByUrl.get(url)
       if (texture) {
         if (layer) this.layersUsingTexture.get(texture as CompressedTexture)?.add(layer)
         return texture as CompressedTexture
       }
-
-      this.textureLoader.loadAsync(url).then((t) => {
-        t.wrapS = ClampToEdgeWrapping
-        t.wrapT = ClampToEdgeWrapping
-        t.minFilter = LinearFilter
-        t.encoding = this.textureEncoding
-        this.layersUsingTexture.set(t, new Set<WebLayer3D>())
-        this.texturesByUrl.set(url, t)
-      }).catch(() => {
-        this.texturesByUrl.set(url, 'error')
-      })
-
-      this.texturesByUrl.set(url, 'pending')
-
-      return texture
+      return undefined
     }
 
-    requestTexture(url:string, layer?:WebLayer3D) {
-      
+    _texturePromise = new Map<string, (value?:any)=>void>()
+
+    private _requestTexture(url:string) {
+      if (!this._texturePromise.has(url)) {
+        new Promise((resolve) => {
+          this._texturePromise.set(url, resolve)
+          this.textureLoader.loadAsync(url).then((t) => {
+            t.wrapS = ClampToEdgeWrapping
+            t.wrapT = ClampToEdgeWrapping
+            t.minFilter = LinearFilter
+            t.encoding = this.textureEncoding
+            this.layersUsingTexture.set(t, new Set<WebLayer3D>())
+            this.texturesByUrl.set(url, t)
+          }).finally(()=>{
+            resolve(undefined)
+          })
+        })
+      }
     }
 
     disposeLayer(layer:WebLayer3D) {

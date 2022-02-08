@@ -123,9 +123,8 @@ export interface WebContainer3DOptions extends WebLayerOptions {
           this.update()
       }, 20)
 
+      this.rootLayer.setNeedsRefresh(true)
       await this.rootLayer.refresh(true)
-
-      this.manager.ktx2Encoder.pool.dispose()
 
       clearInterval(intervalHandle)
     }

@@ -22,29 +22,32 @@ export class WebLayerManager extends WebLayerManagerBase {
     layersByMesh = new WeakMap();
     pixelsPerUnit = 1000;
     getTexture(url, layer) {
-        let texture = this.texturesByUrl.get(url);
-        const isNotLoaded = typeof texture === 'string';
-        if (isNotLoaded)
-            return undefined;
+        this.requestTexture(url);
+        const texture = this.texturesByUrl.get(url);
         if (texture) {
             if (layer)
                 this.layersUsingTexture.get(texture)?.add(layer);
             return texture;
         }
-        this.textureLoader.loadAsync(url).then((t) => {
-            t.wrapS = ClampToEdgeWrapping;
-            t.wrapT = ClampToEdgeWrapping;
-            t.minFilter = LinearFilter;
-            t.encoding = this.textureEncoding;
-            this.layersUsingTexture.set(t, new Set());
-            this.texturesByUrl.set(url, t);
-        }).catch(() => {
-            this.texturesByUrl.set(url, 'error');
-        });
-        this.texturesByUrl.set(url, 'pending');
-        return texture;
+        return undefined;
     }
-    requestTexture(url, layer) {
+    _texturePromise = new Map();
+    requestTexture(url) {
+        if (!this._texturePromise.has(url)) {
+            new Promise((resolve) => {
+                this._texturePromise.set(url, resolve);
+                this.textureLoader.loadAsync(url).then((t) => {
+                    t.wrapS = ClampToEdgeWrapping;
+                    t.wrapT = ClampToEdgeWrapping;
+                    t.minFilter = LinearFilter;
+                    t.encoding = this.textureEncoding;
+                    this.layersUsingTexture.set(t, new Set());
+                    this.texturesByUrl.set(url, t);
+                }).finally(() => {
+                    resolve(undefined);
+                });
+            });
+        }
     }
     disposeLayer(layer) {
         for (const t of layer.textures) {
