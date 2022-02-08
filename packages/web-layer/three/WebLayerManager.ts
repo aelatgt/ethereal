@@ -5,7 +5,7 @@ import { WebLayer3D } from './WebLayer3D'
 import { WebLayerManagerBase } from '../core/WebLayerManagerBase'
 export class WebLayerManager extends WebLayerManagerBase {
 
-    static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@$3.1.7/dist/libs/`
+    static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@3.1.7/dist/libs/`
 
     static initialize(renderer:THREE.WebGLRenderer) {
       WebLayerManager.instance = new WebLayerManager()

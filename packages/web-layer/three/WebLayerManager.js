@@ -2,7 +2,7 @@ import { ClampToEdgeWrapping, LinearFilter, sRGBEncoding } from 'three';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader';
 import { WebLayerManagerBase } from '../core/WebLayerManagerBase';
 export class WebLayerManager extends WebLayerManagerBase {
-    static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@$3.1.7/dist/libs/`;
+    static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@3.1.7/dist/libs/`;
     static initialize(renderer) {
         WebLayerManager.instance = new WebLayerManager();
         WebLayerManager.instance.renderer = renderer;
