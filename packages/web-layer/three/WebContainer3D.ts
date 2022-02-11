@@ -167,7 +167,8 @@ export interface WebContainer3DOptions extends WebLayerOptions {
       if (layer.desiredPseudoStates.hover) this._previousHoverLayers.add(layer)
       layer.cursor.visible = false
       layer.desiredPseudoStates.hover = false
-      this._contentMeshes.push(layer.contentMesh)
+      if (layer.contentMesh.visible)
+        this._contentMeshes.push(layer.contentMesh)
     }
   
     // private _intersectionGetGroupOrder(i:Intersection) {

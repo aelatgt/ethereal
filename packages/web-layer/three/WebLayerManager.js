@@ -22,7 +22,7 @@ export class WebLayerManager extends WebLayerManagerBase {
     layersByMesh = new WeakMap();
     pixelsPerUnit = 1000;
     getTexture(url, layer) {
-        this.requestTexture(url);
+        this._requestTexture(url);
         const texture = this.texturesByUrl.get(url);
         if (texture) {
             if (layer)
@@ -32,7 +32,7 @@ export class WebLayerManager extends WebLayerManagerBase {
         return undefined;
     }
     _texturePromise = new Map();
-    requestTexture(url) {
+    _requestTexture(url) {
         if (!this._texturePromise.has(url)) {
             new Promise((resolve) => {
                 this._texturePromise.set(url, resolve);

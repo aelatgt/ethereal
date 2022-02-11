@@ -17,6 +17,6 @@ export declare class WebLayerManager extends WebLayerManagerBase {
     pixelsPerUnit: number;
     getTexture(url: string, layer?: WebLayer3D): CompressedTexture | undefined;
     _texturePromise: Map<string, (value?: any) => void>;
-    requestTexture(url: string): void;
+    private _requestTexture;
     disposeLayer(layer: WebLayer3D): void;
 }

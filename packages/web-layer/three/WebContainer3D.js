@@ -131,7 +131,8 @@ export class WebContainer3D extends Object3D {
             this._previousHoverLayers.add(layer);
         layer.cursor.visible = false;
         layer.desiredPseudoStates.hover = false;
-        this._contentMeshes.push(layer.contentMesh);
+        if (layer.contentMesh.visible)
+            this._contentMeshes.push(layer.contentMesh);
     };
     // private _intersectionGetGroupOrder(i:Intersection) {
     //   let o = i.object as THREE.Group&THREE.Object3D

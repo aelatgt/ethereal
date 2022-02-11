@@ -1,6 +1,6 @@
 {
   "name": "ethereal-example-web-layer",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "author": "Gheric Speiginer",
   "private": true,
   "dependencies": {
