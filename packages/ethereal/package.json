@@ -4,9 +4,6 @@
   "version": "3.1.8",
   "author": "Gheric Speiginer",
   "bugs": "https://github.com/aelatgt/ethereal/issues",
-  "dependencies": {
-    "@etherealjs/core": "^2.0.32"
-  },
   "source": "./ethereal.ts",
   "main": "./dist/ethereal.umd.js",
   "module": "./dist/ethereal.es.js",

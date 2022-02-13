@@ -769,7 +769,7 @@ class Quaternion {
     return this;
   }
   slerpQuaternions(qa, qb, t) {
-    this.copy(qa).slerp(qb, t);
+    return this.copy(qa).slerp(qb, t);
   }
   random() {
     const u1 = Math.random();
@@ -3024,9 +3024,9 @@ class Box3 {
     this.max.copy(center).add(halfSize);
     return this;
   }
-  setFromObject(object) {
+  setFromObject(object, precise = false) {
     this.makeEmpty();
-    return this.expandByObject(object);
+    return this.expandByObject(object, precise);
   }
   clone() {
     return new this.constructor().copy(this);
@@ -3065,20 +3065,28 @@ class Box3 {
     this.max.addScalar(scalar);
     return this;
   }
-  expandByObject(object) {
+  expandByObject(object, precise = false) {
     object.updateWorldMatrix(false, false);
     const geometry = object.geometry;
     if (geometry !== void 0) {
-      if (geometry.boundingBox === null) {
-        geometry.computeBoundingBox();
+      if (precise && geometry.attributes != void 0 && geometry.attributes.position !== void 0) {
+        const position = geometry.attributes.position;
+        for (let i = 0, l = position.count; i < l; i++) {
+          _vector$1.fromBufferAttribute(position, i).applyMatrix4(object.matrixWorld);
+          this.expandByPoint(_vector$1);
+        }
+      } else {
+        if (geometry.boundingBox === null) {
+          geometry.computeBoundingBox();
+        }
+        _box.copy(geometry.boundingBox);
+        _box.applyMatrix4(object.matrixWorld);
+        this.union(_box);
       }
-      _box.copy(geometry.boundingBox);
-      _box.applyMatrix4(object.matrixWorld);
-      this.union(_box);
     }
     const children = object.children;
     for (let i = 0, l = children.length; i < l; i++) {
-      this.expandByObject(children[i]);
+      this.expandByObject(children[i], precise);
     }
     return this;
   }

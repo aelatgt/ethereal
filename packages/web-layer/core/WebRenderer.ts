@@ -45,7 +45,7 @@ function ensureElementIsInDocument(element: Element, options:WebLayerOptions): E
   const containerShadow = container.attachShadow({mode: 'open'})
   containerShadow.appendChild(element)
   document.documentElement.appendChild(container)
-  return element
+  return container
 }
 
 const scratchMat1 = new Matrix4()
@@ -253,7 +253,7 @@ export class WebRenderer {
     if (WebRenderer.getClosestLayer(element))
       throw new Error('A root WebLayer for the given element already exists')
 
-    ensureElementIsInDocument(element, options)
+    const containerElement = ensureElementIsInDocument(element, options)
     WebRenderer.initRootNodeObservation(element)
 
     const observer = new MutationObserver(WebRenderer._handleMutations)
@@ -280,7 +280,7 @@ export class WebRenderer {
 
     const layer = new WebLayer(options.manager, element, eventCallback)
     this.rootLayers.set(element, layer)
-    return layer
+    return containerElement
   }
 
   static disposeLayer(layer: WebLayer) {

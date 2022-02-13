@@ -63,6 +63,8 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     //   return naturalDistance
     // }
 
+    public containerElement!:Element
+
     public options!:WebContainer3DOptions
 
     public rootLayer!:WebLayer3D
@@ -80,7 +82,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
   
       const element = typeof elementOrHTML === 'string' ? toDOM(elementOrHTML) : elementOrHTML
   
-      WebRenderer.createLayerTree(element, options as WebContainer3DOptions, (event, { target }) => {
+      this.containerElement = WebRenderer.createLayerTree(element, options as WebContainer3DOptions, (event, { target }) => {
         if (event === 'layercreated') {
           const layer = (target as any).layer || new WebLayer3D(target, this)
           if (target === element) {
@@ -276,6 +278,15 @@ export interface WebContainer3DOptions extends WebLayerOptions {
         return { layer, intersection, target }
       }
       return undefined
+    }
+
+    /**
+     * Remove all DOM elements, remove from scene, and dispose layer resources
+     */
+    destroy() {
+      this.containerElement.remove()
+      this.removeFromParent()
+      this.rootLayer.dispose()
     }
   
   }
