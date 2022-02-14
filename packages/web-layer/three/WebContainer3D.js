@@ -43,6 +43,7 @@ export class WebContainer3D extends Object3D {
     //   const naturalDistance = width / 2 / Math.tan(horizontalFOV / 2)
     //   return naturalDistance
     // }
+    containerElement;
     options;
     rootLayer;
     _interactionRays = [];
@@ -54,7 +55,7 @@ export class WebContainer3D extends Object3D {
             options.manager = WebLayerManager.instance;
         this.options = options;
         const element = typeof elementOrHTML === 'string' ? toDOM(elementOrHTML) : elementOrHTML;
-        WebRenderer.createLayerTree(element, options, (event, { target }) => {
+        this.containerElement = WebRenderer.createLayerTree(element, options, (event, { target }) => {
             if (event === 'layercreated') {
                 const layer = target.layer || new WebLayer3D(target, this);
                 if (target === element) {
@@ -231,5 +232,13 @@ export class WebContainer3D extends Object3D {
             return { layer, intersection, target };
         }
         return undefined;
+    }
+    /**
+     * Remove all DOM elements, remove from scene, and dispose layer resources
+     */
+    destroy() {
+        this.containerElement.remove();
+        this.removeFromParent();
+        this.rootLayer.dispose();
     }
 }

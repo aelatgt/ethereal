@@ -45,7 +45,7 @@ export declare class WebRenderer {
     private static containerStyleElement;
     static initRootNodeObservation(element: Element): void;
     static setLayerNeedsRefresh(layer: WebLayer): void;
-    static createLayerTree(element: Element, options: WebLayerOptions, eventCallback: EventCallback): WebLayer;
+    static createLayerTree(element: Element, options: WebLayerOptions, eventCallback: EventCallback): Element;
     static disposeLayer(layer: WebLayer): void;
     static getClosestLayer(element: Element, inclusive?: boolean): WebLayer | undefined;
     static parseCSSTransform(computedStyle: CSSStyleDeclaration, width: number, height: number, pixelSize: number, out?: Matrix4): Matrix4 | null;

@@ -14,7 +14,7 @@ function ensureElementIsInDocument(element, options) {
     const containerShadow = container.attachShadow({ mode: 'open' });
     containerShadow.appendChild(element);
     document.documentElement.appendChild(container);
-    return element;
+    return container;
 }
 const scratchMat1 = new Matrix4();
 const scratchMat2 = new Matrix4();
@@ -194,7 +194,7 @@ export class WebRenderer {
     static createLayerTree(element, options, eventCallback) {
         if (WebRenderer.getClosestLayer(element))
             throw new Error('A root WebLayer for the given element already exists');
-        ensureElementIsInDocument(element, options);
+        const containerElement = ensureElementIsInDocument(element, options);
         WebRenderer.initRootNodeObservation(element);
         const observer = new MutationObserver(WebRenderer._handleMutations);
         this.mutationObservers.set(element, observer);
@@ -217,7 +217,7 @@ export class WebRenderer {
         element.addEventListener('transitionend', this._triggerRefresh, { capture: true });
         const layer = new WebLayer(options.manager, element, eventCallback);
         this.rootLayers.set(element, layer);
-        return layer;
+        return containerElement;
     }
     static disposeLayer(layer) {
         if (this.rootLayers.has(layer.element)) {

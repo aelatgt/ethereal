@@ -35,6 +35,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
  *     e.g., 500px width means 0.5meters
  */
 export declare class WebContainer3D extends Object3D {
+    containerElement: Element;
     options: WebContainer3DOptions;
     rootLayer: WebLayer3D;
     private _interactionRays;
@@ -84,5 +85,9 @@ export declare class WebContainer3D extends Object3D {
         intersection: Intersection;
         target: HTMLElement;
     } | undefined;
+    /**
+     * Remove all DOM elements, remove from scene, and dispose layer resources
+     */
+    destroy(): void;
 }
 export {};
