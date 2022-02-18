@@ -1,4 +1,3 @@
-import "fast-text-encoding";
 import { Bounds, Edges } from './dom-utils';
 import { WebLayerManagerBase } from './WebLayerManagerBase';
 export declare type EventCallback = (event: 'layerpainted' | 'layercreated' | 'layermoved', data: {
@@ -8,7 +7,8 @@ export declare class WebLayer {
     manager: WebLayerManagerBase;
     element: Element;
     eventCallback: EventCallback;
-    id: string;
+    isMediaElement: boolean;
+    isVideoElement: boolean;
     constructor(manager: WebLayerManagerBase, element: Element, eventCallback: EventCallback);
     desiredPseudoState: {
         hover: boolean;
@@ -22,9 +22,11 @@ export declare class WebLayer {
     parentLayer?: WebLayer;
     childLayers: WebLayer[];
     pixelRatio?: number;
-    previousDOMStateHash?: string;
-    currentDOMStateHash?: string;
+    previousDOMStateKey?: string | HTMLMediaElement;
+    desiredDOMStateKey?: string | HTMLMediaElement;
+    currentDOMStatekey?: string | HTMLMediaElement;
     get previousDOMState(): import("./WebLayerManagerBase").LayerState | undefined;
+    get desiredDOMState(): import("./WebLayerManagerBase").LayerState | undefined;
     get currentDOMState(): import("./WebLayerManagerBase").LayerState | undefined;
     domMetrics: {
         bounds: Bounds;

@@ -18,7 +18,6 @@ export declare type RequestIdleCallbackDeadline = {
 };
 export declare class WebRenderer {
     static ATTRIBUTE_PREFIX: string;
-    static get ELEMENT_UID_ATTRIBUTE(): string;
     static get HOVER_ATTRIBUTE(): string;
     static get ACTIVE_ATTRIBUTE(): string;
     static get FOCUS_ATTRIBUTE(): string;
@@ -30,8 +29,6 @@ export declare class WebRenderer {
     static get RENDERING_CONTAINER_ATTRIBUTE(): string;
     static get RENDERING_INLINE_ATTRIBUTE(): string;
     static get RENDERING_DOCUMENT_ATTRIBUTE(): string;
-    private static _nextUID;
-    static generateElementUID(): string;
     static serializer: XMLSerializer;
     static getPsuedoAttributes(states: typeof WebLayer.prototype.desiredPseudoState): string;
     static rootLayers: Map<Element, WebLayer>;

@@ -53,7 +53,6 @@ const scratchMat2 = new Matrix4()
 
 export class WebRenderer {
   static ATTRIBUTE_PREFIX = 'xr'
-  static get ELEMENT_UID_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-uid' }
   static get HOVER_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-hover'}
   static get ACTIVE_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-active'}
   static get FOCUS_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-focus'}
@@ -66,9 +65,6 @@ export class WebRenderer {
   static get RENDERING_CONTAINER_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-rendering-container' }
   static get RENDERING_INLINE_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-rendering-inline' }
   static get RENDERING_DOCUMENT_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-rendering-document' }
-
-  private static _nextUID = 0
-  static generateElementUID() { return '' + (this._nextUID ++) }
 
   static serializer = new XMLSerializer()
 

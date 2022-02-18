@@ -26,19 +26,25 @@ export interface LayerState {
         target: boolean;
     };
 }
+export interface StateData {
+    hash: StateHash;
+    textureHash?: TextureHash;
+}
 export interface TextureData {
     hash: TextureHash;
     lastUsedTime: number;
     texture?: ArrayBuffer;
 }
-export declare class TextureStore extends Dexie {
+export declare class LayerStore extends Dexie {
+    states: Table<StateData>;
     textures: Table<TextureData>;
     constructor(name: string);
 }
 export declare class WebLayerManagerBase {
     WebRenderer: typeof WebRenderer;
     constructor(name?: string);
-    private _textureStore;
+    saveStore(): void;
+    private _layerStore;
     private _textureUrls;
     private _textureData;
     private _layerState;
@@ -59,7 +65,8 @@ export declare class WebLayerManagerBase {
     textEncoder: TextEncoder;
     ktx2Encoder: KTX2EncoderType;
     useCreateImageBitmap: boolean;
-    getLayerState(hash: StateHash): LayerState;
+    getLayerState(hash: StateHash | HTMLMediaElement): LayerState;
+    requestLayerState(hash: StateHash | HTMLMediaElement): Promise<LayerState>;
     updateTexture(textureHash: TextureHash, imageData: ImageData): Promise<void>;
     _textureDataResolver: Map<string, (value?: any) => void>;
     requestTextureData(textureHash: TextureHash): Promise<unknown>;
@@ -74,7 +81,7 @@ export declare class WebLayerManagerBase {
     private _runTasks;
     addToSerializeQueue(layer: WebLayer): ReturnType<typeof WebLayerManagerBase.prototype.serialize>;
     serialize(layer: WebLayer): Promise<{
-        svgHash: string;
+        stateKey: StateHash | HTMLMediaElement;
         svgUrl: string;
         needsRasterize: boolean;
     }>;

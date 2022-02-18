@@ -48,19 +48,25 @@ export interface LayerState {
     }
 }
 
+export interface StateData {
+    hash: StateHash
+    textureHash?: TextureHash
+}
 export interface TextureData {
     hash: TextureHash
     lastUsedTime: number
     texture?: ArrayBuffer
 }
   
-export class TextureStore extends Dexie {
+export class LayerStore extends Dexie {
 
+    states!: Table<StateData>;
     textures!: Table<TextureData>;
 
     constructor(name:string) {
         super(name)
-        this.version(1).stores({
+        this.version(2).stores({
+            states: '&hash',
             textures: '&hash, lastUsedTime'
         })
     }
@@ -80,18 +86,25 @@ export class WebLayerManagerBase {
     WebRenderer = WebRenderer
 
     constructor(name = "web-layer-cache") {
-        this._textureStore = new TextureStore(name)
+        this._layerStore = new LayerStore(name)
 
-        window.addEventListener("blur", (event) => {
-            this._textureStore.textures.bulkPut(Array.from(this._textureData.values()))
-        })
+        window.addEventListener("blur", (event) => { this.saveStore() })
+        window.addEventListener("focus", (event) => { this.saveStore() })
+        window.addEventListener("visibilitychange", (event) => { this.saveStore() })
+    }
+
+    saveStore() {
+        this._layerStore.states.bulkPut(Array.from(this._layerState.entries())
+            .filter(([k,v]) => typeof k === 'string')
+            .map(([k,v]) => ({hash: k as string, textureHash: v.texture.hash})))
+        this._layerStore.textures.bulkPut(Array.from(this._textureData.values()))
     }
     
-    private _textureStore:TextureStore
+    private _layerStore:LayerStore
     private _textureUrls = new Map<TextureHash, string>()
     private _textureData = new Map<TextureHash, TextureData>()
 
-    private _layerState = new Map<StateHash, LayerState>()
+    private _layerState = new Map<StateHash|HTMLMediaElement, LayerState>()
 
     serializeQueue = [] as {layer:WebLayer, resolve:(val:any)=>void, promise:any}[]
     rasterizeQueue = [] as {hash:StateHash, url:string, resolve:(val:any)=>void, promise:any}[]
@@ -105,7 +118,7 @@ export class WebLayerManagerBase {
 
     useCreateImageBitmap = false
 
-    getLayerState(hash:StateHash) {
+    getLayerState(hash:StateHash|HTMLMediaElement) {
         let data = this._layerState.get(hash)
         if (!data) {
             data = {
@@ -136,6 +149,15 @@ export class WebLayerManagerBase {
         return data
     }
 
+    async requestLayerState(hash:StateHash|HTMLMediaElement) {
+        const fullState = this.getLayerState(hash)
+        if (typeof hash === 'string' && !fullState.texture.hash) {
+            const state = await this._layerStore.states.get(hash)
+            fullState.texture.hash = state?.textureHash
+        }
+        return fullState
+    }
+
     async updateTexture(textureHash:TextureHash, imageData:ImageData) {
         const ktx2Texture = await this.ktx2Encoder.encode(imageData as any)
         const textureData = this._textureData.get(textureHash) || 
@@ -152,7 +174,7 @@ export class WebLayerManagerBase {
         if (!this._textureDataResolver.has(textureHash)) {
             return new Promise(async (resolve) => {
                 this._textureDataResolver.set(textureHash, resolve)
-                const textureData = await this._textureStore.textures.get(textureHash)
+                const textureData = await this._layerStore.textures.get(textureHash)
                 if (textureData?.texture && !this._textureData.has(textureHash)) {
                     this._textureData.set(textureHash, textureData)
                     this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([textureData.texture], {type: 'image/ktx2'})))  
@@ -225,7 +247,7 @@ export class WebLayerManagerBase {
     addToSerializeQueue(layer:WebLayer) : ReturnType<typeof WebLayerManagerBase.prototype.serialize>{
         const inQueue = this.serializeQueue.find((v) => v.layer === layer)
         if (inQueue) return inQueue.promise
-        layer.currentDOMStateHash = undefined
+        layer.currentDOMStatekey = undefined
         let resolve!:(v:any)=>any
         const promise = new Promise((r) => {resolve = r})
         this.serializeQueue.push({layer, resolve, promise})
@@ -250,57 +272,66 @@ export class WebLayerManagerBase {
             layer.pixelRatio ||
             parseFloat(layer.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
             window.devicePixelRatio
-
-        // create svg markup
-        const elementAttribute = WebRenderer.attributeHTML(WebRenderer.ELEMENT_UID_ATTRIBUTE,''+layer.id)
-        const computedStyle = getComputedStyle(layerElement)
-        const needsInlineBlock = computedStyle.display === 'inline'
-        WebRenderer.updateInputAttributes(layerElement)
-        
-        const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, pixelRatio)
-        const svgCSS = await WebRenderer.getAllEmbeddedStyles(layerElement)
-        let layerHTML = await serializeToString(layerElement)
-        
-        layerHTML = layerHTML.replace(elementAttribute,
-            `${elementAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
-            `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
-            WebRenderer.getPsuedoAttributes(layer.desiredPseudoState))
-            
         const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32)
         const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32)
-        
-        const docString =
-            '<svg width="' +
-            textureWidth +
-            '" height="' +
-            textureHeight +
-            '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
-            svgCSS.join('\n') +
-            ']]></style></defs><foreignObject x="0" y="0" width="' +
-            fullWidth*pixelRatio +
-            '" height="' +
-            fullHeight*pixelRatio +
-            '">' +
-            parentsHTML[0] +
-            layerHTML +
-            parentsHTML[1] +
-            '</foreignObject></svg>'
 
-        
-        const svgUrl = 'data:image/svg+xml;utf8,' + encodeURIComponent(docString)
+        const result = {} as {stateKey: StateHash|HTMLMediaElement, svgUrl:string, needsRasterize:boolean}
 
-        const stateHashBuffer = await crypto.subtle.digest('SHA-1', this.textEncoder.encode(docString))
-        const stateHash = bufferToHex(stateHashBuffer) +
-            '?w=' + fullWidth +
-            ';h=' + fullHeight + 
-            ';tw=' + textureWidth +
-            ';th=' + textureHeight
+        if (layer.isMediaElement) {
+            result.stateKey = layerElement as HTMLMediaElement
+        } else {
+
+            // create svg markup
+            const layerAttribute = WebRenderer.attributeHTML(WebRenderer.LAYER_ATTRIBUTE,'')
+            const computedStyle = getComputedStyle(layerElement)
+            const needsInlineBlock = computedStyle.display === 'inline'
+            WebRenderer.updateInputAttributes(layerElement)
+            
+            const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, pixelRatio)
+            const svgCSS = await WebRenderer.getAllEmbeddedStyles(layerElement)
+            let layerHTML = await serializeToString(layerElement)
+            layerHTML = layerHTML.replace(layerAttribute,
+                `${layerAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
+                `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
+                WebRenderer.getPsuedoAttributes(layer.desiredPseudoState))
+            
+            const docString =
+                '<svg width="' +
+                textureWidth +
+                '" height="' +
+                textureHeight +
+                '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
+                svgCSS.join('\n') +
+                ']]></style></defs><foreignObject x="0" y="0" width="' +
+                fullWidth*pixelRatio +
+                '" height="' +
+                fullHeight*pixelRatio +
+                '">' +
+                parentsHTML[0] +
+                layerHTML +
+                parentsHTML[1] +
+                '</foreignObject></svg>'
+
+            const svgUrl = 'data:image/svg+xml;utf8,' + encodeURIComponent(docString)
+
+            const stateHashBuffer = await crypto.subtle.digest('SHA-1', this.textEncoder.encode(docString))
+            const stateHash = bufferToHex(stateHashBuffer) +
+                '?w=' + fullWidth +
+                ';h=' + fullHeight + 
+                ';tw=' + textureWidth +
+                ';th=' + textureHeight
+
+            result.svgUrl = svgUrl
+            result.stateKey = stateHash
+
+        }
         
-        layer.currentDOMStateHash = stateHash
+        
+        layer.desiredDOMStateKey = result.stateKey
 
         // update the layer state data
         // console.log('serialized ' + svgHash)
-        const data = this.getLayerState(stateHash)
+        const data = await this.requestLayerState(result.stateKey)
         data.bounds.copy(metrics.bounds)
         data.margin.copy(metrics.margin)
         data.fullWidth = fullWidth
@@ -310,14 +341,10 @@ export class WebLayerManagerBase {
         data.texture.pixelRatio = pixelRatio
         // console.log(metrics.bounds)
 
-        // @ts-ignore
-        layer._svgUrl = svgUrl
-
-        const nodeName = layer.element.nodeName
-        const needsRasterize = fullWidth * fullHeight > 0 && nodeName !== "VIDEO"
+        result.needsRasterize = !layer.isMediaElement && fullWidth * fullHeight > 0 
             && (data.renderAttempts < this.MINIMUM_RENDER_ATTEMPTS || !data.texture.hash)
 
-        return {svgHash: stateHash, svgUrl, needsRasterize}
+        return result
     }
 
     async rasterize(stateHash:StateHash, svgUrl:SVGUrl) {

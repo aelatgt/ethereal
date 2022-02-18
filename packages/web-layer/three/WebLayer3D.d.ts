@@ -97,6 +97,6 @@ export declare class WebLayer3D extends Object3D {
     traverseLayersPreOrder(each: (layer: WebLayer3D) => boolean | void): boolean;
     traverseLayersPostOrder(each: (layer: WebLayer3D) => boolean | void): boolean;
     dispose(): void;
-    private _refreshVideoBounds;
+    private _refreshMediaBounds;
     private _updateDOMLayout;
 }

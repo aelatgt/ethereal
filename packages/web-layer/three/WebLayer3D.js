@@ -1,4 +1,4 @@
-import { ClampToEdgeWrapping, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture } from "three";
+import { ClampToEdgeWrapping, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, Texture } from "three";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
 export const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE');
@@ -74,11 +74,11 @@ export class WebLayer3D extends Object3D {
     }
     get texture() {
         const manager = this.container.manager;
-        if (this.element.tagName === 'VIDEO') {
-            const video = this.element;
+        if (this._webLayer.isMediaElement) {
+            const media = this.element;
             let t = this._mediaTexture;
             if (!t) {
-                t = new VideoTexture(video);
+                t = this._webLayer.isVideoElement ? new VideoTexture(media) : new Texture(media);
                 t.wrapS = ClampToEdgeWrapping;
                 t.wrapT = ClampToEdgeWrapping;
                 t.minFilter = LinearFilter;
@@ -244,7 +244,7 @@ export class WebLayer3D extends Object3D {
                 this.parent.remove(this);
             this.dispose();
         }
-        this._refreshVideoBounds();
+        this._refreshMediaBounds();
     }
     /** INTERNAL */
     [ON_BEFORE_UPDATE]() { }
@@ -318,47 +318,50 @@ export class WebLayer3D extends Object3D {
         for (const child of this.childWebLayers)
             child.dispose();
     }
-    _refreshVideoBounds() {
-        if (this.element.nodeName === 'VIDEO') {
+    _refreshMediaBounds() {
+        if (this._webLayer.isMediaElement) {
+            const isVideo = this._webLayer.isVideoElement;
             const domState = this.domState;
             if (!domState)
                 return;
-            const video = this.element;
+            const media = this.element;
             const texture = this.texture;
             const computedStyle = getComputedStyle(this.element);
             const { objectFit } = computedStyle;
             const { width: viewWidth, height: viewHeight } = this.bounds.copy(domState.bounds);
-            const { videoWidth, videoHeight } = video;
-            const videoRatio = videoWidth / videoHeight;
+            media.naturalWidth;
+            const naturalWidth = isVideo ? media.videoWidth : media.naturalWidth;
+            const naturalHeight = isVideo ? media.videoHeight : media.naturalHeight;
+            const mediaRatio = naturalWidth / naturalHeight;
             const viewRatio = viewWidth / viewHeight;
             texture.center.set(0.5, 0.5);
             switch (objectFit) {
                 case 'none':
-                    texture.repeat.set(viewWidth / videoWidth, viewHeight / videoHeight).clampScalar(0, 1);
+                    texture.repeat.set(viewWidth / naturalWidth, viewHeight / naturalHeight).clampScalar(0, 1);
                     break;
                 case 'contain':
                 case 'scale-down':
                     texture.repeat.set(1, 1);
-                    if (viewRatio > videoRatio) {
-                        const width = this.bounds.height * videoRatio || 0;
+                    if (viewRatio > mediaRatio) {
+                        const width = this.bounds.height * mediaRatio || 0;
                         this.bounds.left += (this.bounds.width - width) / 2;
                         this.bounds.width = width;
                     }
                     else {
-                        const height = this.bounds.width / videoRatio || 0;
+                        const height = this.bounds.width / mediaRatio || 0;
                         this.bounds.top += (this.bounds.height - height) / 2;
                         this.bounds.height = height;
                     }
                     break;
                 case 'cover':
-                    texture.repeat.set(viewWidth / videoWidth, viewHeight / videoHeight);
-                    if (viewRatio < videoRatio) {
-                        const width = this.bounds.height * videoRatio || 0;
+                    texture.repeat.set(viewWidth / naturalWidth, viewHeight / naturalHeight);
+                    if (viewRatio < mediaRatio) {
+                        const width = this.bounds.height * mediaRatio || 0;
                         this.bounds.left += (this.bounds.width - width) / 2;
                         this.bounds.width = width;
                     }
                     else {
-                        const height = this.bounds.width / videoRatio || 0;
+                        const height = this.bounds.width / mediaRatio || 0;
                         this.bounds.top += (this.bounds.height - height) / 2;
                         this.bounds.height = height;
                     }

@@ -1,7 +1,7 @@
 {
   "name": "ethereal-example-demo",
   "private": true,
-  "version": "1.3.10",
+  "version": "1.3.11",
   "author": "Gheric Speiginer",
   "dependencies": {
     "@emotion/css": "latest",

@@ -1,11 +1,11 @@
 import { WebRenderer } from './WebRenderer';
-import "fast-text-encoding";
 import { traverseChildElements, Bounds, Edges } from './dom-utils';
 export class WebLayer {
     manager;
     element;
     eventCallback;
-    id;
+    isMediaElement = false;
+    isVideoElement = false;
     constructor(manager, element, eventCallback) {
         this.manager = manager;
         this.element = element;
@@ -13,11 +13,11 @@ export class WebLayer {
         if (!manager)
             throw new Error("WebLayerManager must be initialized");
         WebRenderer.layers.set(element, this);
-        this.id = element.getAttribute(WebRenderer.ELEMENT_UID_ATTRIBUTE) || WebRenderer.generateElementUID();
-        element.setAttribute(WebRenderer.ELEMENT_UID_ATTRIBUTE, this.id);
         element.setAttribute(WebRenderer.LAYER_ATTRIBUTE, '');
         this.parentLayer = WebRenderer.getClosestLayer(this.element, false);
         this.eventCallback('layercreated', { target: element });
+        this.isVideoElement = element.nodeName === 'VIDEO';
+        this.isMediaElement = this.isVideoElement || element.nodeName === 'IMAGE' || element.nodeName === 'CANVAS';
     }
     desiredPseudoState = {
         hover: false,
@@ -36,13 +36,17 @@ export class WebLayer {
     parentLayer;
     childLayers = [];
     pixelRatio;
-    previousDOMStateHash;
-    currentDOMStateHash;
+    previousDOMStateKey;
+    desiredDOMStateKey;
+    currentDOMStatekey;
     get previousDOMState() {
-        return this.previousDOMStateHash ? this.manager.getLayerState(this.previousDOMStateHash) : undefined;
+        return this.previousDOMStateKey ? this.manager.getLayerState(this.previousDOMStateKey) : undefined;
+    }
+    get desiredDOMState() {
+        return this.desiredDOMStateKey ? this.manager.getLayerState(this.desiredDOMStateKey) : undefined;
     }
     get currentDOMState() {
-        return this.currentDOMStateHash ? this.manager.getLayerState(this.currentDOMStateHash) : undefined;
+        return this.currentDOMStatekey ? this.manager.getLayerState(this.currentDOMStatekey) : undefined;
     }
     domMetrics = {
         bounds: new Bounds(),
@@ -82,20 +86,26 @@ export class WebLayer {
         }
     }
     update() {
-        const prevState = this.previousDOMState;
-        const state = this.currentDOMState;
-        if (prevState?.texture.url !== state?.texture.url) {
+        if (this.desiredDOMStateKey !== this.currentDOMStatekey) {
+            const desired = this.desiredDOMState;
+            if (desired && (this.isMediaElement || desired.texture.url || desired.fullWidth * desired.fullHeight === 0)) {
+                this.currentDOMStatekey = this.desiredDOMStateKey;
+            }
+        }
+        const prev = this.previousDOMState;
+        const current = this.currentDOMState;
+        if (prev?.texture.url !== current?.texture.url) {
             this.eventCallback('layerpainted', { target: this.element });
         }
-        this.previousDOMStateHash = this.currentDOMStateHash;
+        this.previousDOMStateKey = this.currentDOMStatekey;
     }
     async refresh() {
-        this.currentDOMStateHash = undefined;
+        this.currentDOMStatekey = undefined;
         this.needsRefresh = false;
         this._updateParentAndChildLayers();
         const result = await this.manager.addToSerializeQueue(this);
-        if (result.needsRasterize)
-            await this.manager.addToRasterizeQueue(result.svgHash, result.svgUrl);
+        if (result.needsRasterize && typeof result.stateKey === 'string')
+            await this.manager.addToRasterizeQueue(result.stateKey, result.svgUrl);
     }
     _updateParentAndChildLayers() {
         const element = this.element;
@@ -122,10 +132,6 @@ export class WebLayer {
             return false;
         const el = n;
         const styles = getComputedStyle(el);
-        const id = el.getAttribute(WebRenderer.ELEMENT_UID_ATTRIBUTE);
-        if (!id) {
-            el.setAttribute(WebRenderer.ELEMENT_UID_ATTRIBUTE, WebRenderer.generateElementUID());
-        }
         const isLayer = el.hasAttribute(WebRenderer.LAYER_ATTRIBUTE);
         if (isLayer || el.nodeName === 'VIDEO' || styles.transform !== 'none') {
             let child = WebRenderer.layers.get(el);
