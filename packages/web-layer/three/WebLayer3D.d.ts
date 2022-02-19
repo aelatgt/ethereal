@@ -15,6 +15,7 @@ export declare class WebLayer3D extends Object3D {
     private _localZ;
     private _viewZ;
     private _renderZ;
+    private _mediaSrc?;
     private _mediaTexture?;
     textures: Set<CompressedTexture>;
     private _previousTexture?;

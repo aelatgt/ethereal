@@ -1,4 +1,4 @@
-import { ClampToEdgeWrapping, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, Texture } from "three";
+import { ClampToEdgeWrapping, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, TextureLoader } from "three";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
 export const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE');
@@ -35,8 +35,8 @@ export class WebLayer3D extends Object3D {
         this.name = element.id;
         this._webLayer = WebRenderer.getClosestLayer(element);
         element.layer = this;
-        // compressed textures need flipped geometry
-        const geometry = (this.element.nodeName === 'VIDEO') ? WebLayer3D.GEOMETRY : WebLayer3D.FLIPPED_GEOMETRY;
+        // compressed textures need flipped geometry]
+        const geometry = this._webLayer.isMediaElement ? WebLayer3D.GEOMETRY : WebLayer3D.FLIPPED_GEOMETRY;
         this.contentMesh = new Mesh(geometry, new MeshBasicMaterial({
             side: DoubleSide,
             depthWrite: false,
@@ -66,6 +66,7 @@ export class WebLayer3D extends Object3D {
     _localZ = 0;
     _viewZ = 0;
     _renderZ = 0;
+    _mediaSrc;
     _mediaTexture;
     textures = new Set();
     _previousTexture;
@@ -77,8 +78,10 @@ export class WebLayer3D extends Object3D {
         if (this._webLayer.isMediaElement) {
             const media = this.element;
             let t = this._mediaTexture;
-            if (!t) {
-                t = this._webLayer.isVideoElement ? new VideoTexture(media) : new Texture(media);
+            if (!t || t.image && media.src !== t.image.src) {
+                if (t)
+                    t.dispose();
+                t = this._webLayer.isVideoElement ? new VideoTexture(media) : new TextureLoader().load(media.src);
                 t.wrapS = ClampToEdgeWrapping;
                 t.wrapT = ClampToEdgeWrapping;
                 t.minFilter = LinearFilter;
@@ -329,7 +332,6 @@ export class WebLayer3D extends Object3D {
             const computedStyle = getComputedStyle(this.element);
             const { objectFit } = computedStyle;
             const { width: viewWidth, height: viewHeight } = this.bounds.copy(domState.bounds);
-            media.naturalWidth;
             const naturalWidth = isVideo ? media.videoWidth : media.naturalWidth;
             const naturalHeight = isVideo ? media.videoHeight : media.naturalHeight;
             const mediaRatio = naturalWidth / naturalHeight;

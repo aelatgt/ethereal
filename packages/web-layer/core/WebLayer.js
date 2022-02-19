@@ -15,9 +15,9 @@ export class WebLayer {
         WebRenderer.layers.set(element, this);
         element.setAttribute(WebRenderer.LAYER_ATTRIBUTE, '');
         this.parentLayer = WebRenderer.getClosestLayer(this.element, false);
-        this.eventCallback('layercreated', { target: element });
         this.isVideoElement = element.nodeName === 'VIDEO';
-        this.isMediaElement = this.isVideoElement || element.nodeName === 'IMAGE' || element.nodeName === 'CANVAS';
+        this.isMediaElement = this.isVideoElement || element.nodeName === 'IMG' || element.nodeName === 'CANVAS';
+        this.eventCallback('layercreated', { target: element });
     }
     desiredPseudoState = {
         hover: false,
