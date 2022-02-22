@@ -6160,7 +6160,7 @@ class Transitionable extends TransitionConfig {
 }
 class SpatialAdapter {
   constructor(system, node) {
-    __publicField(this, "measureBoundsCache", new Map());
+    __publicField(this, "measureBoundsCache", /* @__PURE__ */ new Map());
     __publicField(this, "metrics");
     __publicField(this, "transition", new TransitionConfig());
     __publicField(this, "referenceNode");
@@ -6202,7 +6202,7 @@ class SpatialAdapter {
     this._outerBounds.delay = 0;
     this._outerVisualBounds.debounce = 0;
     this._outerVisualBounds.delay = 0;
-    this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = new Set();
+    this._orientation.syncGroup = this._bounds.syncGroup = this._opacity.syncGroup = /* @__PURE__ */ new Set();
   }
   measureBounds(measure, type, subType) {
     var _a2, _b2, _c2;
@@ -15795,8 +15795,8 @@ var createConj = /* @__PURE__ */ factory(name$F, dependencies$F, (_ref) => {
 function lruQueue(limit) {
   var size = 0;
   var base = 1;
-  var queue = Object.create(null);
-  var map2 = Object.create(null);
+  var queue = /* @__PURE__ */ Object.create(null);
+  var map2 = /* @__PURE__ */ Object.create(null);
   var index = 0;
   var del = function del2(id) {
     var oldIndex = map2[id];
@@ -15843,8 +15843,8 @@ function lruQueue(limit) {
     clear: function clear() {
       size = index = 0;
       base = 1;
-      queue = Object.create(null);
-      map2 = Object.create(null);
+      queue = /* @__PURE__ */ Object.create(null);
+      map2 = /* @__PURE__ */ Object.create(null);
     }
   };
 }
@@ -15858,7 +15858,7 @@ function memoize(fn) {
   return function memoize2() {
     if (typeof memoize2.cache !== "object") {
       memoize2.cache = {
-        values: new Map(),
+        values: /* @__PURE__ */ new Map(),
         lru: lruQueue(limit || Number.POSITIVE_INFINITY)
       };
     }
@@ -22507,7 +22507,7 @@ var createIndexNode = /* @__PURE__ */ factory(name$d, dependencies$d, (_ref) => 
     var dimensions = this.dimensions.map(function(range) {
       return range.toTex(options);
     });
-    return this.dotNotation ? "." + this.getObjectProperty() + "" : "_{" + dimensions.join(",") + "}";
+    return this.dotNotation ? "." + this.getObjectProperty() : "_{" + dimensions.join(",") + "}";
   };
   function createRange(start, end, step) {
     return new Range(isBigNumber(start) ? start.toNumber() : start, isBigNumber(end) ? end.toNumber() : end, isBigNumber(step) ? step.toNumber() : step);
@@ -26030,7 +26030,7 @@ class EtherealLayoutSystem {
     }, {
       predictable: true
     }));
-    __publicField(this, "mathCompiledExpressions", new Map());
+    __publicField(this, "mathCompiledExpressions", /* @__PURE__ */ new Map());
     __publicField(this, "mathScope", {
       ratio: void 0,
       degree: this.math.unit("degree"),
@@ -26073,8 +26073,8 @@ class EtherealLayoutSystem {
     __publicField(this, "deltaTime", 1 / 60);
     __publicField(this, "time", 0);
     __publicField(this, "maxDeltaTime", 1 / 60);
-    __publicField(this, "nodeMetrics", new Map());
-    __publicField(this, "nodeAdapters", new Map());
+    __publicField(this, "nodeMetrics", /* @__PURE__ */ new Map());
+    __publicField(this, "nodeAdapters", /* @__PURE__ */ new Map());
     __publicField(this, "transitionables", []);
     __publicField(this, "getMetrics", (node) => {
       if (!node)

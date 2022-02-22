@@ -39,14 +39,14 @@ export class WebLayerManagerBase {
             .map(([k, v]) => ({ hash: k, textureHash: v.texture.hash }));
         const textureData = Array.from(this._unsavedTextureData.values());
         this._unsavedTextureData.clear();
-        return this.loadStore({
+        return this.loadIntoStore({
             stateData,
             textureData
         });
     }
     _packr = new Packr({ structuredClone: true });
     _unpackr = new Unpackr({ structuredClone: true });
-    async importStore(url) {
+    async importCache(url) {
         const response = await fetch(url);
         const zipped = await response.arrayBuffer();
         const buffer = await new Promise((resolve, reject) => {
@@ -57,9 +57,9 @@ export class WebLayerManagerBase {
             });
         });
         const data = this._unpackr.unpack(buffer);
-        return this.loadStore(data);
+        return this.loadIntoStore(data);
     }
-    async exportStore(states) {
+    async exportCache(states) {
         const stateData = states ?
             await this.store.states.bulkGet(states) :
             await this.store.states.toArray();
@@ -113,7 +113,7 @@ export class WebLayerManagerBase {
     //     const zippedBlob = blobWriter.getData()
     //     return zippedBlob
     // }
-    async loadStore(data) {
+    async loadIntoStore(data) {
         return Promise.all([
             this.store.states.bulkPut(data.stateData),
             this.store.textures.bulkPut(data.textureData)

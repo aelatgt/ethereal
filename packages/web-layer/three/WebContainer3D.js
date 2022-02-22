@@ -260,7 +260,7 @@ export class WebContainer3D extends Object3D {
             for (const hash of layer.allStateHashes)
                 states.add(hash);
         });
-        const blob = await this.manager.exportStore(Array.from(states));
+        const blob = await this.manager.exportCache(Array.from(states));
         downloadBlob(blob, 'web.' + this.rootLayer.element.id + '.cache');
     }
 }

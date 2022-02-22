@@ -51,9 +51,9 @@ export declare class WebLayerManagerBase {
     saveStore(): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
     private _packr;
     private _unpackr;
-    importStore(url: string): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
-    exportStore(states?: StateHash[]): Promise<Blob>;
-    loadStore(data: {
+    importCache(url: string): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
+    exportCache(states?: StateHash[]): Promise<Blob>;
+    loadIntoStore(data: {
         stateData: StateData[];
         textureData: TextureData[];
     }): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;

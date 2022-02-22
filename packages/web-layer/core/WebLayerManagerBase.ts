@@ -109,7 +109,7 @@ export class WebLayerManagerBase {
             .map(([k,v]) => ({hash: k as string, textureHash: v.texture.hash}))
         const textureData = Array.from(this._unsavedTextureData.values())
         this._unsavedTextureData.clear()
-        return this.loadStore({
+        return this.loadIntoStore({
             stateData,
             textureData
         })
@@ -118,7 +118,7 @@ export class WebLayerManagerBase {
     private _packr = new Packr({structuredClone:true})
     private _unpackr = new Unpackr({structuredClone:true})
 
-    async importStore(url:string) {
+    async importCache(url:string) {
         const response = await fetch(url)
         const zipped = await response.arrayBuffer()
         const buffer = await new Promise<Uint8Array>((resolve, reject) => {
@@ -128,10 +128,10 @@ export class WebLayerManagerBase {
             })
         })
         const data : {stateData:StateData[], textureData:TextureData[]} = this._unpackr.unpack(buffer)
-        return this.loadStore(data)
+        return this.loadIntoStore(data)
     }
 
-    async exportStore(states?:StateHash[]) {
+    async exportCache(states?:StateHash[]) {
         const stateData = states ? 
             await this.store.states.bulkGet(states) as StateData[] : 
             await this.store.states.toArray()
@@ -197,7 +197,7 @@ export class WebLayerManagerBase {
     //     return zippedBlob
     // }
 
-    async loadStore(data:{stateData:StateData[], textureData:TextureData[]}) {
+    async loadIntoStore(data:{stateData:StateData[], textureData:TextureData[]}) {
         return Promise.all([
             this.store.states.bulkPut(data.stateData),
             this.store.textures.bulkPut(data.textureData)
