@@ -23,3 +23,4 @@ export declare function getPadding(element: Element, padding: Edges): void;
 export declare function getViewportBounds(bounds: Bounds): Bounds;
 export declare function getDocumentBounds(document: Document, bounds: Bounds): Bounds;
 export declare function toDOM(html: string): Element;
+export declare const downloadBlob: (blob: Blob, filename: string) => void;

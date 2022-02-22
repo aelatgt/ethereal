@@ -9,6 +9,8 @@ export declare type TextureHash = string;
 export interface LayerState {
     bounds: Bounds;
     margin: Edges;
+    padding: Edges;
+    border: Edges;
     fullWidth: number;
     fullHeight: number;
     renderAttempts: number;
@@ -32,8 +34,8 @@ export interface StateData {
 }
 export interface TextureData {
     hash: TextureHash;
-    lastUsedTime: number;
-    texture?: ArrayBuffer;
+    timestamp: number;
+    texture?: Uint8Array;
 }
 export declare class LayerStore extends Dexie {
     states: Table<StateData>;
@@ -42,11 +44,22 @@ export declare class LayerStore extends Dexie {
 }
 export declare class WebLayerManagerBase {
     WebRenderer: typeof WebRenderer;
+    autosave: boolean;
+    autosaveDelay: number;
+    _autosaveTimer?: any;
     constructor(name?: string);
-    saveStore(): void;
-    private _layerStore;
+    saveStore(): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
+    private _packr;
+    private _unpackr;
+    importStore(url: string): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
+    exportStore(states?: StateHash[]): Promise<Blob>;
+    loadStore(data: {
+        stateData: StateData[];
+        textureData: TextureData[];
+    }): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
+    store: LayerStore;
     private _textureUrls;
-    private _textureData;
+    private _unsavedTextureData;
     private _layerState;
     serializeQueue: {
         layer: WebLayer;
@@ -68,9 +81,8 @@ export declare class WebLayerManagerBase {
     getLayerState(hash: StateHash | HTMLMediaElement): LayerState;
     requestLayerState(hash: StateHash | HTMLMediaElement): Promise<LayerState>;
     updateTexture(textureHash: TextureHash, imageData: ImageData): Promise<void>;
-    _textureDataResolver: Map<string, (value?: any) => void>;
+    _texturesRequested: Set<string>;
     requestTextureData(textureHash: TextureHash): Promise<unknown>;
-    getTextureData(textureHash: TextureHash): TextureData | undefined;
     getTextureURL(textureHash: TextureHash): string | undefined;
     tasksPending: boolean;
     serializePendingCount: number;
@@ -82,7 +94,7 @@ export declare class WebLayerManagerBase {
     addToSerializeQueue(layer: WebLayer): ReturnType<typeof WebLayerManagerBase.prototype.serialize>;
     serialize(layer: WebLayer): Promise<{
         stateKey: StateHash | HTMLMediaElement;
-        svgUrl: string;
+        svgUrl?: string | undefined;
         needsRasterize: boolean;
     }>;
     rasterize(stateHash: StateHash, svgUrl: SVGUrl): Promise<void>;

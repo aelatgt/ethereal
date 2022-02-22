@@ -19,6 +19,7 @@ export declare class WebLayer3D extends Object3D {
     private _mediaTexture?;
     textures: Set<CompressedTexture>;
     private _previousTexture?;
+    get allStateHashes(): Set<string>;
     get domState(): import("../core/WebLayerManagerBase").LayerState | undefined;
     get texture(): VideoTexture | Texture | CompressedTexture | undefined;
     contentMesh: Mesh;

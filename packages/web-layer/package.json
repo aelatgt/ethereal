@@ -1,7 +1,7 @@
 {
   "name": "@etherealjs/web-layer",
   "description": "Use web content in WebGL scenes!",
-  "version": "3.1.12",
+  "version": "3.2.0",
   "author": "Gheric Speiginer",
   "keywords": [
     "3D",
@@ -21,10 +21,10 @@
     "@loaders.gl/core": "^3.1.4",
     "@loaders.gl/images": "^3.1.4",
     "@loaders.gl/textures": "^3.1.4",
+    "@zip.js/zip.js": "^2.4.4",
     "dexie": "^3.2.0",
-    "fast-sha256": "latest",
-    "fast-text-encoding": "latest",
-    "resize-observer-polyfill": "latest"
+    "fflate": "^0.7.3",
+    "msgpackr": "^1.5.4"
   },
   "devDependencies": {
     "esbuild": "^0.14.11"

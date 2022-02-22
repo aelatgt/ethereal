@@ -98,6 +98,10 @@ export class WebLayer3D extends Object3D {
 
   private _previousTexture?:VideoTexture|CompressedTexture|Texture
 
+  get allStateHashes() {
+    return this._webLayer.allStateHashes
+  }
+
   get domState() {
     return this._webLayer.currentDOMState
   }
@@ -457,6 +461,8 @@ export class WebLayer3D extends Object3D {
 
     const {bounds: currentBounds, margin: currentMargin} = currentState
 
+    const isMedia = this._webLayer.isMediaElement
+    
     this.domLayout.position.set(0,0,0)
     this.domLayout.scale.set(1, 1, 1)
     this.domLayout.quaternion.set(0, 0, 0, 1)
@@ -464,22 +470,26 @@ export class WebLayer3D extends Object3D {
     const bounds = this.bounds.copy(currentBounds)
     const margin = this.margin.copy(currentMargin)
 
-    const fullWidth = bounds.width + margin.left + margin.right
-    const fullHeight = bounds.height + margin.top + margin.bottom
     const width = bounds.width
     const height = bounds.height
+    const marginLeft = isMedia ? 0 : margin.left
+    const marginRight = isMedia ? 0 : margin.right
+    const marginTop = isMedia ? 0 : margin.top
+    const marginBottom = isMedia ? 0 : margin.bottom
+    const fullWidth = width + marginLeft + marginRight
+    const fullHeight = height + marginTop + marginBottom
     const pixelSize = 1 / this.container.manager.pixelsPerUnit
 
     this.domSize.set(
-      Math.max(pixelSize * (width + margin.left + margin.right), 10e-6),
-      Math.max(pixelSize * (height + margin.top + margin.bottom), 10e-6),
+      Math.max(pixelSize * fullWidth, 10e-6),
+      Math.max(pixelSize * fullHeight, 10e-6),
       1
     )
 
     const parentLayer = this.parentWebLayer
     if (!parentLayer) return
 
-    const parentBounds = parentLayer.bounds //|| getViewportBounds(scratchBounds)
+    const parentBounds = parentLayer.bounds
     const parentMargin = parentLayer.margin
     const parentFullWidth = parentBounds.width + parentMargin.left + parentMargin.right
     const parentFullHeight = parentBounds.height + parentMargin.bottom + parentMargin.top
@@ -487,12 +497,12 @@ export class WebLayer3D extends Object3D {
     const parentTopEdge = parentFullHeight / 2 - parentMargin.top
     
     this.domLayout.position.set(
-      pixelSize * (parentLeftEdge + fullWidth/2 + bounds.left - margin.left),
-      pixelSize * (parentTopEdge - fullHeight/2 - bounds.top + margin.top),
+      pixelSize * (parentLeftEdge + fullWidth/2 + bounds.left - marginLeft),
+      pixelSize * (parentTopEdge - fullHeight/2 - bounds.top + marginTop),
       0
     )
 
-    const computedStyle = getComputedStyle(this.element)
+    const computedStyle = getComputedStyle(this.element)    
     const transform = computedStyle.transform
     if (transform && transform !== 'none') {
       const cssTransform = WebRenderer.parseCSSTransform(computedStyle, bounds.width, bounds.height, pixelSize, scratchMatrix)

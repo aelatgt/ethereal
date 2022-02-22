@@ -169,9 +169,9 @@ export function getParentsHTML(layer: WebLayer, fullWidth:number, fullHeight:num
         let attributes = ' '
         let style = ''
         for (const a of parent.attributes) {
-        const value = serializeAttributeValue(a.value)
-        if (a.name === 'style') { style = value; continue }
-        attributes += `${a.name}="${value}" `
+            const value = serializeAttributeValue(a.value)
+            if (a.name === 'style') { style = value; continue }
+            attributes += `${a.name}="${value}" `
         }
         const open =
             '<' +

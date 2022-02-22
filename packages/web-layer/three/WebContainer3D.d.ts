@@ -1,7 +1,7 @@
 import { WebLayerOptions } from '../core/WebRenderer';
 import { WebLayer3D } from './WebLayer3D';
 import { WebLayerManager } from './WebLayerManager';
-import { Object3D } from 'three';
+import { Object3D, Raycaster } from 'three';
 declare type Intersection = THREE.Intersection & {
     groupOrder: number;
 };
@@ -38,8 +38,9 @@ export declare class WebContainer3D extends Object3D {
     containerElement: Element;
     options: WebContainer3DOptions;
     rootLayer: WebLayer3D;
-    private _interactionRays;
+    raycaster: Raycaster;
     private _raycaster;
+    private _interactionRays;
     private _hitIntersections;
     constructor(elementOrHTML: Element | string, options?: Partial<WebContainer3DOptions>);
     get manager(): WebLayerManager;
@@ -89,5 +90,9 @@ export declare class WebContainer3D extends Object3D {
      * Remove all DOM elements, remove from scene, and dispose layer resources
      */
     destroy(): void;
+    /**
+     * Export the cache data for this
+     */
+    downloadCache(filter?: (layer: WebLayer3D) => boolean): Promise<void>;
 }
 export {};

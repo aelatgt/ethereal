@@ -1,3 +1,4 @@
+
 function id(element: HTMLElement) {
   return element.id ? `#${element.id}` : ''
 }
@@ -285,4 +286,12 @@ export function toDOM(html:string) {
   const el = wrapper.firstElementChild!
   wrapper.removeChild(el)
   return el
+}
+
+export const downloadBlob = function(blob:Blob, filename:string){
+  const a    = document.createElement('a')
+  a.download = filename
+  a.href = window.URL.createObjectURL(blob)
+  a.dataset.downloadurl =  ['application/octet-stream', a.download, a.href].join(':')
+  a.click()
 }

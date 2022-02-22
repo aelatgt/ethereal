@@ -22,9 +22,10 @@ export declare class WebLayer {
     parentLayer?: WebLayer;
     childLayers: WebLayer[];
     pixelRatio?: number;
+    allStateHashes: Set<string>;
     previousDOMStateKey?: string | HTMLMediaElement;
     desiredDOMStateKey?: string | HTMLMediaElement;
-    currentDOMStatekey?: string | HTMLMediaElement;
+    currentDOMStateKey?: string | HTMLMediaElement;
     get previousDOMState(): import("./WebLayerManagerBase").LayerState | undefined;
     get desiredDOMState(): import("./WebLayerManagerBase").LayerState | undefined;
     get currentDOMState(): import("./WebLayerManagerBase").LayerState | undefined;

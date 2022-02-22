@@ -1,10 +1,9 @@
-import { Bounds } from '../core/dom-utils'
+import { Bounds, downloadBlob } from '../core/dom-utils'
 import { WebRenderer, WebLayerOptions } from '../core/WebRenderer'
 import { getBounds, traverseChildElements, toDOM } from '../core/dom-utils'
 import { ON_BEFORE_UPDATE, WebLayer3D } from './WebLayer3D'
 import { WebLayerManager } from './WebLayerManager'
 import { Object3D, Raycaster, Vector3 } from 'three'
-
 
 type Intersection = THREE.Intersection & {groupOrder:number}
 
@@ -12,7 +11,6 @@ export type WebLayerHit = ReturnType<typeof WebContainer3D.prototype.hitTest> & 
 
 const scratchVector = new Vector3()
 const scratchVector2 = new Vector3()
-const scratchBounds = new Bounds()
 const scratchBounds2 = new Bounds()
 
 export interface WebContainer3DOptions extends WebLayerOptions {
@@ -68,9 +66,11 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     public options!:WebContainer3DOptions
 
     public rootLayer!:WebLayer3D
+
+    public raycaster = new Raycaster()
+    private _raycaster = this.raycaster
   
     private _interactionRays = [] as Array<THREE.Ray | THREE.Object3D>
-    private _raycaster = new Raycaster()
     private _hitIntersections = [] as Intersection[]
   
     constructor(elementOrHTML: Element|string, options: Partial<WebContainer3DOptions> = {}) {
@@ -96,6 +96,9 @@ export interface WebContainer3DOptions extends WebLayerOptions {
           layer.parentWebLayer?.add(layer)
         }
       })
+
+      // @ts-ignore
+      this.containerElement['container'] = this
   
       this.refresh()
       this.update()
@@ -200,13 +203,13 @@ export interface WebContainer3DOptions extends WebLayerOptions {
   
       for (const ray of this._interactionRays) {
         if ('isObject3D' in ray && ray.isObject3D) {
-          this._raycaster.ray.set(
+          this.raycaster.ray.set(
             ray.getWorldPosition(scratchVector),
             ray.getWorldDirection(scratchVector2).negate()
           ) 
-        } else this._raycaster.ray.copy(ray as THREE.Ray)
+        } else this.raycaster.ray.copy(ray as THREE.Ray)
         this._hitIntersections.length = 0
-        const intersections = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections) as Intersection[]
+        const intersections = this.raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections) as Intersection[]
         // intersections.forEach(this._intersectionGetGroupOrder)
         intersections.sort(this._intersectionSort)
         const intersection = intersections[0]
@@ -233,16 +236,16 @@ export interface WebContainer3DOptions extends WebLayerOptions {
      * @param ray 
      */
     hitTest(ray: THREE.Ray|THREE.Object3D) {
-      const raycaster = this._raycaster
+      const raycaster = this.raycaster
       const intersections = this._hitIntersections
       const meshMap = this.options.manager.layersByMesh
       if ('isObject3D' in ray && ray.isObject3D) { 
-        this._raycaster.ray.set(
+        this.raycaster.ray.set(
           ray.getWorldPosition(scratchVector),
           ray.getWorldDirection(scratchVector2).negate()
         )
       } else {
-        this._raycaster.ray.copy(ray as THREE.Ray)
+        this.raycaster.ray.copy(ray as THREE.Ray)
       }
       intersections.length = 0
       raycaster.intersectObject(this, true, intersections)
@@ -251,16 +254,19 @@ export interface WebContainer3DOptions extends WebLayerOptions {
       for (const intersection of intersections) {
         const layer = meshMap!.get(intersection.object as any)
         if (!layer) continue
-        const layerBoundingRect = getBounds(layer.element, scratchBounds)!
-        if (!layerBoundingRect.width || !layerBoundingRect.height) continue
+        const bounds = layer.bounds
+        const margin = layer.margin
+        const fullWidth = bounds.width + margin.left + margin.right
+        const fullHeight = bounds.height + margin.top + margin.bottom
+        if (fullWidth * fullHeight === 0) continue
         let target = layer.element as HTMLElement
-        const clientX = intersection.uv!.x * layerBoundingRect.width
-        const clientY = (1 - intersection.uv!.y) * layerBoundingRect.height
+        const clientX = (intersection.uv!.x * fullWidth) - margin.left
+        const clientY = (1 - intersection.uv!.y) * fullHeight - margin.bottom
         traverseChildElements(layer.element, el => {
           if (!target.contains(el)) return false
           const elementBoundingRect = getBounds(el, scratchBounds2)!
-          const offsetLeft = elementBoundingRect.left - layerBoundingRect.left
-          const offsetTop = elementBoundingRect.top - layerBoundingRect.top
+          const offsetLeft = elementBoundingRect.left - bounds.left
+          const offsetTop = elementBoundingRect.top - bounds.top
           const { width, height } = elementBoundingRect
           const offsetRight = offsetLeft + width
           const offsetBottom = offsetTop + height
@@ -288,6 +294,21 @@ export interface WebContainer3DOptions extends WebLayerOptions {
       this.removeFromParent()
       this.rootLayer.dispose()
     }
+
+    /**
+     * Export the cache data for this
+     */
+    async downloadCache(filter?:(layer:WebLayer3D) => boolean) {
+      await this.manager.saveStore()
+      const states = new Set<string>()
+      this.rootLayer.traverseLayersPreOrder((layer) => {
+        if (filter) {
+          if (!filter(layer)) return
+        }
+        for (const hash of layer.allStateHashes) states.add(hash)
+      })
+      const blob = await this.manager.exportStore(Array.from(states))
+      downloadBlob(blob, 'web.' + this.rootLayer.element.id + '.cache')
+    }
   
   }
-  

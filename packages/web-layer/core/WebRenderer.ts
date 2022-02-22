@@ -38,6 +38,7 @@ function ensureElementIsInDocument(element: Element, options:WebLayerOptions): E
     return element
   }
   const container = document.createElement('div')
+  container.id = element.id + '-container'
   container.setAttribute(WebRenderer.RENDERING_CONTAINER_ATTRIBUTE, '')
   container.style.visibility = 'hidden'
   container.style.pointerEvents = 'none'

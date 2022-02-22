@@ -36,9 +36,10 @@ export class WebLayer {
     parentLayer;
     childLayers = [];
     pixelRatio;
+    allStateHashes = new Set();
     previousDOMStateKey;
     desiredDOMStateKey;
-    currentDOMStatekey;
+    currentDOMStateKey;
     get previousDOMState() {
         return this.previousDOMStateKey ? this.manager.getLayerState(this.previousDOMStateKey) : undefined;
     }
@@ -46,7 +47,7 @@ export class WebLayer {
         return this.desiredDOMStateKey ? this.manager.getLayerState(this.desiredDOMStateKey) : undefined;
     }
     get currentDOMState() {
-        return this.currentDOMStatekey ? this.manager.getLayerState(this.currentDOMStatekey) : undefined;
+        return this.currentDOMStateKey ? this.manager.getLayerState(this.currentDOMStateKey) : undefined;
     }
     domMetrics = {
         bounds: new Bounds(),
@@ -86,10 +87,10 @@ export class WebLayer {
         }
     }
     update() {
-        if (this.desiredDOMStateKey !== this.currentDOMStatekey) {
+        if (this.desiredDOMStateKey !== this.currentDOMStateKey) {
             const desired = this.desiredDOMState;
             if (desired && (this.isMediaElement || desired.texture.url || desired.fullWidth * desired.fullHeight === 0)) {
-                this.currentDOMStatekey = this.desiredDOMStateKey;
+                this.currentDOMStateKey = this.desiredDOMStateKey;
             }
         }
         const prev = this.previousDOMState;
@@ -97,14 +98,13 @@ export class WebLayer {
         if (prev?.texture.url !== current?.texture.url) {
             this.eventCallback('layerpainted', { target: this.element });
         }
-        this.previousDOMStateKey = this.currentDOMStatekey;
+        this.previousDOMStateKey = this.currentDOMStateKey;
     }
     async refresh() {
-        this.currentDOMStatekey = undefined;
         this.needsRefresh = false;
         this._updateParentAndChildLayers();
         const result = await this.manager.addToSerializeQueue(this);
-        if (result.needsRasterize && typeof result.stateKey === 'string')
+        if (result.needsRasterize && typeof result.stateKey === 'string' && result.svgUrl)
             await this.manager.addToRasterizeQueue(result.stateKey, result.svgUrl);
     }
     _updateParentAndChildLayers() {

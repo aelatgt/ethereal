@@ -1,4 +1,4 @@
-import { Bounds } from '../core/dom-utils';
+import { Bounds, downloadBlob } from '../core/dom-utils';
 import { WebRenderer } from '../core/WebRenderer';
 import { getBounds, traverseChildElements, toDOM } from '../core/dom-utils';
 import { ON_BEFORE_UPDATE, WebLayer3D } from './WebLayer3D';
@@ -6,7 +6,6 @@ import { WebLayerManager } from './WebLayerManager';
 import { Object3D, Raycaster, Vector3 } from 'three';
 const scratchVector = new Vector3();
 const scratchVector2 = new Vector3();
-const scratchBounds = new Bounds();
 const scratchBounds2 = new Bounds();
 /**
  * Transform a DOM tree into 3D layers.
@@ -46,8 +45,9 @@ export class WebContainer3D extends Object3D {
     containerElement;
     options;
     rootLayer;
+    raycaster = new Raycaster();
+    _raycaster = this.raycaster;
     _interactionRays = [];
-    _raycaster = new Raycaster();
     _hitIntersections = [];
     constructor(elementOrHTML, options = {}) {
         super();
@@ -72,6 +72,8 @@ export class WebContainer3D extends Object3D {
                 layer.parentWebLayer?.add(layer);
             }
         });
+        // @ts-ignore
+        this.containerElement['container'] = this;
         this.refresh();
         this.update();
     }
@@ -158,12 +160,12 @@ export class WebContainer3D extends Object3D {
         this.rootLayer.traverseLayersPreOrder(this._prepareHitTest);
         for (const ray of this._interactionRays) {
             if ('isObject3D' in ray && ray.isObject3D) {
-                this._raycaster.ray.set(ray.getWorldPosition(scratchVector), ray.getWorldDirection(scratchVector2).negate());
+                this.raycaster.ray.set(ray.getWorldPosition(scratchVector), ray.getWorldDirection(scratchVector2).negate());
             }
             else
-                this._raycaster.ray.copy(ray);
+                this.raycaster.ray.copy(ray);
             this._hitIntersections.length = 0;
-            const intersections = this._raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections);
+            const intersections = this.raycaster.intersectObjects(this._contentMeshes, false, this._hitIntersections);
             // intersections.forEach(this._intersectionGetGroupOrder)
             intersections.sort(this._intersectionSort);
             const intersection = intersections[0];
@@ -188,14 +190,14 @@ export class WebContainer3D extends Object3D {
      * @param ray
      */
     hitTest(ray) {
-        const raycaster = this._raycaster;
+        const raycaster = this.raycaster;
         const intersections = this._hitIntersections;
         const meshMap = this.options.manager.layersByMesh;
         if ('isObject3D' in ray && ray.isObject3D) {
-            this._raycaster.ray.set(ray.getWorldPosition(scratchVector), ray.getWorldDirection(scratchVector2).negate());
+            this.raycaster.ray.set(ray.getWorldPosition(scratchVector), ray.getWorldDirection(scratchVector2).negate());
         }
         else {
-            this._raycaster.ray.copy(ray);
+            this.raycaster.ray.copy(ray);
         }
         intersections.length = 0;
         raycaster.intersectObject(this, true, intersections);
@@ -205,18 +207,21 @@ export class WebContainer3D extends Object3D {
             const layer = meshMap.get(intersection.object);
             if (!layer)
                 continue;
-            const layerBoundingRect = getBounds(layer.element, scratchBounds);
-            if (!layerBoundingRect.width || !layerBoundingRect.height)
+            const bounds = layer.bounds;
+            const margin = layer.margin;
+            const fullWidth = bounds.width + margin.left + margin.right;
+            const fullHeight = bounds.height + margin.top + margin.bottom;
+            if (fullWidth * fullHeight === 0)
                 continue;
             let target = layer.element;
-            const clientX = intersection.uv.x * layerBoundingRect.width;
-            const clientY = (1 - intersection.uv.y) * layerBoundingRect.height;
+            const clientX = (intersection.uv.x * fullWidth) - margin.left;
+            const clientY = (1 - intersection.uv.y) * fullHeight - margin.bottom;
             traverseChildElements(layer.element, el => {
                 if (!target.contains(el))
                     return false;
                 const elementBoundingRect = getBounds(el, scratchBounds2);
-                const offsetLeft = elementBoundingRect.left - layerBoundingRect.left;
-                const offsetTop = elementBoundingRect.top - layerBoundingRect.top;
+                const offsetLeft = elementBoundingRect.left - bounds.left;
+                const offsetTop = elementBoundingRect.top - bounds.top;
                 const { width, height } = elementBoundingRect;
                 const offsetRight = offsetLeft + width;
                 const offsetBottom = offsetTop + height;
@@ -240,5 +245,22 @@ export class WebContainer3D extends Object3D {
         this.containerElement.remove();
         this.removeFromParent();
         this.rootLayer.dispose();
+    }
+    /**
+     * Export the cache data for this
+     */
+    async downloadCache(filter) {
+        await this.manager.saveStore();
+        const states = new Set();
+        this.rootLayer.traverseLayersPreOrder((layer) => {
+            if (filter) {
+                if (!filter(layer))
+                    return;
+            }
+            for (const hash of layer.allStateHashes)
+                states.add(hash);
+        });
+        const blob = await this.manager.exportStore(Array.from(states));
+        downloadBlob(blob, 'web.' + this.rootLayer.element.id + '.cache');
     }
 }
