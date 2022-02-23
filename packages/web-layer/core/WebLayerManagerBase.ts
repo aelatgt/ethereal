@@ -527,7 +527,8 @@ export class WebLayerManagerBase {
         canvas.width = textureWidth
         canvas.height = textureHeight
         const ctx = canvas.getContext('2d')!
-        ctx.imageSmoothingEnabled = false
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
         ctx.clearRect(0, 0, textureWidth, textureHeight)
 
         let imageData
