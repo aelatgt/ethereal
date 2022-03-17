@@ -1,7 +1,7 @@
 {
   "name": "@etherealjs/web-layer",
   "description": "Use web content in WebGL scenes!",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "author": "Gheric Speiginer",
   "keywords": [
     "3D",

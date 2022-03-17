@@ -263,7 +263,7 @@ export interface WebContainer3DOptions extends WebLayerOptions {
         const clientY = (intersection.uv!.y * fullHeight) - margin.top
         traverseChildElements(layer.element, el => {
           if (!target.contains(el)) return false
-          const elementBoundingRect = getBounds(el, scratchBounds2)!
+          const elementBoundingRect = getBounds(el, scratchBounds2, layer.element)!
           const offsetLeft = elementBoundingRect.left - bounds.left
           const offsetTop = elementBoundingRect.top - bounds.top
           const { width, height } = elementBoundingRect
