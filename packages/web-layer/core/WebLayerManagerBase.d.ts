@@ -6,21 +6,18 @@ import { WebLayer } from "./WebLayer";
 export declare type StateHash = string;
 export declare type SVGUrl = string;
 export declare type TextureHash = string;
-export interface LayerState {
+export interface StateData {
     bounds: Bounds;
     margin: Edges;
     padding: Edges;
     border: Edges;
     fullWidth: number;
     fullHeight: number;
+    pixelRatio: number;
+    textureWidth: number;
+    textureHeight: number;
     renderAttempts: number;
-    texture: {
-        width: number;
-        height: number;
-        pixelRatio: number;
-        hash?: TextureHash;
-        url?: string;
-    };
+    texture?: TextureData;
     pseudo: {
         hover: boolean;
         active: boolean;
@@ -28,39 +25,33 @@ export interface LayerState {
         target: boolean;
     };
 }
-export interface StateData {
+export interface TextureData {
+    hash: TextureHash;
+    canvas?: HTMLCanvasElement;
+    ktx2Url?: string;
+}
+export interface StateStoreData {
     hash: StateHash;
     textureHash?: TextureHash;
 }
-export interface TextureData {
+export interface TextureStoreData {
     hash: TextureHash;
     timestamp: number;
     texture?: Uint8Array;
 }
 export declare class LayerStore extends Dexie {
-    states: Table<StateData>;
-    textures: Table<TextureData>;
+    states: Table<StateStoreData>;
+    textures: Table<TextureStoreData>;
     constructor(name: string);
 }
 export declare class WebLayerManagerBase {
+    MINIMUM_RENDER_ATTEMPTS: number;
     WebRenderer: typeof WebRenderer;
     autosave: boolean;
     autosaveDelay: number;
     _autosaveTimer?: any;
-    constructor(name?: string);
-    saveStore(): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
-    private _packr;
-    private _unpackr;
-    importCache(url: string): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
-    exportCache(states?: StateHash[]): Promise<Blob>;
-    loadIntoStore(data: {
-        stateData: StateData[];
-        textureData: TextureData[];
-    }): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
+    pixelsPerUnit: number;
     store: LayerStore;
-    private _textureUrls;
-    private _unsavedTextureData;
-    private _layerState;
     serializeQueue: {
         layer: WebLayer;
         resolve: (val: any) => void;
@@ -68,22 +59,37 @@ export declare class WebLayerManagerBase {
     }[];
     rasterizeQueue: {
         hash: StateHash;
-        url: string;
+        svgUrl: string;
         resolve: (val: any) => void;
         promise: any;
     }[];
-    MINIMUM_RENDER_ATTEMPTS: number;
-    canvasPool: HTMLCanvasElement[];
-    imagePool: HTMLImageElement[];
+    optimizeQueue: {
+        textureHash: TextureHash;
+        resolve: (val: any) => void;
+        promise: any;
+    }[];
     textEncoder: TextEncoder;
     ktx2Encoder: KTX2EncoderType;
-    useCreateImageBitmap: boolean;
-    getLayerState(hash: StateHash | HTMLMediaElement): LayerState;
-    requestLayerState(hash: StateHash | HTMLMediaElement): Promise<LayerState>;
-    updateTexture(textureHash: TextureHash, imageData: ImageData): Promise<void>;
-    _texturesRequested: Set<string>;
-    requestTextureData(textureHash: TextureHash): Promise<unknown>;
-    getTextureURL(textureHash: TextureHash): string | undefined;
+    private _unsavedTextureData;
+    private _stateData;
+    private _textureData;
+    private _imagePool;
+    constructor(name?: string);
+    saveStore(): Promise<void>;
+    private _packr;
+    private _unpackr;
+    importCache(url: string): Promise<void>;
+    exportCache(states?: StateHash[]): Promise<Blob>;
+    loadIntoStore(data: {
+        stateData: StateStoreData[];
+        textureData: TextureStoreData[];
+    }): Promise<void>;
+    getLayerState(hash: StateHash | HTMLMediaElement): StateData;
+    getTextureState(textureHash: TextureHash): TextureData;
+    private _statesRequestedFromStore;
+    private _texturesRequestedFromStore;
+    requestStoredData(hash: StateHash | HTMLMediaElement): Promise<StateData>;
+    compressTexture(textureHash: TextureHash): Promise<void>;
     tasksPending: boolean;
     serializePendingCount: number;
     rasterizePendingCount: number;
@@ -92,12 +98,16 @@ export declare class WebLayerManagerBase {
     scheduleTasksIfNeeded(): void;
     private _runTasks;
     addToSerializeQueue(layer: WebLayer): ReturnType<typeof WebLayerManagerBase.prototype.serialize>;
+    updateDOMMetrics(layer: WebLayer): void;
     serialize(layer: WebLayer): Promise<{
         stateKey: StateHash | HTMLMediaElement;
         svgUrl?: string | undefined;
         needsRasterize: boolean;
     }>;
     rasterize(stateHash: StateHash, svgUrl: SVGUrl): Promise<void>;
-    getImageData(svgImage: HTMLImageElement, sourceWidth: number, sourceHeight: number, textureWidth: number, textureHeight: number): Promise<ImageData>;
+    rasterizeToCanvas(svgImage: HTMLImageElement, sourceWidth: number, sourceHeight: number, textureWidth: number, textureHeight: number, canvas?: HTMLCanvasElement): Promise<HTMLCanvasElement>;
+    getImageData(canvas: HTMLCanvasElement): ImageData;
     addToRasterizeQueue(hash: StateHash, url: string): ReturnType<typeof WebLayerManagerBase.prototype.rasterize>;
+    optimizeImageData(stateHash: StateHash): void;
+    addToOptimizeQueue(hash: StateHash): void;
 }

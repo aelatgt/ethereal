@@ -119,6 +119,7 @@ export const serializationReplacer = (target, node) => {
         return '';
     const layer = WebRenderer.layers.get(element);
     if (layer) {
+        layer.manager.updateDOMMetrics(layer);
         const bounds = layer.domMetrics.bounds;
         let attributes = '';
         // in order to increase our cache hits, don't serialize nested layers
@@ -149,6 +150,7 @@ export const serializationReplacer = (target, node) => {
 export function getParentsHTML(layer, fullWidth, fullHeight, pixelRatio) {
     const opens = [];
     const closes = [];
+    layer.manager.updateDOMMetrics(layer);
     const metrics = layer.domMetrics;
     let parent = layer.element.parentElement;
     if (!parent)

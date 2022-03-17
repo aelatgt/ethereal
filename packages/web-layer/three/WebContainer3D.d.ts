@@ -39,7 +39,6 @@ export declare class WebContainer3D extends Object3D {
     options: WebContainer3DOptions;
     rootLayer: WebLayer3D;
     raycaster: Raycaster;
-    private _raycaster;
     private _interactionRays;
     private _hitIntersections;
     constructor(elementOrHTML: Element | string, options?: Partial<WebContainer3DOptions>);

@@ -68,7 +68,6 @@ export interface WebContainer3DOptions extends WebLayerOptions {
     public rootLayer!:WebLayer3D
 
     public raycaster = new Raycaster()
-    private _raycaster = this.raycaster
   
     private _interactionRays = [] as Array<THREE.Ray | THREE.Object3D>
     private _hitIntersections = [] as Intersection[]

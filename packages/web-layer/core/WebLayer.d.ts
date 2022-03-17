@@ -9,6 +9,7 @@ export declare class WebLayer {
     eventCallback: EventCallback;
     isMediaElement: boolean;
     isVideoElement: boolean;
+    isCanvasElement: boolean;
     constructor(manager: WebLayerManagerBase, element: Element, eventCallback: EventCallback);
     desiredPseudoState: {
         hover: boolean;
@@ -26,9 +27,9 @@ export declare class WebLayer {
     previousDOMStateKey?: string | HTMLMediaElement;
     desiredDOMStateKey?: string | HTMLMediaElement;
     currentDOMStateKey?: string | HTMLMediaElement;
-    get previousDOMState(): import("./WebLayerManagerBase").LayerState | undefined;
-    get desiredDOMState(): import("./WebLayerManagerBase").LayerState | undefined;
-    get currentDOMState(): import("./WebLayerManagerBase").LayerState | undefined;
+    get previousDOMState(): import("./WebLayerManagerBase").StateData | undefined;
+    get desiredDOMState(): import("./WebLayerManagerBase").StateData | undefined;
+    get currentDOMState(): import("./WebLayerManagerBase").StateData | undefined;
     domMetrics: {
         bounds: Bounds;
         padding: Edges;

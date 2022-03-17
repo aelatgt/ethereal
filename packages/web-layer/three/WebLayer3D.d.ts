@@ -1,4 +1,4 @@
-import { CompressedTexture, Mesh, MeshDepthMaterial, Object3D, PlaneGeometry, Vector3, VideoTexture, Texture } from "three";
+import { CompressedTexture, Mesh, MeshDepthMaterial, Object3D, PlaneGeometry, Vector3, VideoTexture, Texture, CanvasTexture } from "three";
 import { WebLayer } from "../core/WebLayer";
 import { Bounds, Edges } from "../core/dom-utils";
 import { WebContainer3D } from "./WebContainer3D";
@@ -17,11 +17,12 @@ export declare class WebLayer3D extends Object3D {
     private _renderZ;
     private _mediaSrc?;
     private _mediaTexture?;
-    textures: Set<CompressedTexture>;
+    textures: Set<Texture>;
     private _previousTexture?;
+    private _textureMap;
     get allStateHashes(): Set<string>;
-    get domState(): import("../core/WebLayerManagerBase").LayerState | undefined;
-    get texture(): VideoTexture | Texture | CompressedTexture | undefined;
+    get domState(): import("../core/WebLayerManagerBase").StateData | undefined;
+    get texture(): CanvasTexture | CompressedTexture | Texture | VideoTexture | undefined;
     contentMesh: Mesh;
     /**
      * This non-visible mesh ensures that an adapted layer retains
@@ -95,6 +96,7 @@ export declare class WebLayer3D extends Object3D {
     protected _doUpdate(): void;
     update(recurse?: boolean): void;
     querySelector(selector: string): WebLayer3D | undefined;
+    querySelectorAll(selector: string): WebLayer3D[];
     traverseLayerAncestors(each: (layer: WebLayer3D) => void): void;
     traverseLayersPreOrder(each: (layer: WebLayer3D) => boolean | void): boolean;
     traverseLayersPostOrder(each: (layer: WebLayer3D) => boolean | void): boolean;

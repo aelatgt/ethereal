@@ -1,8 +1,9 @@
-import { ClampToEdgeWrapping, CompressedTexture, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, Texture, TextureLoader } from "three";
+import { ClampToEdgeWrapping, CompressedTexture, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, Texture, TextureLoader, CanvasTexture } from "three";
 import { WebLayer } from "../core/WebLayer";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
 import { WebContainer3D } from "./WebContainer3D";
+import { ThreeTextureData } from "./WebLayerManager";
 
 export const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE')
 
@@ -94,9 +95,11 @@ export class WebLayer3D extends Object3D {
   private _mediaSrc?:string
   private _mediaTexture?:VideoTexture|Texture
 
-  textures = new Set<CompressedTexture>()
+  textures = new Set<Texture>()
 
   private _previousTexture?:VideoTexture|CompressedTexture|Texture
+
+  private _textureMap = new Map<string, ThreeTextureData>()
 
   get allStateHashes() {
     return this._webLayer.allStateHashes
@@ -108,13 +111,16 @@ export class WebLayer3D extends Object3D {
 
   get texture() {
     const manager = this.container.manager
+    const _layer = this._webLayer
 
-    if (this._webLayer.isMediaElement) {
-      const media = this.element as HTMLVideoElement
+    if (_layer.isMediaElement) {
+      const media = this.element as HTMLVideoElement|HTMLCanvasElement|HTMLImageElement
       let t = this._mediaTexture
-      if (!t || t.image && media.src !== t.image.src) {
+      if (!t || t.image && (media as any).src !== t.image.src) {
         if (t) t.dispose()
-        t = this._webLayer.isVideoElement ? new VideoTexture(media) : new TextureLoader().load( media.src )
+        t = _layer.isVideoElement ? new VideoTexture(media as HTMLVideoElement) :
+          _layer.isCanvasElement ? new CanvasTexture(media as HTMLCanvasElement) : 
+            new TextureLoader().load( (media as HTMLImageElement).src )
         t.wrapS = ClampToEdgeWrapping
         t.wrapT = ClampToEdgeWrapping
         t.minFilter = LinearFilter
@@ -124,26 +130,26 @@ export class WebLayer3D extends Object3D {
       return t
     }
 
-    // if (this.element.tagName === 'IMG') {
-    //   const img = this.element as HTMLImageElement
-    //   let t = this._mediaTexture
-    //   if (!t) {
-    //     t = new Texture(img)
-    //     t.wrapS = ClampToEdgeWrapping
-    //     t.wrapT = ClampToEdgeWrapping
-    //     t.minFilter = LinearFilter
-    //     if (manager.textureEncoding) t.encoding = manager.textureEncoding
-    //     this._mediaTexture = t
-    //   }
-    //   return t
-    // }
+    const textureHash = this._webLayer.currentDOMState?.texture?.hash
 
-    const textureUrl = this._webLayer.currentDOMState?.texture.url
-
-    let t = textureUrl ? manager.getTexture(textureUrl, this) : undefined
-    if (t) this.textures.add(t)
+    if (textureHash) {
+      if (!this._textureMap.has(textureHash)) this._textureMap.set(textureHash, {})
+      const textures = manager.getTexture(textureHash)
+      const clonedTextures = this._textureMap.get(textureHash)!
+      if (textures.compressedTexture && !clonedTextures.compressedTexture) {
+        clonedTextures.canvasTexture?.dispose()
+        clonedTextures.canvasTexture = undefined
+        clonedTextures.compressedTexture = textures.compressedTexture.clone()
+        clonedTextures.compressedTexture.needsUpdate = true
+      }
+      if (textures.canvasTexture && !clonedTextures.canvasTexture) {
+        clonedTextures.canvasTexture = textures.canvasTexture.clone()
+        clonedTextures.canvasTexture.needsUpdate = true
+      }
+      return clonedTextures.compressedTexture ?? clonedTextures.canvasTexture
+    }
   
-    return t
+    return undefined
   }
 
   contentMesh:Mesh
@@ -359,6 +365,11 @@ export class WebLayer3D extends Object3D {
     return undefined
   }
 
+  querySelectorAll(selector: string) : WebLayer3D[] {
+    const elements = this.element.querySelectorAll(selector) || this.element.shadowRoot?.querySelectorAll(selector)
+    return Array.from(elements).map<WebLayer3D>((e) => this.container.manager.layersByElement.get(e)! ).filter(l => l)
+  }
+
   traverseLayerAncestors(
     each: (layer: WebLayer3D) => void
   ) {
@@ -390,7 +401,9 @@ export class WebLayer3D extends Object3D {
 
   dispose() {
     WebRenderer.disposeLayer(this._webLayer)
-    this.container.manager.disposeLayer(this)
+    for (const t of this.textures) {
+      t.dispose()
+    }
     for (const child of this.childWebLayers) child.dispose()
   }
 

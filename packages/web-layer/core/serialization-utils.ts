@@ -132,28 +132,29 @@ export const serializationReplacer = (target:Node, node:Node) => {
     if (tagName === 'style' || tagName === 'link') return ''
     const layer = WebRenderer.layers.get(element)
     if (layer) {
-    const bounds = layer.domMetrics.bounds
-    let attributes = ''
-    // in order to increase our cache hits, don't serialize nested layers
-    // instead, replace nested layers with an invisible placerholder that is the same width/height
-    // downsides of this are that we lose subpixel precision. To avoid any rendering issues,
-    // each sublayer should have explictly defined sizes (no fit-content or auto sizing). 
-    const extraStyle = `box-sizing:border-box;max-width:${bounds.width}px;max-height:${bounds.height}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
-    let addedStyle = false
-    for (const attr of layer.element.attributes) {
-        if (attr.name === 'src') continue
-        if (attr.name == 'style') {
-        attributes += serializeAttribute(attr.name, attr.value + ';' + extraStyle)
-        addedStyle = true
-        } else {
-        attributes += serializeAttribute(attr.name, attr.value)
+        layer.manager.updateDOMMetrics(layer)
+        const bounds = layer.domMetrics.bounds
+        let attributes = ''
+        // in order to increase our cache hits, don't serialize nested layers
+        // instead, replace nested layers with an invisible placerholder that is the same width/height
+        // downsides of this are that we lose subpixel precision. To avoid any rendering issues,
+        // each sublayer should have explictly defined sizes (no fit-content or auto sizing). 
+        const extraStyle = `box-sizing:border-box;max-width:${bounds.width}px;max-height:${bounds.height}px;min-width:${bounds.width}px;min-height:${bounds.height}px;visibility:hidden`
+        let addedStyle = false
+        for (const attr of layer.element.attributes) {
+            if (attr.name === 'src') continue
+            if (attr.name == 'style') {
+                attributes += serializeAttribute(attr.name, attr.value + ';' + extraStyle)
+                addedStyle = true
+            } else {
+                attributes += serializeAttribute(attr.name, attr.value)
+            }
         }
-    }
-    if (!addedStyle) {
-        attributes += serializeAttribute('style', extraStyle)
-    }
-    const tag = element.tagName.toLowerCase()
-    return `<${tag} ${attributes}></${tag}>`
+        if (!addedStyle) {
+            attributes += serializeAttribute('style', extraStyle)
+        }
+        const tag = element.tagName.toLowerCase()
+        return `<${tag} ${attributes}></${tag}>`
     }
 }
 
@@ -161,6 +162,7 @@ export const serializationReplacer = (target:Node, node:Node) => {
 export function getParentsHTML(layer: WebLayer, fullWidth:number, fullHeight:number, pixelRatio:number) {
     const opens = []
     const closes = []
+    layer.manager.updateDOMMetrics(layer)
     const metrics = layer.domMetrics
     let parent = layer.element.parentElement
     if (!parent) parent = document.documentElement

@@ -1,8 +1,12 @@
 
-import { ClampToEdgeWrapping, CompressedTexture, LinearFilter, sRGBEncoding } from 'three'
+import { CanvasTexture, ClampToEdgeWrapping, CompressedTexture, LinearFilter, sRGBEncoding, Texture, VideoTexture } from 'three'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader'
 import { WebLayer3D } from './WebLayer3D'
-import { TextureHash, WebLayerManagerBase } from '../core/WebLayerManagerBase'
+import { TextureData, TextureHash, WebLayerManagerBase } from '../core/WebLayerManagerBase'
+export interface  ThreeTextureData {
+  canvasTexture?: CanvasTexture
+  compressedTexture?: CompressedTexture
+}
 export class WebLayerManager extends WebLayerManagerBase {
 
     static DEFAULT_TRANSCODER_PATH = `https://unpkg.com/@loaders.gl/textures@3.1.7/dist/libs/`
@@ -10,51 +14,48 @@ export class WebLayerManager extends WebLayerManagerBase {
     static initialize(renderer:THREE.WebGLRenderer) {
       WebLayerManager.instance = new WebLayerManager()
       WebLayerManager.instance.renderer = renderer
-      WebLayerManager.instance.textureLoader.detectSupport(renderer)
+      WebLayerManager.instance.ktx2Loader.detectSupport(renderer)
     }
 
     static instance:WebLayerManager
 
     constructor() {
       super()
-      this.textureLoader.setTranscoderPath(WebLayerManager.DEFAULT_TRANSCODER_PATH)
+      this.ktx2Loader.setTranscoderPath(WebLayerManager.DEFAULT_TRANSCODER_PATH)
     }
 
     renderer!:THREE.WebGLRenderer
-
     textureEncoding = sRGBEncoding
+    ktx2Loader = new KTX2Loader
 
-    texturesByUrl = new Map<string, CompressedTexture>()
-    layersUsingTexture = new WeakMap<CompressedTexture, Set<WebLayer3D>>()
-    textureLoader = new KTX2Loader
+    texturesByHash = new Map<string, ThreeTextureData>()
     layersByElement = new WeakMap<Element, WebLayer3D>()
     layersByMesh = new WeakMap<THREE.Mesh, WebLayer3D>()
   
-    pixelsPerUnit = 1000
-  
-    getTexture(url:string, layer?:WebLayer3D) {
-      this._requestTexture(url)
-      const texture = this.texturesByUrl.get(url)
-      if (texture) {
-        if (layer) this.layersUsingTexture.get(texture as CompressedTexture)?.add(layer)
-        return texture as CompressedTexture
+    getTexture(textureHash:TextureHash) {
+      const textureData = this.getTextureState(textureHash)
+      if (!this.texturesByHash.has(textureHash)) {
+        this.texturesByHash.set(textureHash, {})
       }
-      return undefined
+      this._loadCompressedTextureIfNecessary(textureData)
+      this._loadCanvasTextureIfNecessary(textureData)
+      return this.texturesByHash.get(textureHash)!
     }
 
-    _texturePromise = new Map<string, (value?:any)=>void>()
+    _compressedTexturePromise = new Map<string, (value?:any)=>void>()
 
-    private _requestTexture(url:string) {
-      if (!this._texturePromise.has(url)) {
+    private _loadCompressedTextureIfNecessary(textureData:TextureData) {
+      const ktx2Url = textureData.ktx2Url
+      if (!ktx2Url) return
+      if (!this._compressedTexturePromise.has(textureData.hash)) {
         new Promise((resolve) => {
-          this._texturePromise.set(url, resolve)
-          this.textureLoader.loadAsync(url).then((t) => {
+          this._compressedTexturePromise.set(textureData.hash, resolve)
+          this.ktx2Loader.loadAsync(ktx2Url).then((t) => {
             t.wrapS = ClampToEdgeWrapping
             t.wrapT = ClampToEdgeWrapping
             t.minFilter = LinearFilter
             t.encoding = this.textureEncoding
-            this.layersUsingTexture.set(t, new Set<WebLayer3D>())
-            this.texturesByUrl.set(url, t)
+            this.texturesByHash.get(textureData.hash)!.compressedTexture = t
           }).finally(()=>{
             resolve(undefined)
           })
@@ -62,11 +63,25 @@ export class WebLayerManager extends WebLayerManagerBase {
       }
     }
 
-    disposeLayer(layer:WebLayer3D) {
-        for (const t of layer.textures) {
-            const layers = this.layersUsingTexture.get(t)!
-            layers.delete(layer)
-            if (layers.size === 0) t.dispose()
-        }
+    _canvasTexturePromise = new Map<string, (value?:any)=>void>()
+
+    private _loadCanvasTextureIfNecessary(textureData:TextureData) {
+      const threeTextureData = this.texturesByHash.get(textureData.hash)!
+      if (threeTextureData.compressedTexture) {
+        threeTextureData.canvasTexture?.dispose()
+        threeTextureData.canvasTexture = undefined
+        return
+      }
+      const canvas = textureData.canvas
+      if (!canvas) return
+      if (!threeTextureData.canvasTexture && !threeTextureData.compressedTexture) {
+        const t = new CanvasTexture(canvas)
+        t.wrapS = ClampToEdgeWrapping
+        t.wrapT = ClampToEdgeWrapping
+        t.minFilter = LinearFilter
+        t.encoding = this.textureEncoding
+        t.flipY = false
+        threeTextureData.canvasTexture = t
+      }
     }
 }

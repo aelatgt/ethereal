@@ -35,21 +35,18 @@ export type TextureHash = string
 //   alignPoint: N
 //   mountPoint: N,
 // }
-export interface LayerState {
+export interface StateData {
     bounds: Bounds, 
     margin: Edges,
     padding: Edges,
     border: Edges,
     fullWidth: number,
     fullHeight: number,
+    pixelRatio: number,
+    textureWidth: number,
+    textureHeight: number,
     renderAttempts: number
-    texture: {
-        width: number,
-        height: number,
-        pixelRatio: number,
-        hash?: TextureHash,
-        url?: string
-    },
+    texture?: TextureData
     pseudo: {
         hover: boolean,
         active: boolean,
@@ -58,11 +55,17 @@ export interface LayerState {
     }
 }
 
-export interface StateData {
+export interface TextureData {
+    hash: TextureHash
+    canvas?: HTMLCanvasElement
+    ktx2Url?: string
+}
+
+export interface StateStoreData {
     hash: StateHash
     textureHash?: TextureHash
 }
-export interface TextureData {
+export interface TextureStoreData {
     hash: TextureHash
     timestamp: number
     texture?: Uint8Array
@@ -70,8 +73,8 @@ export interface TextureData {
   
 export class LayerStore extends Dexie {
 
-    states!: Table<StateData>;
-    textures!: Table<TextureData>;
+    states!: Table<StateStoreData>;
+    textures!: Table<TextureStoreData>;
 
     constructor(name:string) {
         super(name)
@@ -93,20 +96,38 @@ function nextPowerOf2(n:number) {
 
 export class WebLayerManagerBase {
 
+    MINIMUM_RENDER_ATTEMPTS = 3
+
     WebRenderer = WebRenderer
 
     autosave = true
     autosaveDelay = 10 * 1000
     _autosaveTimer? : any
+    
+    pixelsPerUnit = 1000
+    
+    store:LayerStore
+
+    serializeQueue = [] as {layer:WebLayer, resolve:(val:any)=>void, promise:any}[]
+    rasterizeQueue = [] as {hash:StateHash, svgUrl:string, resolve:(val:any)=>void, promise:any}[]
+    optimizeQueue = [] as {textureHash:TextureHash, resolve:(val:any)=>void, promise:any}[]
+
+    textEncoder = new TextEncoder();
+    ktx2Encoder = new KTX2Encoder() as KTX2EncoderType
+
+    private _unsavedTextureData = new Map<TextureHash, TextureStoreData>()
+    private _stateData = new Map<StateHash|HTMLMediaElement, StateData>()
+    private _textureData = new Map<TextureHash, TextureData>()
+    private _imagePool = [] as Array<HTMLImageElement>
 
     constructor(name = "ethereal-web-store") {
         this.store = new LayerStore(name)
     }
 
     saveStore() {
-        const stateData = Array.from(this._layerState.entries())
+        const stateData = Array.from(this._stateData.entries())
             .filter(([k,v]) => typeof k === 'string')
-            .map(([k,v]) => ({hash: k as string, textureHash: v.texture.hash}))
+            .map(([k,v]) => ({hash: k as string, textureHash: v.texture?.hash}))
         const textureData = Array.from(this._unsavedTextureData.values())
         this._unsavedTextureData.clear()
         return this.loadIntoStore({
@@ -127,20 +148,20 @@ export class WebLayerManagerBase {
                 resolve(data)
             })
         })
-        const data : {stateData:StateData[], textureData:TextureData[]} = this._unpackr.unpack(buffer)
+        const data : {stateData:StateStoreData[], textureData:TextureStoreData[]} = this._unpackr.unpack(buffer)
         return this.loadIntoStore(data)
     }
 
     async exportCache(states?:StateHash[]) {
         const stateData = states ? 
-            await this.store.states.bulkGet(states) as StateData[] : 
+            await this.store.states.bulkGet(states) as StateStoreData[] : 
             await this.store.states.toArray()
         
         const textureData = await this.store.textures.bulkGet(
             stateData
                 .map((v) => v.textureHash)
                 .filter((v) => typeof v === 'string') as TextureHash[]
-        ) as TextureData[]
+        ) as TextureStoreData[]
         
         const data = {stateData, textureData}
         const buffer = this._packr.pack(data)
@@ -153,78 +174,15 @@ export class WebLayerManagerBase {
         })
     }
 
-    // async importStore(url:string) {
-    //     await this._zipReady
-    //     const httpReader = new zip.HttpReader(url)
-    //     await httpReader.init()
-    //     const reader = new zip.ZipReader(httpReader)
-    //     const entries = await reader.getEntries()
-    //     const dataBlob : Blob = await entries[0].getData!(new zip.BlobWriter('application/zip'))
-    //     reader.close()
-    //     const buffer = new Uint8Array(await dataBlob.arrayBuffer())
-    //     const data : {stateData:StateData[], textureData:TextureData[]} = this._unpackr.unpack(buffer)
-    //     return Promise.all([
-    //         this.store.states.bulkPut(data.stateData),
-    //         this.store.textures.bulkPut(data.textureData)
-    //     ])
-    // }
-
-    // async exportStore(states?:StateHash[]) {
-    //     await this._zipReady
-    //     const stateData = states ? 
-    //         await this.store.states.bulkGet(states) as StateData[] : 
-    //         await this.store.states.toArray()
-    //     const textureData = await this.store.textures.bulkGet(
-    //         stateData
-    //             .map((v) => v.textureHash)
-    //             .filter((v) => typeof v === 'string') as TextureHash[]
-    //     ) as TextureData[]
-        
-    //     const data = {stateData, textureData}
-        
-    //     const buffer = this._packr.pack(data).buffer
-    //     const blob = new Blob([buffer])
-
-    //     const blobWriter = new zip.BlobWriter("application/zip")
-    //     const writer = new zip.ZipWriter(blobWriter)
-
-    //     await writer.add("ethereal.web.cache", new zip.BlobReader(blob), {onprogress: (progress,total) => {
-    //         console.log('progress: ' + progress/total)
-    //     }})
-    //     await writer.close()
-
-    //     const zippedBlob = blobWriter.getData()
-    //     return zippedBlob
-    // }
-
-    async loadIntoStore(data:{stateData:StateData[], textureData:TextureData[]}) {
-        return Promise.all([
-            this.store.states.bulkPut(data.stateData),
-            this.store.textures.bulkPut(data.textureData)
-        ])
+    async loadIntoStore(data:{stateData:StateStoreData[], textureData:TextureStoreData[]}) {
+        // return Promise.all([
+        //     this.store.states.bulkPut(data.stateData),
+        //     this.store.textures.bulkPut(data.textureData)
+        // ])
     }
-    
-    public store:LayerStore
-
-    private _textureUrls = new Map<TextureHash, string>()
-    private _unsavedTextureData = new Map<TextureHash, TextureData>()
-
-    private _layerState = new Map<StateHash|HTMLMediaElement, LayerState>()
-
-    serializeQueue = [] as {layer:WebLayer, resolve:(val:any)=>void, promise:any}[]
-    rasterizeQueue = [] as {hash:StateHash, url:string, resolve:(val:any)=>void, promise:any}[]
-
-    MINIMUM_RENDER_ATTEMPTS = 3
-    canvasPool: HTMLCanvasElement[] = []
-    imagePool: HTMLImageElement[] = []
-
-    textEncoder = new TextEncoder();
-    ktx2Encoder = new KTX2Encoder() as KTX2EncoderType
-
-    useCreateImageBitmap = false
 
     getLayerState(hash:StateHash|HTMLMediaElement) {
-        let data = this._layerState.get(hash)
+        let data = this._stateData.get(hash)
         if (!data) {
             data = {
                 bounds: new Bounds, 
@@ -234,13 +192,10 @@ export class WebLayerManagerBase {
                 fullWidth:0, 
                 fullHeight:0, 
                 renderAttempts: 0,
-                texture: {
-                    hash: undefined,
-                    url: undefined,
-                    width:32, 
-                    height:32,
-                    pixelRatio:1
-                },
+                textureWidth: 32,
+                textureHeight: 32,
+                pixelRatio:1,
+                texture: undefined!,
                 pseudo: {
                     hover: false,
                     active: false,
@@ -248,62 +203,73 @@ export class WebLayerManagerBase {
                     target: false
                 }
             }
-            this._layerState.set(hash, data)
+            this._stateData.set(hash, data)
         }
-        if (data.texture.hash) {
-            data.texture.url = this.getTextureURL(data.texture.hash)
+        return data
+    }
+    
+    getTextureState(textureHash:TextureHash) {
+        let data = this._textureData.get(textureHash)
+        if (!data) {
+            data = {
+                hash: textureHash,
+                canvas: undefined,
+                ktx2Url: undefined,
+            }
+            this._textureData.set(textureHash, data)
         }
         return data
     }
 
-    async requestLayerState(hash:StateHash|HTMLMediaElement) {
-        const fullState = this.getLayerState(hash)
-        if (typeof hash === 'string' && !fullState.texture.hash) {
+    private _statesRequestedFromStore = new Set<StateHash>()
+    private _texturesRequestedFromStore = new Set<TextureHash>()
+    async requestStoredData(hash:StateHash|HTMLMediaElement) {
+        const stateData = this.getLayerState(hash)
+        if (typeof hash !== 'string') return stateData
+        if (!this._statesRequestedFromStore.has(hash)) {
+            this._statesRequestedFromStore.add(hash)
             const state = await this.store.states.get(hash)
-            fullState.texture.hash = state?.textureHash
+            if (state?.textureHash) {
+                stateData.texture = this.getTextureState(state.textureHash)
+            }
         }
-        return fullState
+        const textureData = stateData.texture
+        if (textureData && textureData.hash && !textureData.canvas && !textureData.ktx2Url && 
+            !this._texturesRequestedFromStore.has(textureData?.hash)) {
+            this._texturesRequestedFromStore.add(textureData.hash)
+            const storedTexture = await this.store.textures.get(textureData.hash)
+            if (storedTexture?.texture && !textureData.canvas) {
+                const data = await new Promise<Uint8Array>((resolve, reject) => {
+                    decompress(storedTexture.texture!, {consume:true}, (err, data) => {
+                        if (err) return reject(err)
+                        resolve(data)
+                    })
+                })
+                if (!textureData.canvas) {
+                    textureData.ktx2Url = URL.createObjectURL(new Blob([data.buffer], {type: 'image/ktx2'}))
+                }
+            }
+        }
+        return stateData
     }
 
-    async updateTexture(textureHash:TextureHash, imageData:ImageData) {
+    async compressTexture(textureHash:TextureHash) {
+        const data = this._textureData.get(textureHash)
+        const canvas = data?.canvas
+        if (!canvas) throw new Error('Missing texture canvas')
+        const imageData = this.getImageData(canvas)
         const ktx2Texture = await this.ktx2Encoder.encode(imageData as any)
-        const textureData = this._unsavedTextureData.get(textureHash) || 
-            {hash: textureHash, renderAttempts: 0, timestamp:Date.now(), texture:undefined}
-        this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([ktx2Texture], {type: 'image/ktx2'}))) 
-        const data = await new Promise<Uint8Array>((resolve, reject) => {
-            compress(new Uint8Array(ktx2Texture), {consume:true}, (err, data) => {
+        const textureData : TextureStoreData = this._unsavedTextureData.get(textureHash) || 
+            {hash: textureHash, timestamp:Date.now(), texture:undefined}
+        data.ktx2Url = URL.createObjectURL(new Blob([ktx2Texture], {type: 'image/ktx2'}))
+        const bufferData = await new Promise<Uint8Array>((resolve, reject) => {
+            compress(new Uint8Array(ktx2Texture), {consume:true}, (err, bufferData) => {
                 if (err) return reject(err)
-                resolve(data)
+                resolve(bufferData)
             })
         })
-        textureData.texture = data
+        textureData.texture = bufferData
         this._unsavedTextureData.set(textureHash, textureData)
-    }
-
-    _texturesRequested = new Set<TextureHash>()
-
-    async requestTextureData(textureHash:TextureHash) {
-        if (!this._texturesRequested.has(textureHash)) {
-            this._texturesRequested.add(textureHash)
-            return new Promise(async (resolve) => {
-                const textureData = await this.store.textures.get(textureHash)
-                if (textureData?.texture && !this._unsavedTextureData.has(textureHash)) {
-                    const data = await new Promise<Uint8Array>((resolve, reject) => {
-                        decompress(textureData.texture!, {consume:true}, (err, data) => {
-                            if (err) return reject(err)
-                            resolve(data)
-                        })
-                    })
-                    this._textureUrls.set(textureHash, URL.createObjectURL(new Blob([data.buffer], {type: 'image/ktx2'})))  
-                    resolve(undefined)
-                }
-            })
-        }
-    }
-
-    getTextureURL(textureHash:TextureHash) {
-        this.requestTextureData(textureHash)
-        return this._textureUrls.get(textureHash)
     }
 
     tasksPending = false
@@ -338,7 +304,7 @@ export class WebLayerManagerBase {
 
         while (rasterizeQueue.length > 0 && this.rasterizePendingCount < this.MAX_SERIALIZE_TASK_COUNT) {
             this.rasterizePendingCount++
-            const {hash, url, resolve} = rasterizeQueue.shift()!
+            const {hash, svgUrl: url, resolve} = rasterizeQueue.shift()!
             this.rasterize(hash, url).finally(() => {
                 this.rasterizePendingCount--
                 resolve(undefined)
@@ -359,14 +325,18 @@ export class WebLayerManagerBase {
         return promise as Promise<any>
     }
 
+    updateDOMMetrics(layer:WebLayer) {
+        const metrics = layer.domMetrics
+        getBounds(layer.element, metrics.bounds, layer.parentLayer?.element)
+        getMargin(layer.element, metrics.margin)
+        getPadding(layer.element, metrics.padding)
+        getBorder(layer.element, metrics.border)
+    }
+
     async serialize(layer:WebLayer) {      
+        this.updateDOMMetrics(layer)
         const layerElement = layer.element as HTMLElement
         const metrics = layer.domMetrics
-        
-        getBounds(layerElement, metrics.bounds, layer.parentLayer?.element)
-        getMargin(layerElement, metrics.margin)
-        getPadding(layerElement, metrics.padding)
-        getBorder(layerElement, metrics.border)
 
         const { top, left, width, height } = metrics.bounds
         const { top: marginTop, left: marginLeft, bottom: marginBottom, right: marginRight} = metrics.margin
@@ -420,6 +390,8 @@ export class WebLayerManagerBase {
                 parentsHTML[1] +
                 '</foreignObject></svg>'
 
+            // @ts-ignore
+            layer._svgDoc = svgDoc
             const stateHashBuffer = await crypto.subtle.digest('SHA-1', this.textEncoder.encode(svgDoc))
             const stateHash = bufferToHex(stateHashBuffer) +
                 '?w=' + fullWidth +
@@ -432,7 +404,7 @@ export class WebLayerManagerBase {
         }
         
         // update the layer state data
-        const data = await this.requestLayerState(result.stateKey)
+        const data = await this.requestStoredData(result.stateKey)
         data.bounds.left = left
         data.bounds.top = top
         data.bounds.width = width
@@ -443,14 +415,14 @@ export class WebLayerManagerBase {
         data.margin.bottom = marginBottom
         data.fullWidth = fullWidth
         data.fullHeight = fullHeight
-        data.texture.width = textureWidth
-        data.texture.height = textureHeight
-        data.texture.pixelRatio = pixelRatio
+        data.pixelRatio = pixelRatio
+        data.textureWidth = textureWidth
+        data.textureHeight = textureHeight
         
         layer.desiredDOMStateKey = result.stateKey
         if (typeof result.stateKey === 'string') layer.allStateHashes.add(result.stateKey)
 
-        result.needsRasterize = !layer.isMediaElement && fullWidth * fullHeight > 0 && !data.texture.hash
+        result.needsRasterize = !layer.isMediaElement && fullWidth * fullHeight > 0 && !data.texture?.hash
         result.svgUrl = (result.needsRasterize && svgDoc) ? 'data:image/svg+xml;utf8,' + encodeURIComponent(svgDoc) : undefined
 
         return result
@@ -458,7 +430,9 @@ export class WebLayerManagerBase {
 
     async rasterize(stateHash:StateHash, svgUrl:SVGUrl) {
         const stateData = this.getLayerState(stateHash)
-        const svgImage = this.imagePool.pop() || new Image()
+        const svgImage = this._imagePool.pop() || new Image()
+
+        const {fullWidth, fullHeight, textureWidth, textureHeight, pixelRatio} = stateData
 
         await new Promise<void>( (resolve, reject) => {
 
@@ -470,8 +444,8 @@ export class WebLayerManagerBase {
                 reject(error)
             }
 
-            svgImage.width = stateData.texture.width
-            svgImage.height = stateData.texture.height
+            svgImage.width = textureWidth
+            svgImage.height = textureHeight
             svgImage.src = svgUrl
 
         })
@@ -482,20 +456,18 @@ export class WebLayerManagerBase {
 
         await svgImage.decode()
 
-        const {fullWidth, fullHeight, texture} = stateData
-        const {width : textureWidth, height : textureHeight, pixelRatio} = texture
-
         const sourceWidth = Math.floor(fullWidth*pixelRatio)
         const sourceHeight = Math.floor(fullHeight*pixelRatio)
 
-        const hashData = await this.getImageData(svgImage, sourceWidth, sourceHeight, 30, 30)
+        const hashCanvas = await this.rasterizeToCanvas(svgImage, sourceWidth, sourceHeight, 30, 30)
+        const hashData = this.getImageData(hashCanvas)
         const textureHashBuffer = await crypto.subtle.digest('SHA-1', hashData.data)
         const textureHash = bufferToHex(textureHashBuffer) +
             '?w=' + textureWidth +
             ';h=' + textureHeight
         
-        const previousCanvasHash = stateData.texture.hash
-        stateData.texture.hash = textureHash
+        const previousCanvasHash = stateData.texture?.hash
+        // stateData.texture.hash = textureHash
         
         if (previousCanvasHash !== textureHash) {
             stateData.renderAttempts = 0
@@ -503,59 +475,49 @@ export class WebLayerManagerBase {
 
         stateData.renderAttempts++
 
-        if (stateData.renderAttempts > this.MINIMUM_RENDER_ATTEMPTS && stateData.texture) {
+        stateData.texture = this.getTextureState(textureHash)
+        const hasTexture = stateData.texture.canvas || stateData.texture.ktx2Url
+        if (stateData.renderAttempts > this.MINIMUM_RENDER_ATTEMPTS && hasTexture) {
             return
         }
 
         // in case the svg image wasn't finished loading, we should try again a few times
         setTimeout(() => this.addToRasterizeQueue(stateHash, svgUrl), (500 + Math.random() * 1000) * 2^stateData.renderAttempts)
 
-        const textureUrl = this.getTextureURL(textureHash)
-        if (textureUrl) return
+        if (stateData.texture.canvas) return
     
-        const imageData = await this.getImageData(svgImage, sourceWidth, sourceHeight, textureWidth, textureHeight)
-
+        stateData.texture.canvas = await this.rasterizeToCanvas(svgImage, sourceWidth, sourceHeight, textureWidth, textureHeight)
+        
         try{
-            await this.updateTexture(textureHash, imageData)
+            await this.compressTexture(textureHash)
         } finally {
-            this.imagePool.push(svgImage)
+            this._imagePool.push(svgImage)
         }
     }
 
-    async getImageData(svgImage:HTMLImageElement, sourceWidth:number, sourceHeight:number, textureWidth:number, textureHeight:number) : Promise<ImageData> {
-        const canvas = this.canvasPool.pop() || document.createElement('canvas')
+    async rasterizeToCanvas(svgImage:HTMLImageElement, sourceWidth:number, sourceHeight:number, textureWidth:number, textureHeight:number, canvas?:HTMLCanvasElement) : Promise<HTMLCanvasElement> {
+        canvas = canvas || document.createElement('canvas')
         canvas.width = textureWidth
         canvas.height = textureHeight
         const ctx = canvas.getContext('2d')!
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'high'
-        ctx.clearRect(0, 0, textureWidth, textureHeight)
 
-        let imageData
-        if (this.useCreateImageBitmap) {
-            // this non-blocking api would be nice, but causes chrome to taint the canvas, 
-            // and Safari treats the svg size strangely
-            const imageBitmap = await createImageBitmap(svgImage, 0,0, sourceWidth * devicePixelRatio, sourceHeight * devicePixelRatio, {
-                resizeWidth: textureWidth,
-                resizeHeight: textureHeight,
-                resizeQuality: 'high'
-            })
-            ctx.drawImage(imageBitmap, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight)
-        } else {
-            ctx.drawImage(svgImage, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight)
-        }
-
-        try {
-            imageData = ctx.getImageData(0,0, textureWidth, textureHeight)
-        } catch (err) {
-            // canvas is tainted, don't reuse
-            this.useCreateImageBitmap = false
-            return this.getImageData(svgImage, sourceWidth, sourceHeight, textureWidth, textureHeight)
-        }
-
-        setTimeout(() => this.canvasPool.push(canvas), 10)
+        // createImageBitmap non-blocking api would be nice, but causes chrome to taint the canvas, 
+        // and Safari treats the svg size strangely
+        // const imageBitmap = await createImageBitmap(svgImage, 0,0, sourceWidth * devicePixelRatio, sourceHeight * devicePixelRatio, {
+        //     resizeWidth: textureWidth,
+        //     resizeHeight: textureHeight,
+        //     resizeQuality: 'high'
+        // })
+        // ctx.drawImage(imageBitmap, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight)
+        ctx.drawImage(svgImage, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight)
         
-        return imageData
+        return canvas
+    }
+
+    getImageData(canvas:HTMLCanvasElement) : ImageData {
+        return canvas.getContext('2d')!.getImageData(0,0, canvas.width, canvas.height)
     }
 
     addToRasterizeQueue(hash:StateHash, url:string) : ReturnType<typeof WebLayerManagerBase.prototype.rasterize> {
@@ -563,8 +525,16 @@ export class WebLayerManagerBase {
         if (inQueue) return inQueue.promise
         let resolve!:(v:any)=>any
         const promise = new Promise((r) => {resolve = r})
-        this.rasterizeQueue.push({hash, url, resolve, promise})
+        this.rasterizeQueue.push({hash, svgUrl: url, resolve, promise})
         return promise as Promise<void>
+    }
+
+    optimizeImageData(stateHash:StateHash) {
+
+    }
+
+    addToOptimizeQueue(hash:StateHash) {
+
     }
 
 }

@@ -18,6 +18,7 @@ export class WebLayer {
 
   isMediaElement = false
   isVideoElement = false
+  isCanvasElement = false
 
   constructor(public manager:WebLayerManagerBase, public element: Element, public eventCallback: EventCallback) {
     if (!manager) throw new Error("WebLayerManager must be initialized")
@@ -118,13 +119,13 @@ export class WebLayer {
     if (this.desiredDOMStateKey !== this.currentDOMStateKey) {
       const desired = this.desiredDOMState
 
-      if (desired && (this.isMediaElement || desired.texture.url || desired.fullWidth * desired.fullHeight === 0)) {
+      if (desired && (this.isMediaElement || desired.texture?.ktx2Url || desired.texture?.canvas || desired.fullWidth * desired.fullHeight === 0)) {
         this.currentDOMStateKey = this.desiredDOMStateKey
       }
     }
-    const prev = this.previousDOMState
-    const current = this.currentDOMState
-    if (prev?.texture.url !== current?.texture.url) {
+    const prev = this.previousDOMState?.texture?.ktx2Url ?? this.previousDOMState?.texture?.canvas
+    const current = this.currentDOMState?.texture?.ktx2Url ?? this.previousDOMState?.texture?.canvas
+    if (current && prev !== current) {
       this.eventCallback('layerpainted', { target: this.element })
     }
     this.previousDOMStateKey = this.currentDOMStateKey
