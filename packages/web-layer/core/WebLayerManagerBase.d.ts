@@ -75,15 +75,15 @@ export declare class WebLayerManagerBase {
     private _textureData;
     private _imagePool;
     constructor(name?: string);
-    saveStore(): Promise<void>;
+    saveStore(): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
     private _packr;
     private _unpackr;
-    importCache(url: string): Promise<void>;
+    importCache(url: string): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
     exportCache(states?: StateHash[]): Promise<Blob>;
     loadIntoStore(data: {
         stateData: StateStoreData[];
         textureData: TextureStoreData[];
-    }): Promise<void>;
+    }): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
     getLayerState(hash: StateHash | HTMLMediaElement): StateData;
     getTextureState(textureHash: TextureHash): TextureData;
     private _statesRequestedFromStore;

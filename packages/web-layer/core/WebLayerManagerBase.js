@@ -89,10 +89,10 @@ export class WebLayerManagerBase {
         });
     }
     async loadIntoStore(data) {
-        // return Promise.all([
-        //     this.store.states.bulkPut(data.stateData),
-        //     this.store.textures.bulkPut(data.textureData)
-        // ])
+        return Promise.all([
+            this.store.states.bulkPut(data.stateData),
+            this.store.textures.bulkPut(data.textureData)
+        ]);
     }
     getLayerState(hash) {
         let data = this._stateData.get(hash);
