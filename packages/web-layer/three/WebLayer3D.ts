@@ -491,7 +491,7 @@ export class WebLayer3D extends Object3D {
     const marginBottom = isMedia ? 0 : margin.bottom
     const fullWidth = width + marginLeft + marginRight
     const fullHeight = height + marginTop + marginBottom
-    const pixelSize = 1 / this.container.manager.pixelsPerUnit
+    const pixelSize = 1 / this.container.manager.pixelsPerMeter
 
     this.domSize.set(
       Math.max(pixelSize * fullWidth, 10e-6),

@@ -38,7 +38,7 @@ function ensureElementIsInDocument(element: Element, options:WebLayerOptions): E
     return element
   }
   const container = document.createElement('div')
-  container.id = element.id + '-container'
+  container.id = element.id ? 'container-' + element.id : 'container'
   container.setAttribute(WebRenderer.RENDERING_CONTAINER_ATTRIBUTE, '')
   container.style.visibility = 'hidden'
   container.style.pointerEvents = 'none'
@@ -122,6 +122,10 @@ export class WebRenderer {
     }
 
     const renderingStyles = `
+    :host > * {
+      display: flow-root;
+    }
+
     [${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}] * {
       transform: none !important;
     }

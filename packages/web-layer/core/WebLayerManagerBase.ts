@@ -104,7 +104,7 @@ export class WebLayerManagerBase {
     autosaveDelay = 10 * 1000
     _autosaveTimer? : any
     
-    pixelsPerUnit = 1000
+    pixelsPerMeter = 1000
     
     store:LayerStore
 
@@ -293,7 +293,7 @@ export class WebLayerManagerBase {
         // console.log("serialize task size", serializeQueue.length, serializeQueue)
         // console.log("rasterize task size", rasterizeQueue.length, rasterizeQueue)
 
-        while (serializeQueue.length > 0 && this.serializePendingCount < this.MAX_RASTERIZE_TASK_COUNT) {
+        while (serializeQueue.length > 0 && this.serializePendingCount < this.MAX_SERIALIZE_TASK_COUNT) {
             this.serializePendingCount++
             const {layer, resolve} = serializeQueue.shift()!
             this.serialize(layer).then((val) => {
@@ -302,7 +302,7 @@ export class WebLayerManagerBase {
             })
         }
 
-        while (rasterizeQueue.length > 0 && this.rasterizePendingCount < this.MAX_SERIALIZE_TASK_COUNT) {
+        while (rasterizeQueue.length > 0 && this.rasterizePendingCount < this.MAX_RASTERIZE_TASK_COUNT) {
             this.rasterizePendingCount++
             const {hash, svgUrl: url, resolve} = rasterizeQueue.shift()!
             this.rasterize(hash, url).finally(() => {
