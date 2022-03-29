@@ -75,6 +75,8 @@ export class WebRenderer {
       `;
         }
         const renderingStyles = `
+    /*<![CDATA[*/
+        
     :host > * {
       display: flow-root;
     }
@@ -128,6 +130,8 @@ export class WebRenderer {
       content:none !important;
       box-shadow:none !important;
     }
+
+    /*]]>*/
     `;
         const style = document.createElement('style');
         style.textContent = renderingStyles;
