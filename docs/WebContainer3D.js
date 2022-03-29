@@ -8,7 +8,7 @@ var ct=Object.defineProperty;var lt=(a,e,t)=>e in a?ct(a,e,{enumerable:!0,config
           top: 0px;
         }
       `}const n=`
-    :host [${b.LAYER_ATTRIBUTE}] {
+    :host > [${b.LAYER_ATTRIBUTE}] {
       display: flow-root;
     }
 
