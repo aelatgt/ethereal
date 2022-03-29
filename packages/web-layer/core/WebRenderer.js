@@ -75,7 +75,7 @@ export class WebRenderer {
       `;
         }
         const renderingStyles = `
-    :host :nth-child(n) {
+    :host [${WebRenderer.LAYER_ATTRIBUTE}] {
       display: flow-root;
     }
 
