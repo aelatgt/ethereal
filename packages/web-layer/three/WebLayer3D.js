@@ -227,6 +227,8 @@ export class WebLayer3D extends Object3D {
         }
     }
     updateContent() {
+        if (this.parentWebLayer && !this.parentWebLayer.domLayout)
+            return;
         const mesh = this.contentMesh;
         const texture = this.texture;
         const material = mesh.material;

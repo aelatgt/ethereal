@@ -7,7 +7,7 @@ function ensureElementIsInDocument(element, options) {
         return element;
     }
     const container = document.createElement('div');
-    container.id = element.id ? 'container-' + element.id : 'container';
+    container.id = element.id ? 'container-' + element.id : '';
     container.setAttribute(WebRenderer.RENDERING_CONTAINER_ATTRIBUTE, '');
     container.style.visibility = 'hidden';
     container.style.pointerEvents = 'none';

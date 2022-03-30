@@ -51,6 +51,10 @@ export declare class WebLayerManagerBase {
     autosaveDelay: number;
     _autosaveTimer?: any;
     pixelsPerMeter: number;
+    /**
+     * @deprecated
+     */
+    get pixelPerUnit(): number;
     store: LayerStore;
     serializeQueue: {
         layer: WebLayer;

@@ -32,6 +32,10 @@ export class WebLayerManagerBase {
     autosaveDelay = 10 * 1000;
     _autosaveTimer;
     pixelsPerMeter = 1000;
+    /**
+     * @deprecated
+     */
+    get pixelPerUnit() { return this.pixelsPerMeter; }
     store;
     serializeQueue = [];
     rasterizeQueue = [];
