@@ -105,6 +105,11 @@ export class WebLayerManagerBase {
     _autosaveTimer? : any
     
     pixelsPerMeter = 1000
+
+    /**
+     * @deprecated
+     */
+    get pixelPerUnit() { return this.pixelsPerMeter }
     
     store:LayerStore
 
