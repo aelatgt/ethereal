@@ -1,4 +1,4 @@
-import { Bounds, Edges, getBorder, getBounds, getMargin, getPadding } from "./dom-utils"
+import { Bounds, downloadBlob, Edges, getBorder, getBounds, getMargin, getPadding } from "./dom-utils"
 import Dexie, { Table } from 'dexie'
 
 // @ts-ignore
@@ -145,22 +145,33 @@ export class WebLayerManagerBase {
     private _unpackr = new Unpackr({structuredClone:true})
 
     async importCache(url:string) {
-        const response = await fetch(url)
-        const zipped = await response.arrayBuffer()
-        const buffer = await new Promise<Uint8Array>((resolve, reject) => {
-            decompress(new Uint8Array(zipped), {consume:true}, (err, data) => {
-                if (err) return reject(err)
-                resolve(data)
+        try {
+            const response = await fetch(url)
+            const zipped = await response.arrayBuffer()
+            const buffer = await new Promise<Uint8Array>((resolve, reject) => {
+                decompress(new Uint8Array(zipped), {consume:true}, (err, data) => {
+                    if (err) return reject(err)
+                    resolve(data)
+                })
             })
-        })
-        const data : {stateData:StateStoreData[], textureData:TextureStoreData[]} = this._unpackr.unpack(buffer)
-        return this.loadIntoStore(data)
+            const data : {stateData:StateStoreData[], textureData:TextureStoreData[]} = this._unpackr.unpack(buffer)
+            return this.loadIntoStore(data)
+        } catch (err) {
+            console.warn('Failed to import cache', err)
+        }
     }
 
-    async exportCache(states?:StateHash[]) {
-        const stateData = states ? 
-            await this.store.states.bulkGet(states) as StateStoreData[] : 
-            await this.store.states.toArray()
+    getActiveStateHashes() {
+        return Array.from(this._stateData.keys()).filter(k => typeof k === 'string') as StateHash[]
+    }
+
+    /**
+     * Export a cache file for the given state hashes
+     * @param states by default all active states are exported
+     * @returns 
+     */
+    async exportCache(states:StateHash[]=this.getActiveStateHashes()) {
+        const stateData = await this.store.states.bulkGet(states) as StateStoreData[]
         
         const textureData = await this.store.textures.bulkGet(
             stateData
@@ -177,6 +188,17 @@ export class WebLayerManagerBase {
                 resolve(new Blob([data.buffer]))
             })
         })
+    }
+
+
+    /**
+     * Export the cache data for this
+     */
+     async downloadCache() {
+        await this.saveStore()
+        const blob = await this.exportCache()
+        const path = location.pathname.split('/').filter(x=>x)
+        downloadBlob(blob, 'web.' + location.host + '.' + (path[path.length-1] ?? '') + '.cache')
     }
 
     async loadIntoStore(data:{stateData:StateStoreData[], textureData:TextureStoreData[]}) {

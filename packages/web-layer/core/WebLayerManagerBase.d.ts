@@ -82,8 +82,18 @@ export declare class WebLayerManagerBase {
     saveStore(): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
     private _packr;
     private _unpackr;
-    importCache(url: string): Promise<[import("dexie").IndexableType, import("dexie").IndexableType]>;
+    importCache(url: string): Promise<[import("dexie").IndexableType, import("dexie").IndexableType] | undefined>;
+    getActiveStateHashes(): string[];
+    /**
+     * Export a cache file for the given state hashes
+     * @param states by default all active states are exported
+     * @returns
+     */
     exportCache(states?: StateHash[]): Promise<Blob>;
+    /**
+     * Export the cache data for this
+     */
+    downloadCache(): Promise<void>;
     loadIntoStore(data: {
         stateData: StateStoreData[];
         textureData: TextureStoreData[];

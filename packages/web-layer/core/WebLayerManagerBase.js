@@ -1,4 +1,4 @@
-import { Bounds, Edges, getBorder, getBounds, getMargin, getPadding } from "./dom-utils";
+import { Bounds, downloadBlob, Edges, getBorder, getBounds, getMargin, getPadding } from "./dom-utils";
 import Dexie from 'dexie';
 // @ts-ignore
 import { KTX2Encoder } from './textures/KTX2Encoder.bundle.js';
@@ -63,22 +63,33 @@ export class WebLayerManagerBase {
     _packr = new Packr({ structuredClone: true });
     _unpackr = new Unpackr({ structuredClone: true });
     async importCache(url) {
-        const response = await fetch(url);
-        const zipped = await response.arrayBuffer();
-        const buffer = await new Promise((resolve, reject) => {
-            decompress(new Uint8Array(zipped), { consume: true }, (err, data) => {
-                if (err)
-                    return reject(err);
-                resolve(data);
+        try {
+            const response = await fetch(url);
+            const zipped = await response.arrayBuffer();
+            const buffer = await new Promise((resolve, reject) => {
+                decompress(new Uint8Array(zipped), { consume: true }, (err, data) => {
+                    if (err)
+                        return reject(err);
+                    resolve(data);
+                });
             });
-        });
-        const data = this._unpackr.unpack(buffer);
-        return this.loadIntoStore(data);
+            const data = this._unpackr.unpack(buffer);
+            return this.loadIntoStore(data);
+        }
+        catch (err) {
+            console.warn('Failed to import cache', err);
+        }
     }
-    async exportCache(states) {
-        const stateData = states ?
-            await this.store.states.bulkGet(states) :
-            await this.store.states.toArray();
+    getActiveStateHashes() {
+        return Array.from(this._stateData.keys()).filter(k => typeof k === 'string');
+    }
+    /**
+     * Export a cache file for the given state hashes
+     * @param states by default all active states are exported
+     * @returns
+     */
+    async exportCache(states = this.getActiveStateHashes()) {
+        const stateData = await this.store.states.bulkGet(states);
         const textureData = await this.store.textures.bulkGet(stateData
             .map((v) => v.textureHash)
             .filter((v) => typeof v === 'string'));
@@ -91,6 +102,15 @@ export class WebLayerManagerBase {
                 resolve(new Blob([data.buffer]));
             });
         });
+    }
+    /**
+     * Export the cache data for this
+     */
+    async downloadCache() {
+        await this.saveStore();
+        const blob = await this.exportCache();
+        const path = location.pathname.split('/').filter(x => x);
+        downloadBlob(blob, 'web.' + location.host + '.' + (path[path.length - 1] ?? '') + '.cache');
     }
     async loadIntoStore(data) {
         return Promise.all([
