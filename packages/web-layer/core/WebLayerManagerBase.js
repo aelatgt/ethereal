@@ -74,6 +74,9 @@ export class WebLayerManagerBase {
                 });
             });
             const data = this._unpackr.unpack(buffer);
+            data.textureData = data.textureData.filter((t) => t && t.hash && t.texture);
+            console.log(`Importing weblayer cache data from ${url} with ` + data.stateData.length + ' states and ' + data.textureData.length + ' textures');
+            console.log(data);
             return this.loadIntoStore(data);
         }
         catch (err) {
@@ -90,9 +93,10 @@ export class WebLayerManagerBase {
      */
     async exportCache(states = this.getActiveStateHashes()) {
         const stateData = await this.store.states.bulkGet(states);
-        const textureData = await this.store.textures.bulkGet(stateData
+        let textureData = await this.store.textures.bulkGet(stateData
             .map((v) => v.textureHash)
             .filter((v) => typeof v === 'string'));
+        textureData = textureData.filter((v) => v && typeof v.hash === 'string' && v.texture);
         const data = { stateData, textureData };
         const buffer = this._packr.pack(data);
         return new Promise((resolve, reject) => {
@@ -113,6 +117,25 @@ export class WebLayerManagerBase {
         downloadBlob(blob, 'web.' + location.host + '.' + (path[path.length - 1] ?? '') + '.cache');
     }
     async loadIntoStore(data) {
+        // load into this._textureData
+        for (const t of data.textureData) {
+            const texture = this._textureData.get(t.hash) || {
+                hash: t.hash,
+                canvas: undefined,
+                ktx2Url: undefined
+            };
+            if (!texture.ktx2Url && t.texture)
+                texture.ktx2Url = URL.createObjectURL(new Blob([t.texture], { type: 'image/ktx2' }));
+        }
+        // load into this._stateData
+        for (const s of data.stateData) {
+            const state = this.getLayerState(s.hash);
+            if (!state.texture && s.textureHash) {
+                const textureData = this._textureData.get(s.textureHash);
+                state.texture = textureData;
+            }
+        }
+        // load into db
         return Promise.all([
             this.store.states.bulkPut(data.stateData),
             this.store.textures.bulkPut(data.textureData)
