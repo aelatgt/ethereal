@@ -1,7 +1,6 @@
 // Based on https://github.com/cburgmer/xmlserializer 
 import { WebRenderer } from "./WebRenderer";
 function removeInvalidCharacters(content) {
-    // See http://www.w3.org/TR/xml/#NT-Char for valid XML 1.0 characters
     return content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 }
 export function serializeAttributeValue(value) {
@@ -117,6 +116,8 @@ export const serializationReplacer = (target, node) => {
     const tagName = element.tagName?.toLowerCase();
     if (tagName === 'style' || tagName === 'link')
         return '';
+    if (tagName === 'span')
+        return;
     const layer = WebRenderer.layers.get(element);
     if (layer) {
         layer.manager.updateDOMMetrics(layer);
@@ -171,7 +172,7 @@ export function getParentsHTML(layer, fullWidth, fullHeight, pixelRatio) {
             tag +
             (tag === 'html'
                 ? ` ${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}="" xmlns="http://www.w3.org/1999/xhtml"
-                    style="${getPixelRatioStyling(pixelRatio)} --x-width:${metrics.bounds.width}px; --x-height:${metrics.bounds.height}px; --x-inline-top:${metrics.border.top + metrics.margin.top + metrics.padding.top}px; ${style} width:${fullWidth}px; height:${fullHeight}px;" `
+                    style="${getPixelRatioStyling(pixelRatio)} --x-width:${metrics.bounds.width}px; --x-height:${metrics.bounds.height}px; ${style} width:${fullWidth}px; height:${fullHeight}px;" `
                 : ` style="${style}" ${WebRenderer.RENDERING_PARENT_ATTRIBUTE}="" `) +
             attributes +
             ' >';

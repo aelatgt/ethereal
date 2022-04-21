@@ -42,7 +42,7 @@ export function hash(el: HTMLElement) {
   const value = (el as HTMLInputElement).value
   const textContent = (el as HTMLInputElement).textContent
 }
-
+  
 export function traverseChildElements(
   element: Element,
   each: (element: Element, level: number) => boolean,

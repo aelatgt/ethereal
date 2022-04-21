@@ -6,7 +6,7 @@
         <div xr-layer id="procedure"><img xr-layer class="logo" :src="logo"/>Procedure: {{pride.procedure}}</div>
         <div id="flex">
             <div xr-layer id="content">
-                <div id="step" xr-layer>Step: <span id="type">{{pride.elementSubType}}</span> {{pride.step}}</div>
+                <div id="step" xr-layer>Step: <span id="type" xr-layer>{{pride.elementSubType}}</span> {{pride.step}}</div>
                 <div id="instruction" xr-layer>{{pride.instruction}}</div>
             </div>
             <div xr-layer id="media">

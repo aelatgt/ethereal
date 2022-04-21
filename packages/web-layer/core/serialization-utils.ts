@@ -3,8 +3,7 @@
 import { WebLayer } from "./WebLayer";
 import { WebRenderer } from "./WebRenderer";
 
-function removeInvalidCharacters(content:string) {
-    // See http://www.w3.org/TR/xml/#NT-Char for valid XML 1.0 characters
+function removeInvalidCharacters(content:string) {       
     return content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 }
 
@@ -130,6 +129,7 @@ export const serializationReplacer = (target:Node, node:Node) => {
     const element = node as Element
     const tagName = element.tagName?.toLowerCase()
     if (tagName === 'style' || tagName === 'link') return ''
+    if (tagName === 'span') return
     const layer = WebRenderer.layers.get(element)
     if (layer) {
         layer.manager.updateDOMMetrics(layer)
@@ -180,7 +180,7 @@ export function getParentsHTML(layer: WebLayer, fullWidth:number, fullHeight:num
             tag +
             (tag === 'html'
                 ? ` ${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}="" xmlns="http://www.w3.org/1999/xhtml"
-                    style="${getPixelRatioStyling(pixelRatio)} --x-width:${metrics.bounds.width}px; --x-height:${metrics.bounds.height}px; --x-inline-top:${metrics.border.top + metrics.margin.top + metrics.padding.top}px; ${style} width:${fullWidth}px; height:${fullHeight}px;" `
+                    style="${getPixelRatioStyling(pixelRatio)} --x-width:${metrics.bounds.width}px; --x-height:${metrics.bounds.height}px; ${style} width:${fullWidth}px; height:${fullHeight}px;" `
                 : ` style="${style}" ${WebRenderer.RENDERING_PARENT_ATTRIBUTE}="" `) +
             attributes +
             ' >'

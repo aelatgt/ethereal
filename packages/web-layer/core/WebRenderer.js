@@ -106,7 +106,6 @@ export class WebRenderer {
     }
     
     [${WebRenderer.RENDERING_INLINE_ATTRIBUTE}] {
-      top: var(--x-inline-top) !important;
       width:auto !important;
     }
 

@@ -1,6 +1,6 @@
 {
   "name": "ethereal-example-traclabs-pride-xr",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "main": "index.html",
   "dependencies": {
     "@types/cannon": "^0.1.3",
