@@ -130,6 +130,7 @@ export const serializationReplacer = (target:Node, node:Node) => {
     const tagName = element.tagName?.toLowerCase()
     if (tagName === 'style' || tagName === 'link') return ''
     if (tagName === 'span') return
+    if (tagName === 'a') return
     const layer = WebRenderer.layers.get(element)
     if (layer) {
         layer.manager.updateDOMMetrics(layer)
