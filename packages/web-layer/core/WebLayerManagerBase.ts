@@ -397,7 +397,7 @@ export class WebLayerManagerBase {
         const pixelRatio =
             layer.pixelRatio ||
             parseFloat(layer.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!) ||
-            window.devicePixelRatio
+            1
         const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32)
         const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32)
 
@@ -430,9 +430,9 @@ export class WebLayerManagerBase {
                 '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
                 svgCSS.join('\n') +
                 ']]></style></defs><foreignObject x="0" y="0" width="' +
-                fullWidth*pixelRatio +
+                textureWidth +
                 '" height="' +
-                fullHeight*pixelRatio +
+                textureHeight +
                 '">' +
                 parentsHTML[0] +
                 layerHTML +
@@ -440,7 +440,6 @@ export class WebLayerManagerBase {
                 '</foreignObject></svg>'
 
             // @ts-ignore
-            layer._svgDoc = svgDoc
             const stateHashBuffer = await crypto.subtle.digest('SHA-1', this.textEncoder.encode(svgDoc))
             const stateHash = bufferToHex(stateHashBuffer) +
                 '?w=' + fullWidth +
@@ -473,6 +472,7 @@ export class WebLayerManagerBase {
 
         result.needsRasterize = !layer.isMediaElement && fullWidth * fullHeight > 0 && !data.texture?.hash
         result.svgUrl = (result.needsRasterize && svgDoc) ? 'data:image/svg+xml;utf8,' + encodeURIComponent(svgDoc) : undefined
+        layer.lastSVGUrl = result.svgUrl
 
         return result
     }
