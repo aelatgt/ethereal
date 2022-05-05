@@ -326,9 +326,9 @@ export class WebLayerManagerBase {
                     '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
                     svgCSS.join('\n') +
                     ']]></style></defs><foreignObject x="0" y="0" width="' +
-                    textureWidth +
+                    fullWidth * pixelRatio +
                     '" height="' +
-                    textureHeight +
+                    fullHeight * pixelRatio +
                     '">' +
                     parentsHTML[0] +
                     layerHTML +
