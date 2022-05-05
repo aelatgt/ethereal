@@ -219,15 +219,13 @@ export class WebContainer3D extends Object3D {
                 if (!target.contains(el))
                     return false;
                 const elementBoundingRect = getBounds(el, scratchBounds2, layer.element);
-                const offsetLeft = elementBoundingRect.left - bounds.left;
-                const offsetTop = elementBoundingRect.top - bounds.top;
-                const { width, height } = elementBoundingRect;
-                const offsetRight = offsetLeft + width;
-                const offsetBottom = offsetTop + height;
-                if (clientX > offsetLeft &&
-                    clientX < offsetRight &&
-                    clientY > offsetTop &&
-                    clientY < offsetBottom) {
+                const { left, top, width, height } = elementBoundingRect;
+                const right = left + width;
+                const bottom = top + height;
+                if (clientX > left &&
+                    clientX < right &&
+                    clientY > top &&
+                    clientY < bottom) {
                     target = el;
                     return true;
                 }

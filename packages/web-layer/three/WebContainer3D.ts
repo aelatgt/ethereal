@@ -264,16 +264,14 @@ export interface WebContainer3DOptions extends WebLayerOptions {
         traverseChildElements(layer.element, el => {
           if (!target.contains(el)) return false
           const elementBoundingRect = getBounds(el, scratchBounds2, layer.element)!
-          const offsetLeft = elementBoundingRect.left - bounds.left
-          const offsetTop = elementBoundingRect.top - bounds.top
-          const { width, height } = elementBoundingRect
-          const offsetRight = offsetLeft + width
-          const offsetBottom = offsetTop + height
+          const { left, top, width, height } = elementBoundingRect
+          const right = left + width
+          const bottom = top + height
           if (
-            clientX > offsetLeft &&
-            clientX < offsetRight &&
-            clientY > offsetTop &&
-            clientY < offsetBottom
+            clientX > left &&
+            clientX < right &&
+            clientY > top &&
+            clientY < bottom
           ) {
             target = el as HTMLElement
             return true
