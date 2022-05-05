@@ -22,7 +22,7 @@
             <div xr-layer class="button" id="yes" v-show="pride.elementSubType === 'Conditional'">Yes</div>
             <div xr-layer class="button" id="no" v-show="pride.elementSubType === 'Conditional'">No</div>
             <div xr-layer class="button" id="record" v-show="pride.elementSubType === 'RecordInstruction'">Record</div>
-            <div xr-layer class="button" id="immersive-toggle"><b>{{immersiveMode ? 'Flat' : 'Immersive'}}</b></div>
+            <div xr-layer class="button" id="immersive-toggle"><b>{{immersiveMode ? 'Flat' : 'Immersive Enter'}}</b></div>
         </div>
     </div>
 </template>

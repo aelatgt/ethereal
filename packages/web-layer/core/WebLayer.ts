@@ -57,6 +57,8 @@ export class WebLayer {
   desiredDOMStateKey?: string|HTMLMediaElement
   currentDOMStateKey?: string|HTMLMediaElement
 
+  lastSVGUrl?: string
+
   get previousDOMState() {
     return this.previousDOMStateKey ? this.manager.getLayerState(this.previousDOMStateKey) : undefined
   }

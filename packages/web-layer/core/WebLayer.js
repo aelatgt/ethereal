@@ -41,6 +41,7 @@ export class WebLayer {
     previousDOMStateKey;
     desiredDOMStateKey;
     currentDOMStateKey;
+    lastSVGUrl;
     get previousDOMState() {
         return this.previousDOMStateKey ? this.manager.getLayerState(this.previousDOMStateKey) : undefined;
     }

@@ -118,6 +118,8 @@ export const serializationReplacer = (target, node) => {
         return '';
     if (tagName === 'span')
         return;
+    if (tagName === 'a')
+        return;
     const layer = WebRenderer.layers.get(element);
     if (layer) {
         layer.manager.updateDOMMetrics(layer);

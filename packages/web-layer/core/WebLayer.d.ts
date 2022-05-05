@@ -27,6 +27,7 @@ export declare class WebLayer {
     previousDOMStateKey?: string | HTMLMediaElement;
     desiredDOMStateKey?: string | HTMLMediaElement;
     currentDOMStateKey?: string | HTMLMediaElement;
+    lastSVGUrl?: string;
     get previousDOMState(): import("./WebLayerManagerBase").StateData | undefined;
     get desiredDOMState(): import("./WebLayerManagerBase").StateData | undefined;
     get currentDOMState(): import("./WebLayerManagerBase").StateData | undefined;
