@@ -112,13 +112,15 @@ export async function serializeToString(node, replacer = serializationReplacer) 
 export const serializationReplacer = (target, node) => {
     if (target === node)
         return;
+    if (node.nodeType !== Node.ELEMENT_NODE)
+        return;
     const element = node;
     const tagName = element.tagName?.toLowerCase();
+    const elementStyle = getComputedStyle(element);
+    const isInline = elementStyle.display === 'inline' || elementStyle.display === 'inline-block';
     if (tagName === 'style' || tagName === 'link')
         return '';
-    if (tagName === 'span')
-        return;
-    if (tagName === 'a')
+    if (isInline)
         return;
     const layer = WebRenderer.layers.get(element);
     if (layer) {

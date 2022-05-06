@@ -126,11 +126,13 @@ export async function serializeToString(node:Element, replacer:Options['replacer
 
 export const serializationReplacer = (target:Node, node:Node) => {
     if (target === node) return
+    if (node.nodeType !== Node.ELEMENT_NODE) return
     const element = node as Element
     const tagName = element.tagName?.toLowerCase()
+    const elementStyle = getComputedStyle(element)
+    const isInline = elementStyle.display === 'inline' || elementStyle.display === 'inline-block'
     if (tagName === 'style' || tagName === 'link') return ''
-    if (tagName === 'span') return
-    if (tagName === 'a') return
+    if (isInline) return
     const layer = WebRenderer.layers.get(element)
     if (layer) {
         layer.manager.updateDOMMetrics(layer)
