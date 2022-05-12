@@ -12,8 +12,11 @@ import { bufferToHex } from "./hex-utils"
 
 import { Packr, Unpackr } from 'msgpackr'
 
-import { gzip, gunzip, compress, zlib, decompress, decompressSync } from 'fflate'
-import { rejects } from "assert"
+import { compress, decompress } from 'fflate'
+import { Matrix4 } from "three/src/math/Matrix4"
+
+
+const scratchMatrix = new Matrix4
 
 // import * as zip from '@zip.js/zip.js'
 // const zipBaseURI = 'https://unpkg.com/@zip.js/zip.js@2.4.4/dist/'
@@ -36,6 +39,7 @@ export type TextureHash = string
 //   mountPoint: N,
 // }
 export interface StateData {
+    cssTransform: Matrix4|undefined,
     bounds: Bounds, 
     margin: Edges,
     padding: Edges,
@@ -234,6 +238,7 @@ export class WebLayerManagerBase {
         let data = this._stateData.get(hash)
         if (!data) {
             data = {
+                cssTransform: undefined,
                 bounds: new Bounds, 
                 margin: new Edges, 
                 padding: new Edges,
@@ -404,13 +409,21 @@ export class WebLayerManagerBase {
         const result = {} as {stateKey: StateHash|HTMLMediaElement, svgUrl?:string, needsRasterize:boolean}
         let svgDoc!:string
 
+        const computedStyle = getComputedStyle(layerElement)
+
+        const transform = computedStyle.transform
+        let cssTransform = null as Matrix4 | null
+        if (transform && transform !== 'none') {
+            const pixelSize = 1 / this.pixelsPerMeter
+            cssTransform = WebRenderer.parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix)
+        }
+
         if (layer.isMediaElement) {
             result.stateKey = layerElement as HTMLMediaElement
         } else {
 
             // create svg markup
             const layerAttribute = WebRenderer.attributeHTML(WebRenderer.LAYER_ATTRIBUTE,'')
-            const computedStyle = getComputedStyle(layerElement)
             const needsInlineBlock = computedStyle.display === 'inline'
             WebRenderer.updateInputAttributes(layerElement)
             
@@ -453,6 +466,7 @@ export class WebLayerManagerBase {
         
         // update the layer state data
         const data = await this.requestStoredData(result.stateKey)
+        data.cssTransform = cssTransform?.clone()
         data.bounds.left = left
         data.bounds.top = top
         data.bounds.width = width
