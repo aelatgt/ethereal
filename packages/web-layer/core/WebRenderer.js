@@ -75,6 +75,11 @@ export class WebRenderer {
       `;
         }
         const renderingStyles = `
+    a {
+      color: blue;
+      text-decoration: underline;
+    }
+
     :host > [${WebRenderer.LAYER_ATTRIBUTE}] {
       display: flow-root;
     }
@@ -103,10 +108,6 @@ export class WebRenderer {
       box-sizing:border-box;
       min-width:var(--x-width);
       min-height:var(--x-height);
-    }
-    
-    [${WebRenderer.RENDERING_INLINE_ATTRIBUTE}] {
-      width:auto !important;
     }
 
     [${WebRenderer.RENDERING_PARENT_ATTRIBUTE}] {

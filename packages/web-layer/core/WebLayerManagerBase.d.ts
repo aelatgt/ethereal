@@ -3,10 +3,12 @@ import Dexie, { Table } from 'dexie';
 import type { KTX2Encoder as KTX2EncoderType } from './textures/KTX2Encoder';
 import { WebRenderer } from "./WebRenderer";
 import { WebLayer } from "./WebLayer";
+import { Matrix4 } from "three/src/math/Matrix4";
 export declare type StateHash = string;
 export declare type SVGUrl = string;
 export declare type TextureHash = string;
 export interface StateData {
+    cssTransform: Matrix4 | undefined;
     bounds: Bounds;
     margin: Edges;
     padding: Edges;

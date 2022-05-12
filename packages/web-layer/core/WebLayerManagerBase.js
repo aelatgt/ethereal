@@ -8,6 +8,8 @@ import { getParentsHTML } from "./serialization-utils";
 import { bufferToHex } from "./hex-utils";
 import { Packr, Unpackr } from 'msgpackr';
 import { compress, decompress } from 'fflate';
+import { Matrix4 } from "three/src/math/Matrix4";
+const scratchMatrix = new Matrix4;
 export class LayerStore extends Dexie {
     states;
     textures;
@@ -145,6 +147,7 @@ export class WebLayerManagerBase {
         let data = this._stateData.get(hash);
         if (!data) {
             data = {
+                cssTransform: undefined,
                 bounds: new Bounds,
                 margin: new Edges,
                 padding: new Edges,
@@ -303,13 +306,19 @@ export class WebLayerManagerBase {
         const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32);
         const result = {};
         let svgDoc;
+        const computedStyle = getComputedStyle(layerElement);
+        const transform = computedStyle.transform;
+        let cssTransform = null;
+        if (transform && transform !== 'none') {
+            const pixelSize = 1 / this.pixelsPerMeter;
+            cssTransform = WebRenderer.parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix);
+        }
         if (layer.isMediaElement) {
             result.stateKey = layerElement;
         }
         else {
             // create svg markup
             const layerAttribute = WebRenderer.attributeHTML(WebRenderer.LAYER_ATTRIBUTE, '');
-            const computedStyle = getComputedStyle(layerElement);
             const needsInlineBlock = computedStyle.display === 'inline';
             WebRenderer.updateInputAttributes(layerElement);
             const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, pixelRatio);
@@ -326,9 +335,9 @@ export class WebLayerManagerBase {
                     '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
                     svgCSS.join('\n') +
                     ']]></style></defs><foreignObject x="0" y="0" width="' +
-                    fullWidth * pixelRatio +
+                    textureWidth +
                     '" height="' +
-                    fullHeight * pixelRatio +
+                    textureHeight +
                     '">' +
                     parentsHTML[0] +
                     layerHTML +
@@ -345,6 +354,7 @@ export class WebLayerManagerBase {
         }
         // update the layer state data
         const data = await this.requestStoredData(result.stateKey);
+        data.cssTransform = cssTransform?.clone();
         data.bounds.left = left;
         data.bounds.top = top;
         data.bounds.width = width;
