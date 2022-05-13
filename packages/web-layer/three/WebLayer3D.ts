@@ -352,6 +352,18 @@ export class WebLayer3D extends Object3D {
     this.container.manager.scheduleTasksIfNeeded()
   }
 
+  get pixelRatio() {
+    return this._webLayer.pixelRatio
+  }
+
+  set pixelRatio(number: number|null) {
+    this._webLayer.pixelRatio = number
+  }
+
+  get computedPixelRatio() {
+    return this._webLayer.computedPixelRatio
+  }
+
   update(recurse=false) {
     if (recurse) this.traverseLayersPreOrder(this._doUpdate)
     else this._doUpdate()

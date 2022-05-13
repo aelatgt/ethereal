@@ -48,7 +48,24 @@ export class WebLayer {
   
   parentLayer?: WebLayer
   childLayers = [] as WebLayer[]
-  pixelRatio?: number
+  
+  set pixelRatio (val:number|null) {
+    const isNumber = typeof val === 'number'
+    if (isNumber) {
+      this.element.setAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE, val.toString()) 
+    } else {
+      this.element.removeAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)
+    }
+  }
+
+  get pixelRatio () {
+    const val = this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)!
+    return val ? parseFloat(val) : null
+  }
+
+  get computedPixelRatio() : number {
+    return this.pixelRatio ?? this.parentLayer?.computedPixelRatio ?? 1
+  }
 
   allStateHashes = new Set<string>()
 
