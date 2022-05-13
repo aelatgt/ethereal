@@ -36,7 +36,22 @@ export class WebLayer {
     needsRemoval = false;
     parentLayer;
     childLayers = [];
-    pixelRatio;
+    set pixelRatio(val) {
+        const isNumber = typeof val === 'number';
+        if (isNumber) {
+            this.element.setAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE, val.toString());
+        }
+        else {
+            this.element.removeAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE);
+        }
+    }
+    get pixelRatio() {
+        const val = this.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE);
+        return val ? parseFloat(val) : null;
+    }
+    get computedPixelRatio() {
+        return this.pixelRatio ?? this.parentLayer?.computedPixelRatio ?? 1;
+    }
     allStateHashes = new Set();
     previousDOMStateKey;
     desiredDOMStateKey;

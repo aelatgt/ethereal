@@ -94,6 +94,9 @@ export declare class WebLayer3D extends Object3D {
     /** INTERNAL */
     private [ON_BEFORE_UPDATE];
     protected _doUpdate(): void;
+    get pixelRatio(): number | null;
+    set pixelRatio(number: number | null);
+    get computedPixelRatio(): number;
     update(recurse?: boolean): void;
     querySelector(selector: string): WebLayer3D | undefined;
     querySelectorAll(selector: string): WebLayer3D[];

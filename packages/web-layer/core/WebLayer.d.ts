@@ -22,7 +22,9 @@ export declare class WebLayer {
     needsRemoval: boolean;
     parentLayer?: WebLayer;
     childLayers: WebLayer[];
-    pixelRatio?: number;
+    set pixelRatio(val: number | null);
+    get pixelRatio(): number | null;
+    get computedPixelRatio(): number;
     allStateHashes: Set<string>;
     previousDOMStateKey?: string | HTMLMediaElement;
     desiredDOMStateKey?: string | HTMLMediaElement;

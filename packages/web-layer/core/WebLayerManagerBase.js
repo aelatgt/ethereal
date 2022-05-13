@@ -299,9 +299,7 @@ export class WebLayerManagerBase {
         // add margins
         const fullWidth = width + Math.max(marginLeft, 0) + Math.max(marginRight, 0);
         const fullHeight = height + Math.max(marginTop, 0) + Math.max(marginBottom, 0);
-        const pixelRatio = layer.pixelRatio ||
-            parseFloat(layer.element.getAttribute(WebRenderer.PIXEL_RATIO_ATTRIBUTE)) ||
-            1;
+        const pixelRatio = layer.computedPixelRatio;
         const textureWidth = Math.max(nextPowerOf2(fullWidth * pixelRatio), 32);
         const textureHeight = Math.max(nextPowerOf2(fullHeight * pixelRatio), 32);
         const result = {};
