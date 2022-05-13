@@ -8,7 +8,6 @@ import { ThreeTextureData } from "./WebLayerManager";
 export const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE')
 
 const scratchVector = new Vector3()
-const scratchMatrix = new Matrix4
 
 /** Correct UVs to be compatible with `flipY=false` textures. */
 function flipY( geometry: PlaneGeometry ) {
@@ -474,7 +473,7 @@ export class WebLayer3D extends Object3D {
 
     if (!currentState) return
 
-    const {bounds: currentBounds, margin: currentMargin} = currentState
+    const {bounds: currentBounds, margin: currentMargin, cssTransform} = currentState
 
     const isMedia = this._webLayer.isMediaElement
     
@@ -517,15 +516,10 @@ export class WebLayer3D extends Object3D {
       0
     )
 
-    const computedStyle = getComputedStyle(this.element)    
-    const transform = computedStyle.transform
-    if (transform && transform !== 'none') {
-      const cssTransform = WebRenderer.parseCSSTransform(computedStyle, bounds.width, bounds.height, pixelSize, scratchMatrix)
-      if (cssTransform) {
-        this.domLayout.updateMatrix()
-        this.domLayout.matrix.multiply(cssTransform)
-        this.domLayout.matrix.decompose(this.domLayout.position, this.domLayout.quaternion, this.domLayout.scale)
-      }
+    if (cssTransform) {
+      this.domLayout.updateMatrix()
+      this.domLayout.matrix.multiply(cssTransform)
+      this.domLayout.matrix.decompose(this.domLayout.position, this.domLayout.quaternion, this.domLayout.scale)
     }
   }
 }

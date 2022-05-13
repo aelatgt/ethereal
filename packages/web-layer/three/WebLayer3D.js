@@ -1,9 +1,8 @@
-import { ClampToEdgeWrapping, DoubleSide, LinearFilter, Matrix4, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, TextureLoader, CanvasTexture } from "three";
+import { ClampToEdgeWrapping, DoubleSide, LinearFilter, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, TextureLoader, CanvasTexture } from "three";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
 export const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE');
 const scratchVector = new Vector3();
-const scratchMatrix = new Matrix4;
 /** Correct UVs to be compatible with `flipY=false` textures. */
 function flipY(geometry) {
     const uv = geometry.attributes.uv;
@@ -399,7 +398,7 @@ export class WebLayer3D extends Object3D {
         const currentState = this._webLayer.currentDOMState;
         if (!currentState)
             return;
-        const { bounds: currentBounds, margin: currentMargin } = currentState;
+        const { bounds: currentBounds, margin: currentMargin, cssTransform } = currentState;
         const isMedia = this._webLayer.isMediaElement;
         this.domLayout.position.set(0, 0, 0);
         this.domLayout.scale.set(1, 1, 1);
@@ -426,15 +425,10 @@ export class WebLayer3D extends Object3D {
         const parentLeftEdge = -parentFullWidth / 2 + parentMargin.left;
         const parentTopEdge = parentFullHeight / 2 - parentMargin.top;
         this.domLayout.position.set(pixelSize * (parentLeftEdge + fullWidth / 2 + bounds.left - marginLeft), pixelSize * (parentTopEdge - fullHeight / 2 - bounds.top + marginTop), 0);
-        const computedStyle = getComputedStyle(this.element);
-        const transform = computedStyle.transform;
-        if (transform && transform !== 'none') {
-            const cssTransform = WebRenderer.parseCSSTransform(computedStyle, bounds.width, bounds.height, pixelSize, scratchMatrix);
-            if (cssTransform) {
-                this.domLayout.updateMatrix();
-                this.domLayout.matrix.multiply(cssTransform);
-                this.domLayout.matrix.decompose(this.domLayout.position, this.domLayout.quaternion, this.domLayout.scale);
-            }
+        if (cssTransform) {
+            this.domLayout.updateMatrix();
+            this.domLayout.matrix.multiply(cssTransform);
+            this.domLayout.matrix.decompose(this.domLayout.position, this.domLayout.quaternion, this.domLayout.scale);
         }
     }
 }
