@@ -2,14 +2,14 @@
  * @author Deepkolos / https://github.com/deepkolos
  */
 export class WorkerPool {
-    pool;
+    limit;
     queue = [];
     workers = [];
     workersResolve = [];
     workerStatus = 0;
     workerCreator;
     constructor(pool = 4) {
-        this.pool = pool;
+        this.limit = pool;
     }
     _initWorker(workerId) {
         if (!this.workers[workerId]) {
@@ -19,7 +19,7 @@ export class WorkerPool {
         }
     }
     _getIdleWorker() {
-        for (let i = 0; i < this.pool; i++)
+        for (let i = 0; i < this.limit; i++)
             if (!(this.workerStatus & (1 << i)))
                 return i;
         return -1;
@@ -40,7 +40,7 @@ export class WorkerPool {
         this.workerCreator = workerCreator;
     }
     setWorkerLimit(pool) {
-        this.pool = pool;
+        this.limit = pool;
     }
     postMessage(msg, transfer) {
         return new Promise((resolve) => {

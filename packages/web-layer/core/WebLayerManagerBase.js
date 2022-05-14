@@ -220,6 +220,8 @@ export class WebLayerManagerBase {
         const canvas = data?.canvas;
         if (!canvas)
             throw new Error('Missing texture canvas');
+        if (this.ktx2Encoder.pool.limit === 0)
+            return;
         const imageData = this.getImageData(canvas);
         const ktx2Texture = await this.ktx2Encoder.encode(imageData);
         const textureData = this._unsavedTextureData.get(textureHash) ||
@@ -239,7 +241,7 @@ export class WebLayerManagerBase {
     serializePendingCount = 0;
     rasterizePendingCount = 0;
     MAX_SERIALIZE_TASK_COUNT = 10;
-    MAX_RASTERIZE_TASK_COUNT = 10;
+    MAX_RASTERIZE_TASK_COUNT = 5;
     scheduleTasksIfNeeded() {
         if (this.tasksPending ||
             (this.serializeQueue.length === 0 && this.rasterizeQueue.length === 0))

@@ -2,7 +2,7 @@
  * @author Deepkolos / https://github.com/deepkolos
  */
 export declare class WorkerPool {
-    pool: number;
+    limit: number;
     queue: {
         resolve: Function;
         msg: any;

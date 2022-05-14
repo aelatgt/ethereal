@@ -3,14 +3,14 @@ var KTX2Worker_bundle_default = '(() => {\n  var __create = Object.create;\n  va
 
 // core/WorkerPool.ts
 var WorkerPool = class {
-  pool;
+  limit;
   queue = [];
   workers = [];
   workersResolve = [];
   workerStatus = 0;
   workerCreator;
   constructor(pool = 4) {
-    this.pool = pool;
+    this.limit = pool;
   }
   _initWorker(workerId) {
     if (!this.workers[workerId]) {
@@ -20,7 +20,7 @@ var WorkerPool = class {
     }
   }
   _getIdleWorker() {
-    for (let i = 0; i < this.pool; i++)
+    for (let i = 0; i < this.limit; i++)
       if (!(this.workerStatus & 1 << i))
         return i;
     return -1;
@@ -40,7 +40,7 @@ var WorkerPool = class {
     this.workerCreator = workerCreator;
   }
   setWorkerLimit(pool) {
-    this.pool = pool;
+    this.limit = pool;
   }
   postMessage(msg, transfer) {
     return new Promise((resolve) => {

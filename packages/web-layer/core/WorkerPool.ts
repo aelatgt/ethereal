@@ -5,7 +5,7 @@
  export class WorkerPool {
 
 
-    pool:number
+    limit:number
     queue = [] as Array<{ resolve:Function, msg:any, transfer:Transferable[] }>
     workers = [] as Worker[]
     workersResolve = [] as Array<Function>
@@ -15,7 +15,7 @@
 
 	constructor( pool = 4 ) {
 
-		this.pool = pool
+		this.limit = pool
 
 	}
 
@@ -33,7 +33,7 @@
 
 	_getIdleWorker() {
 
-		for ( let i = 0; i < this.pool; i ++ )
+		for ( let i = 0; i < this.limit; i ++ )
 			if ( ! ( this.workerStatus & ( 1 << i ) ) ) return i;
 
 		return - 1;
@@ -67,7 +67,7 @@
 
 	setWorkerLimit( pool : number ) {
 
-		this.pool = pool;
+		this.limit = pool;
 
 	}
 
