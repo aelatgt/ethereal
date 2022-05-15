@@ -1,5 +1,5 @@
 
-import { CanvasTexture, ClampToEdgeWrapping, CompressedTexture, LinearFilter, sRGBEncoding, Texture, VideoTexture } from 'three'
+import { CanvasTexture, ClampToEdgeWrapping, CompressedTexture, LinearFilter, LinearMipmapLinearFilter, sRGBEncoding, Texture, VideoTexture } from 'three'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader'
 import { WebLayer3D } from './WebLayer3D'
 import { TextureData, TextureHash, WebLayerManagerBase } from '../core/WebLayerManagerBase'
@@ -53,7 +53,7 @@ export class WebLayerManager extends WebLayerManagerBase {
           this.ktx2Loader.loadAsync(ktx2Url).then((t) => {
             t.wrapS = ClampToEdgeWrapping
             t.wrapT = ClampToEdgeWrapping
-            t.minFilter = LinearFilter
+            t.minFilter = LinearMipmapLinearFilter
             t.encoding = this.textureEncoding
             this.texturesByHash.get(textureData.hash)!.compressedTexture = t
           }).finally(()=>{
