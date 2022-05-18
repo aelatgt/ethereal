@@ -1,1 +1,4 @@
-export declare function getAllEmbeddedStyles(el: Element): Promise<string[]>;
+export declare function getAllEmbeddedStyles(el: Element): Promise<{
+    serialized: string;
+    hash: string;
+}[]>;

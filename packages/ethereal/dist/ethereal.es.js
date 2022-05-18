@@ -286,7 +286,7 @@ function generateUUID() {
   const d2 = Math.random() * 4294967295 | 0;
   const d3 = Math.random() * 4294967295 | 0;
   const uuid = _lut[d0 & 255] + _lut[d0 >> 8 & 255] + _lut[d0 >> 16 & 255] + _lut[d0 >> 24 & 255] + "-" + _lut[d1 & 255] + _lut[d1 >> 8 & 255] + "-" + _lut[d1 >> 16 & 15 | 64] + _lut[d1 >> 24 & 255] + "-" + _lut[d2 & 63 | 128] + _lut[d2 >> 8 & 255] + "-" + _lut[d2 >> 16 & 255] + _lut[d2 >> 24 & 255] + _lut[d3 & 255] + _lut[d3 >> 8 & 255] + _lut[d3 >> 16 & 255] + _lut[d3 >> 24 & 255];
-  return uuid.toUpperCase();
+  return uuid.toLowerCase();
 }
 function clamp(value, min2, max2) {
   return Math.max(min2, Math.min(max2, value));
@@ -340,9 +340,11 @@ function randFloatSpread(range) {
 }
 function seededRandom(s) {
   if (s !== void 0)
-    _seed = s % 2147483647;
-  _seed = _seed * 16807 % 2147483647;
-  return (_seed - 1) / 2147483646;
+    _seed = s;
+  let t = _seed += 1831565813;
+  t = Math.imul(t ^ t >>> 15, t | 1);
+  t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+  return ((t ^ t >>> 14) >>> 0) / 4294967296;
 }
 function degToRad(degrees) {
   return degrees * DEG2RAD;
@@ -393,6 +395,38 @@ function setQuaternionFromProperEuler(q, a2, b2, c2, order) {
       console.warn("THREE.MathUtils: .setQuaternionFromProperEuler() encountered an unknown order: " + order);
   }
 }
+function denormalize(value, array) {
+  switch (array.constructor) {
+    case Float32Array:
+      return value;
+    case Uint16Array:
+      return value / 65535;
+    case Uint8Array:
+      return value / 255;
+    case Int16Array:
+      return Math.max(value / 32767, -1);
+    case Int8Array:
+      return Math.max(value / 127, -1);
+    default:
+      throw new Error("Invalid component type.");
+  }
+}
+function normalize(value, array) {
+  switch (array.constructor) {
+    case Float32Array:
+      return value;
+    case Uint16Array:
+      return Math.round(value * 65535);
+    case Uint8Array:
+      return Math.round(value * 255);
+    case Int16Array:
+      return Math.round(value * 32767);
+    case Int8Array:
+      return Math.round(value * 127);
+    default:
+      throw new Error("Invalid component type.");
+  }
+}
 var MathUtils = /* @__PURE__ */ Object.freeze({
   __proto__: null,
   [Symbol.toStringTag]: "Module",
@@ -417,7 +451,9 @@ var MathUtils = /* @__PURE__ */ Object.freeze({
   isPowerOfTwo,
   ceilPowerOfTwo,
   floorPowerOfTwo,
-  setQuaternionFromProperEuler
+  setQuaternionFromProperEuler,
+  normalize,
+  denormalize
 });
 class Quaternion {
   constructor(x = 0, y = 0, z = 0, w = 1) {
@@ -810,6 +846,12 @@ class Quaternion {
   }
   _onChangeCallback() {
   }
+  *[Symbol.iterator]() {
+    yield this._x;
+    yield this._y;
+    yield this._z;
+    yield this._w;
+  }
 }
 Quaternion.prototype.isQuaternion = true;
 class Vector3 {
@@ -1191,6 +1233,12 @@ class Vector3 {
   }
   setFromMatrix3Column(m, index) {
     return this.fromArray(m.elements, index * 3);
+  }
+  setFromEuler(e) {
+    this.x = e._x;
+    this.y = e._y;
+    this.z = e._z;
+    return this;
   }
   equals(v) {
     return v.x === this.x && v.y === this.y && v.z === this.z;
@@ -2367,23 +2415,62 @@ class Euler {
     array[offset + 3] = this._order;
     return array;
   }
-  toVector3(optionalResult) {
-    if (optionalResult) {
-      return optionalResult.set(this._x, this._y, this._z);
-    } else {
-      return new Vector3(this._x, this._y, this._z);
-    }
-  }
   _onChange(callback) {
     this._onChangeCallback = callback;
     return this;
   }
   _onChangeCallback() {
   }
+  *[Symbol.iterator]() {
+    yield this._x;
+    yield this._y;
+    yield this._z;
+    yield this._order;
+  }
 }
 Euler.prototype.isEuler = true;
 Euler.DefaultOrder = "XYZ";
 Euler.RotationOrders = ["XYZ", "YZX", "ZXY", "XZY", "YXZ", "ZYX"];
+const SRGBColorSpace = "srgb";
+const LinearSRGBColorSpace = "srgb-linear";
+function SRGBToLinear(c2) {
+  return c2 < 0.04045 ? c2 * 0.0773993808 : Math.pow(c2 * 0.9478672986 + 0.0521327014, 2.4);
+}
+function LinearToSRGB(c2) {
+  return c2 < 31308e-7 ? c2 * 12.92 : 1.055 * Math.pow(c2, 0.41666) - 0.055;
+}
+const FN = {
+  [SRGBColorSpace]: { [LinearSRGBColorSpace]: SRGBToLinear },
+  [LinearSRGBColorSpace]: { [SRGBColorSpace]: LinearToSRGB }
+};
+const ColorManagement = {
+  legacyMode: true,
+  get workingColorSpace() {
+    return LinearSRGBColorSpace;
+  },
+  set workingColorSpace(colorSpace) {
+    console.warn("THREE.ColorManagement: .workingColorSpace is readonly.");
+  },
+  convert: function(color, sourceColorSpace, targetColorSpace) {
+    if (this.legacyMode || sourceColorSpace === targetColorSpace || !sourceColorSpace || !targetColorSpace) {
+      return color;
+    }
+    if (FN[sourceColorSpace] && FN[sourceColorSpace][targetColorSpace] !== void 0) {
+      const fn = FN[sourceColorSpace][targetColorSpace];
+      color.r = fn(color.r);
+      color.g = fn(color.g);
+      color.b = fn(color.b);
+      return color;
+    }
+    throw new Error("Unsupported color space conversion.");
+  },
+  fromWorkingColorSpace: function(color, targetColorSpace) {
+    return this.convert(color, this.workingColorSpace, targetColorSpace);
+  },
+  toWorkingColorSpace: function(color, sourceColorSpace) {
+    return this.convert(color, sourceColorSpace, this.workingColorSpace);
+  }
+};
 const _colorKeywords = {
   "aliceblue": 15792383,
   "antiquewhite": 16444375,
@@ -2534,6 +2621,7 @@ const _colorKeywords = {
   "yellow": 16776960,
   "yellowgreen": 10145074
 };
+const _rgb = { r: 0, g: 0, b: 0 };
 const _hslA = { h: 0, s: 0, l: 0 };
 const _hslB = { h: 0, s: 0, l: 0 };
 function hue2rgb(p, q, t) {
@@ -2549,11 +2637,11 @@ function hue2rgb(p, q, t) {
     return p + (q - p) * 6 * (2 / 3 - t);
   return p;
 }
-function SRGBToLinear(c2) {
-  return c2 < 0.04045 ? c2 * 0.0773993808 : Math.pow(c2 * 0.9478672986 + 0.0521327014, 2.4);
-}
-function LinearToSRGB(c2) {
-  return c2 < 31308e-7 ? c2 * 12.92 : 1.055 * Math.pow(c2, 0.41666) - 0.055;
+function toComponents(source, target) {
+  target.r = source.r;
+  target.g = source.g;
+  target.b = source.b;
+  return target;
 }
 class Color {
   constructor(r, g, b2) {
@@ -2578,20 +2666,22 @@ class Color {
     this.b = scalar;
     return this;
   }
-  setHex(hex) {
+  setHex(hex, colorSpace = SRGBColorSpace) {
     hex = Math.floor(hex);
     this.r = (hex >> 16 & 255) / 255;
     this.g = (hex >> 8 & 255) / 255;
     this.b = (hex & 255) / 255;
+    ColorManagement.toWorkingColorSpace(this, colorSpace);
     return this;
   }
-  setRGB(r, g, b2) {
+  setRGB(r, g, b2, colorSpace = LinearSRGBColorSpace) {
     this.r = r;
     this.g = g;
     this.b = b2;
+    ColorManagement.toWorkingColorSpace(this, colorSpace);
     return this;
   }
-  setHSL(h, s, l) {
+  setHSL(h, s, l, colorSpace = LinearSRGBColorSpace) {
     h = euclideanModulo(h, 1);
     s = clamp(s, 0, 1);
     l = clamp(l, 0, 1);
@@ -2604,9 +2694,10 @@ class Color {
       this.g = hue2rgb(q, p, h);
       this.b = hue2rgb(q, p, h - 1 / 3);
     }
+    ColorManagement.toWorkingColorSpace(this, colorSpace);
     return this;
   }
-  setStyle(style) {
+  setStyle(style, colorSpace = SRGBColorSpace) {
     function handleAlpha(string) {
       if (string === void 0)
         return;
@@ -2626,6 +2717,7 @@ class Color {
             this.r = Math.min(255, parseInt(color[1], 10)) / 255;
             this.g = Math.min(255, parseInt(color[2], 10)) / 255;
             this.b = Math.min(255, parseInt(color[3], 10)) / 255;
+            ColorManagement.toWorkingColorSpace(this, colorSpace);
             handleAlpha(color[4]);
             return this;
           }
@@ -2633,6 +2725,7 @@ class Color {
             this.r = Math.min(100, parseInt(color[1], 10)) / 100;
             this.g = Math.min(100, parseInt(color[2], 10)) / 100;
             this.b = Math.min(100, parseInt(color[3], 10)) / 100;
+            ColorManagement.toWorkingColorSpace(this, colorSpace);
             handleAlpha(color[4]);
             return this;
           }
@@ -2644,7 +2737,7 @@ class Color {
             const s = parseInt(color[2], 10) / 100;
             const l = parseInt(color[3], 10) / 100;
             handleAlpha(color[4]);
-            return this.setHSL(h, s, l);
+            return this.setHSL(h, s, l, colorSpace);
           }
           break;
       }
@@ -2655,23 +2748,25 @@ class Color {
         this.r = parseInt(hex.charAt(0) + hex.charAt(0), 16) / 255;
         this.g = parseInt(hex.charAt(1) + hex.charAt(1), 16) / 255;
         this.b = parseInt(hex.charAt(2) + hex.charAt(2), 16) / 255;
+        ColorManagement.toWorkingColorSpace(this, colorSpace);
         return this;
       } else if (size === 6) {
         this.r = parseInt(hex.charAt(0) + hex.charAt(1), 16) / 255;
         this.g = parseInt(hex.charAt(2) + hex.charAt(3), 16) / 255;
         this.b = parseInt(hex.charAt(4) + hex.charAt(5), 16) / 255;
+        ColorManagement.toWorkingColorSpace(this, colorSpace);
         return this;
       }
     }
     if (style && style.length > 0) {
-      return this.setColorName(style);
+      return this.setColorName(style, colorSpace);
     }
     return this;
   }
-  setColorName(style) {
+  setColorName(style, colorSpace = SRGBColorSpace) {
     const hex = _colorKeywords[style.toLowerCase()];
     if (hex !== void 0) {
-      this.setHex(hex);
+      this.setHex(hex, colorSpace);
     } else {
       console.warn("THREE.Color: Unknown color " + style);
     }
@@ -2706,14 +2801,16 @@ class Color {
     this.copyLinearToSRGB(this);
     return this;
   }
-  getHex() {
-    return this.r * 255 << 16 ^ this.g * 255 << 8 ^ this.b * 255 << 0;
+  getHex(colorSpace = SRGBColorSpace) {
+    ColorManagement.fromWorkingColorSpace(toComponents(this, _rgb), colorSpace);
+    return clamp(_rgb.r * 255, 0, 255) << 16 ^ clamp(_rgb.g * 255, 0, 255) << 8 ^ clamp(_rgb.b * 255, 0, 255) << 0;
   }
-  getHexString() {
-    return ("000000" + this.getHex().toString(16)).slice(-6);
+  getHexString(colorSpace = SRGBColorSpace) {
+    return ("000000" + this.getHex(colorSpace).toString(16)).slice(-6);
   }
-  getHSL(target) {
-    const r = this.r, g = this.g, b2 = this.b;
+  getHSL(target, colorSpace = LinearSRGBColorSpace) {
+    ColorManagement.fromWorkingColorSpace(toComponents(this, _rgb), colorSpace);
+    const r = _rgb.r, g = _rgb.g, b2 = _rgb.b;
     const max2 = Math.max(r, g, b2);
     const min2 = Math.min(r, g, b2);
     let hue, saturation;
@@ -2742,8 +2839,19 @@ class Color {
     target.l = lightness;
     return target;
   }
-  getStyle() {
-    return "rgb(" + (this.r * 255 | 0) + "," + (this.g * 255 | 0) + "," + (this.b * 255 | 0) + ")";
+  getRGB(target, colorSpace = LinearSRGBColorSpace) {
+    ColorManagement.fromWorkingColorSpace(toComponents(this, _rgb), colorSpace);
+    target.r = _rgb.r;
+    target.g = _rgb.g;
+    target.b = _rgb.b;
+    return target;
+  }
+  getStyle(colorSpace = SRGBColorSpace) {
+    ColorManagement.fromWorkingColorSpace(toComponents(this, _rgb), colorSpace);
+    if (colorSpace !== SRGBColorSpace) {
+      return `color(${colorSpace} ${_rgb.r} ${_rgb.g} ${_rgb.b})`;
+    }
+    return `rgb(${_rgb.r * 255 | 0},${_rgb.g * 255 | 0},${_rgb.b * 255 | 0})`;
   }
   offsetHSL(h, s, l) {
     this.getHSL(_hslA);
@@ -2838,6 +2946,11 @@ class Color {
   }
   toJSON() {
     return this.getHex();
+  }
+  *[Symbol.iterator]() {
+    yield this.r;
+    yield this.g;
+    yield this.b;
   }
 }
 Color.NAMES = _colorKeywords;

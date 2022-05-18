@@ -30,6 +30,7 @@ export class WebRenderer {
     static get RENDERING_INLINE_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-rendering-inline'; }
     static get RENDERING_DOCUMENT_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-rendering-document'; }
     static serializer = new XMLSerializer();
+    static textEncoder = new TextEncoder();
     // static containsHover(element: Element) {
     //   for (const t of this.virtualHoverElements) {
     //     if (element.contains(t)) return true
@@ -175,7 +176,7 @@ export class WebRenderer {
             for (const m of mutations) {
                 if (STYLE_NODES.indexOf(m.target.nodeName.toUpperCase()) !== -1) {
                     setNeedsRefreshOnAllLayers();
-                    this.embeddedStyles.get(document)?.delete(m.target);
+                    this.embeddedStyles.delete(m.target);
                 }
                 for (const node of m.addedNodes)
                     setNeedsRefreshOnStyleLoad(node);
@@ -292,7 +293,7 @@ export class WebRenderer {
                     // to reprocess later
                     const style = target.parentElement;
                     const rootNode = style.getRootNode();
-                    this.embeddedStyles.get(rootNode)?.delete(style);
+                    this.embeddedStyles.delete(style);
                 }
             }
             const target = record.target.nodeType === Node.ELEMENT_NODE
@@ -338,11 +339,6 @@ export class WebRenderer {
     }
     static attributeHTML(name, value) {
         return value ? `${name}="${value}"` : `${name}=""`;
-    }
-    static deleteEmbeddedStyle(style) {
-        const rootNode = style.getRootNode();
-        const embedded = this.embeddedStyles.get(rootNode);
-        embedded?.delete(style);
     }
     static updateInputAttributes(element) {
         if (element.matches('input'))

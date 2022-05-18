@@ -79,7 +79,6 @@ export declare class WebLayerManagerBase {
         resolve: (val: any) => void;
         promise: any;
     }[];
-    textEncoder: TextEncoder;
     ktx2Encoder: KTX2EncoderType;
     private _unsavedTextureData;
     private _stateData;

@@ -29,6 +29,7 @@ export declare class WebRenderer {
     static get RENDERING_INLINE_ATTRIBUTE(): string;
     static get RENDERING_DOCUMENT_ATTRIBUTE(): string;
     static serializer: XMLSerializer;
+    static textEncoder: TextEncoder;
     static getPsuedoAttributes(states: typeof WebLayer.prototype.desiredPseudoState): string;
     static rootLayers: Map<Element, WebLayer>;
     static layers: Map<Element, WebLayer>;
@@ -41,7 +42,10 @@ export declare class WebRenderer {
     private static containerStyleElement;
     static dataURLMap: Map<string, Promise<string>>;
     static embeddedCSSMap: Map<string, string>;
-    static embeddedStyles: Map<Document | ShadowRoot, Map<Element, Promise<string>>>;
+    static embeddedStyles: Map<Element, Promise<{
+        serialized: string;
+        hash: string;
+    }>>;
     static fontStyles: Map<string, HTMLStyleElement>;
     static initRootNodeObservation(element: Element): void;
     static setLayerNeedsRefresh(layer: WebLayer): void;
@@ -56,7 +60,6 @@ export declare class WebRenderer {
     static arrayBufferToBase64(bytes: Uint8Array): string;
     static attributeCSS(name: string, value?: string): string;
     static attributeHTML(name: string, value?: string): string;
-    static deleteEmbeddedStyle(style: HTMLStyleElement): void;
     static updateInputAttributes(element: Element): void;
     static _updateInputAttribute(inputElement: HTMLInputElement): void;
     static isBlankImage(imageData: Uint8ClampedArray): boolean;

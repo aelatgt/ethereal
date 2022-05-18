@@ -48,7 +48,6 @@ export class WebLayerManagerBase {
     serializeQueue = [];
     rasterizeQueue = [];
     optimizeQueue = [];
-    textEncoder = new TextEncoder();
     ktx2Encoder = new KTX2Encoder();
     _unsavedTextureData = new Map();
     _stateData = new Map();
@@ -229,7 +228,15 @@ export class WebLayerManagerBase {
         if (this.ktx2Encoder.pool.limit === 0)
             return;
         const imageData = this.getImageData(canvas);
-        const ktx2Texture = await this.ktx2Encoder.encode(imageData);
+        let ktx2Texture;
+        try {
+            ktx2Texture = await this.ktx2Encoder.encode(imageData);
+        }
+        catch (error) {
+            console.error(`KTX2 encoding failed for image (${canvas.width}, ${canvas.height}) `, error);
+            this.ktx2Encoder.pool.dispose();
+            return;
+        }
         const textureData = this._unsavedTextureData.get(textureHash) ||
             { hash: textureHash, timestamp: Date.now(), texture: undefined };
         data.ktx2Url = URL.createObjectURL(new Blob([ktx2Texture], { type: 'image/ktx2' }));
@@ -322,19 +329,33 @@ export class WebLayerManagerBase {
             const layerAttribute = WebRenderer.attributeHTML(WebRenderer.LAYER_ATTRIBUTE, '');
             const needsInlineBlock = computedStyle.display === 'inline';
             WebRenderer.updateInputAttributes(layerElement);
-            const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, pixelRatio);
+            const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, textureWidth, textureHeight);
             const svgCSS = await getAllEmbeddedStyles(layerElement);
             let layerHTML = await serializeToString(layerElement);
             layerHTML = layerHTML.replace(layerAttribute, `${layerAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
                 `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
                 WebRenderer.getPsuedoAttributes(layer.desiredPseudoState));
+            const hashComponents = [
+                ...svgCSS.map((s) => s.hash),
+                parentsHTML[0],
+                layerHTML,
+                parentsHTML[1]
+            ].join('\n');
+            // @ts-ignore
+            const stateHashBuffer = await crypto.subtle.digest('SHA-1', WebRenderer.textEncoder.encode(hashComponents));
+            const stateHash = bufferToHex(stateHashBuffer) +
+                '?w=' + fullWidth +
+                ';h=' + fullHeight +
+                ';tw=' + textureWidth +
+                ';th=' + textureHeight;
+            result.stateKey = stateHash;
             svgDoc =
                 '<svg width="' +
                     textureWidth +
                     '" height="' +
                     textureHeight +
                     '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
-                    svgCSS.join('\n') +
+                    svgCSS.map((s) => s.serialized).join('\n') +
                     ']]></style></defs><foreignObject x="0" y="0" width="' +
                     textureWidth +
                     '" height="' +
@@ -344,14 +365,6 @@ export class WebLayerManagerBase {
                     layerHTML +
                     parentsHTML[1] +
                     '</foreignObject></svg>';
-            // @ts-ignore
-            const stateHashBuffer = await crypto.subtle.digest('SHA-1', this.textEncoder.encode(svgDoc));
-            const stateHash = bufferToHex(stateHashBuffer) +
-                '?w=' + fullWidth +
-                ';h=' + fullHeight +
-                ';tw=' + textureWidth +
-                ';th=' + textureHeight;
-            result.stateKey = stateHash;
         }
         // update the layer state data
         const data = await this.requestStoredData(result.stateKey);
@@ -442,7 +455,7 @@ export class WebLayerManagerBase {
         //     resizeQuality: 'high'
         // })
         // ctx.drawImage(imageBitmap, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight)
-        ctx.drawImage(svgImage, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight);
+        ctx.drawImage(svgImage, 0, 0, textureWidth, textureHeight);
         return canvas;
     }
     getImageData(canvas) {
