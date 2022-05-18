@@ -64,6 +64,7 @@ export class WebRenderer {
   static get RENDERING_DOCUMENT_ATTRIBUTE() { return this.ATTRIBUTE_PREFIX + '-rendering-document' }
 
   static serializer = new XMLSerializer()
+  static textEncoder = new TextEncoder()
 
   // static containsHover(element: Element) {
   //   for (const t of this.virtualHoverElements) {
@@ -99,7 +100,7 @@ export class WebRenderer {
 
   static dataURLMap = new Map<string, Promise<string>>()
   static embeddedCSSMap = new Map<string, string>()
-  static embeddedStyles = new Map<ShadowRoot|Document, Map<Element, Promise<string>>>()
+  static embeddedStyles = new Map<Element, Promise<{serialized:string, hash:string}>>()
   static fontStyles = new Map<string, HTMLStyleElement>()
 
   static initRootNodeObservation(element:Element) {
@@ -230,7 +231,7 @@ export class WebRenderer {
       for (const m of mutations) {
         if (STYLE_NODES.indexOf(m.target.nodeName.toUpperCase()) !== -1) {
           setNeedsRefreshOnAllLayers()
-          this.embeddedStyles.get(document)?.delete(m.target as Element)
+          this.embeddedStyles.delete(m.target as Element)
         }
         for (const node of m.addedNodes) setNeedsRefreshOnStyleLoad(node)
       }
@@ -360,7 +361,7 @@ export class WebRenderer {
           // to reprocess later
           const style = target.parentElement
           const rootNode = style.getRootNode() as ShadowRoot|Document
-          this.embeddedStyles.get(rootNode)?.delete(style)
+          this.embeddedStyles.delete(style)
         }
       }
       const target =
@@ -408,12 +409,6 @@ export class WebRenderer {
 
   static attributeHTML(name:string, value?:string) {
     return value ? `${name}="${value}"` : `${name}=""`
-  }
-
-  static deleteEmbeddedStyle(style:HTMLStyleElement) {
-    const rootNode = style.getRootNode() as ShadowRoot|Document
-    const embedded = this.embeddedStyles.get(rootNode)
-    embedded?.delete(style)
   }
 
   static updateInputAttributes(element: Element) {

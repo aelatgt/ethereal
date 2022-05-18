@@ -1,10 +1,10 @@
+import { bufferToHex } from "../hex-utils"
 import { WebRenderer } from "../WebRenderer"
 import { generateEmbeddedCSS, getEmbeddedCSS } from "./generateEmbeddedCSS"
 
   export async function getAllEmbeddedStyles(el:Element) {
     const rootNode = el.getRootNode() as ShadowRoot|Document
-    const embedded = WebRenderer.embeddedStyles.get(rootNode) || new Map<Element, Promise<string>>()
-    WebRenderer.embeddedStyles.set(rootNode, embedded)
+    const embedded = WebRenderer.embeddedStyles
 
     const styleElements = Array.from(
       rootNode.querySelectorAll("style, link[type='text/css'], link[rel='stylesheet']")
@@ -23,7 +23,7 @@ import { generateEmbeddedCSS, getEmbeddedCSS } from "./generateEmbeddedCSS"
             const link = element as HTMLLinkElement
             resolve(getEmbeddedCSS(link.href))
           }
-        }).then((cssText) => {
+        }).then(async (cssText) => {
           const regEx = RegExp(/@font-face[^{]*{([^{}]|{[^{}]*})*}/gi)
           const fontRules = cssText.match(regEx)
 
@@ -33,14 +33,15 @@ import { generateEmbeddedCSS, getEmbeddedCSS } from "./generateEmbeddedCSS"
             for (const rule of fontRules) {
               if (WebRenderer.fontStyles.has(rule)) continue
               const fontStyle = document.createElement('style')
-              fontStyle.innerHTML = fontRules.reduce((r, s) => s + '\n\n' + r, '')
+              fontStyle.innerHTML = rule
               document.head.appendChild(fontStyle)
               WebRenderer.fontStyles.set(rule, fontStyle)
-              embedded.set(fontStyle, Promise.resolve(''))
+              embedded.set(fontStyle, Promise.resolve({serialized:'', hash:''}))
             }
           }
 
-          return cssText
+          const hashBuffer = await crypto.subtle.digest('SHA-1', WebRenderer.textEncoder.encode(cssText))
+          return {serialized: cssText, hash: bufferToHex(hashBuffer)}
         }))
       }
     }

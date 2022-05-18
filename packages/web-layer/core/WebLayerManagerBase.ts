@@ -441,6 +441,22 @@ export class WebLayerManagerBase {
                 `${layerAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
                 `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
                 WebRenderer.getPsuedoAttributes(layer.desiredPseudoState))
+
+            const hashComponents = [
+                ...svgCSS.map((s)=>s.hash),
+                parentsHTML[0],
+                layerHTML,
+                parentsHTML[1]
+            ].join('\n')
+
+            // @ts-ignore
+            const stateHashBuffer = await crypto.subtle.digest('SHA-1', WebRenderer.textEncoder.encode(hashComponents))
+            const stateHash = bufferToHex(stateHashBuffer) +
+                '?w=' + fullWidth +
+                ';h=' + fullHeight + 
+                ';tw=' + textureWidth +
+                ';th=' + textureHeight
+            result.stateKey = stateHash
             
             svgDoc =
                 '<svg width="' +
@@ -448,7 +464,7 @@ export class WebLayerManagerBase {
                 '" height="' +
                 textureHeight +
                 '" xmlns="http://www.w3.org/2000/svg"><defs><style type="text/css"><![CDATA[\n' +
-                svgCSS.join('\n') +
+                svgCSS.map((s)=>s.serialized).join('\n') +
                 ']]></style></defs><foreignObject x="0" y="0" width="' +
                 textureWidth +
                 '" height="' +
@@ -458,16 +474,6 @@ export class WebLayerManagerBase {
                 layerHTML +
                 parentsHTML[1] +
                 '</foreignObject></svg>'
-
-            // @ts-ignore
-            const stateHashBuffer = await crypto.subtle.digest('SHA-1', this.textEncoder.encode(svgDoc))
-            const stateHash = bufferToHex(stateHashBuffer) +
-                '?w=' + fullWidth +
-                ';h=' + fullHeight + 
-                ';tw=' + textureWidth +
-                ';th=' + textureHeight
-
-            result.stateKey = stateHash
 
         }
         
