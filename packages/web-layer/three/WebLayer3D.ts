@@ -1,4 +1,4 @@
-import { ClampToEdgeWrapping, CompressedTexture, DoubleSide, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, Texture, TextureLoader, CanvasTexture, LinearMipMapLinearFilter } from "three";
+import { ClampToEdgeWrapping, CompressedTexture, DoubleSide, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, Texture, TextureLoader, CanvasTexture, LinearMipMapLinearFilter, LinearFilter } from "three";
 import { WebLayer } from "../core/WebLayer";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
@@ -122,7 +122,7 @@ export class WebLayer3D extends Object3D {
             new TextureLoader().load( (media as HTMLImageElement).src )
         t.wrapS = ClampToEdgeWrapping
         t.wrapT = ClampToEdgeWrapping
-        t.minFilter = LinearMipMapLinearFilter
+        t.minFilter = LinearFilter // note: media element textures cannot use mipmapping
         if (manager.textureEncoding) t.encoding = manager.textureEncoding
         this._mediaTexture = t
       }
@@ -302,7 +302,6 @@ export class WebLayer3D extends Object3D {
         this.depthMaterial.needsUpdate = true
       }
     }
-    material.transparent = true
 
     // handle layer visibility or removal
     const mat = mesh.material as THREE.MeshBasicMaterial
