@@ -12,7 +12,8 @@ import { generateEmbeddedCSS, getEmbeddedCSS } from "./generateEmbeddedCSS"
     
     const inShadow = el.getRootNode() instanceof ShadowRoot
 
-    // let foundNewStyles = false
+    const elementData = [] as Array<Promise<{serialized:string, hash:string}>>
+
     for (const element of styleElements) {
       if (!embedded.has(element)) {
         // foundNewStyles = true
@@ -44,7 +45,8 @@ import { generateEmbeddedCSS, getEmbeddedCSS } from "./generateEmbeddedCSS"
           return {serialized: cssText, hash: bufferToHex(hashBuffer)}
         }))
       }
+      elementData.push(embedded.get(element)!)
     }
-    // if (foundNewStyles) this._addDynamicPseudoClassRules(rootNode)
-    return Promise.all(embedded.values())
+    
+    return Promise.all(elementData)
   }
