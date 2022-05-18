@@ -163,7 +163,7 @@ export const serializationReplacer = (target:Node, node:Node) => {
 }
 
 // Get all parents of the embeded html as these can effect the resulting styles
-export function getParentsHTML(layer: WebLayer, fullWidth:number, fullHeight:number, pixelRatio:number) {
+export function getParentsHTML(layer: WebLayer, fullWidth:number, fullHeight:number, textureWidth:number, textureHeight:number) {
     const opens = []
     const closes = []
     layer.manager.updateDOMMetrics(layer)
@@ -184,7 +184,7 @@ export function getParentsHTML(layer: WebLayer, fullWidth:number, fullHeight:num
             tag +
             (tag === 'html'
                 ? ` ${WebRenderer.RENDERING_DOCUMENT_ATTRIBUTE}="" xmlns="http://www.w3.org/1999/xhtml"
-                    style="${getPixelRatioStyling(pixelRatio)} --x-width:${metrics.bounds.width}px; --x-height:${metrics.bounds.height}px; ${style} width:${fullWidth}px; height:${fullHeight}px;" `
+                    style="${getPixelScaleStyling(textureWidth/fullWidth, textureHeight/fullHeight)} --x-width:${metrics.bounds.width}px; --x-height:${metrics.bounds.height}px; ${style} width:${fullWidth}px; height:${fullHeight}px;" `
                 : ` style="${style}" ${WebRenderer.RENDERING_PARENT_ATTRIBUTE}="" `) +
             attributes +
             ' >'
@@ -214,10 +214,6 @@ export function getParentsHTML(layer: WebLayer, fullWidth:number, fullHeight:num
  * Since Safari is the odd one out, we'll test for that. 
  * 
  */
- function getPixelRatioStyling(pixelRatio:number) {
-    const isSafari = false // isSafariRegex.test(navigator.userAgent)
-    if (isSafari) return `zoom:${pixelRatio}; `
-    return `transform: scale(${pixelRatio}); transform-origin: top left; `
+ function getPixelScaleStyling(scaleX:number, scaleY:number) {
+    return `transform: scale(${scaleX},${scaleY}); transform-origin: top left; `
   }
-  
-  const isSafariRegex = /^((?!chrome|android).)*safari/i

@@ -90,7 +90,7 @@ export class WebLayer3D extends Object3D {
                         new TextureLoader().load(media.src);
                 t.wrapS = ClampToEdgeWrapping;
                 t.wrapT = ClampToEdgeWrapping;
-                t.minFilter = LinearFilter;
+                t.minFilter = LinearFilter; // note: media element textures cannot use mipmapping
                 if (manager.textureEncoding)
                     t.encoding = manager.textureEncoding;
                 this._mediaTexture = t;

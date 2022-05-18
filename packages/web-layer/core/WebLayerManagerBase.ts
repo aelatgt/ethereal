@@ -426,7 +426,7 @@ export class WebLayerManagerBase {
             const needsInlineBlock = computedStyle.display === 'inline'
             WebRenderer.updateInputAttributes(layerElement)
             
-            const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, pixelRatio)
+            const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, textureWidth, textureHeight)
             const svgCSS = await getAllEmbeddedStyles(layerElement)
             let layerHTML = await serializeToString(layerElement)
             layerHTML = layerHTML.replace(layerAttribute,
@@ -573,7 +573,7 @@ export class WebLayerManagerBase {
         //     resizeQuality: 'high'
         // })
         // ctx.drawImage(imageBitmap, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight)
-        ctx.drawImage(svgImage, 0, 0, sourceWidth, sourceHeight, 0, 0, textureWidth, textureHeight)
+        ctx.drawImage(svgImage, 0, 0, textureWidth, textureHeight)
         
         return canvas
     }
