@@ -129,7 +129,6 @@ export class WebLayerManagerBase {
     rasterizeQueue = [] as {hash:StateHash, svgUrl:string, resolve:(val:any)=>void, promise:any}[]
     optimizeQueue = [] as {textureHash:TextureHash, resolve:(val:any)=>void, promise:any}[]
 
-    textEncoder = new TextEncoder();
     ktx2Encoder = new KTX2Encoder() as KTX2EncoderType
 
     private _unsavedTextureData = new Map<TextureHash, TextureStoreData>()
@@ -320,8 +319,17 @@ export class WebLayerManagerBase {
         const canvas = data?.canvas
         if (!canvas) throw new Error('Missing texture canvas')
         if (this.ktx2Encoder.pool.limit === 0) return
+
         const imageData = this.getImageData(canvas)
-        const ktx2Texture = await this.ktx2Encoder.encode(imageData as any)
+        let ktx2Texture:ArrayBuffer
+        try {
+            ktx2Texture = await this.ktx2Encoder.encode(imageData as any)
+        } catch (error:any) {
+            console.error(`KTX2 encoding failed for image (${canvas.width}, ${canvas.height}) `, error)
+            this.ktx2Encoder.pool.dispose()
+            return
+        }
+
         const textureData : TextureStoreData = this._unsavedTextureData.get(textureHash) || 
             {hash: textureHash, timestamp:Date.now(), texture:undefined}
         data.ktx2Url = URL.createObjectURL(new Blob([ktx2Texture], {type: 'image/ktx2'}))
