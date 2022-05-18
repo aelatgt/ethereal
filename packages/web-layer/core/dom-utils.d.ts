@@ -1,3 +1,4 @@
+import { Matrix4 } from "three/src/math/Matrix4";
 export declare function path(el: HTMLElement, rootNode?: HTMLElement): string;
 export declare function hash(el: HTMLElement): void;
 export declare function traverseChildElements(element: Element, each: (element: Element, level: number) => boolean, bind?: any, level?: number): void;
@@ -24,3 +25,4 @@ export declare function getViewportBounds(bounds: Bounds): Bounds;
 export declare function getDocumentBounds(document: Document, bounds: Bounds): Bounds;
 export declare function toDOM(html: string): Element;
 export declare const downloadBlob: (blob: Blob, filename: string) => void;
+export declare function parseCSSTransform(computedStyle: CSSStyleDeclaration, width: number, height: number, pixelSize: number, out?: Matrix4): Matrix4 | null;

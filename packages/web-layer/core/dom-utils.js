@@ -1,3 +1,4 @@
+import { Matrix4 } from "three/src/math/Matrix4";
 function id(element) {
     return element.id ? `#${element.id}` : '';
 }
@@ -246,3 +247,51 @@ export const downloadBlob = function (blob, filename) {
     a.dataset.downloadurl = ['application/octet-stream', a.download, a.href].join(':');
     a.click();
 };
+const scratchMat1 = new Matrix4();
+const scratchMat2 = new Matrix4();
+export function parseCSSTransform(computedStyle, width, height, pixelSize, out = new Matrix4()) {
+    const transform = computedStyle.transform;
+    const transformOrigin = computedStyle.transformOrigin;
+    if (transform.indexOf('matrix(') == 0) {
+        out.identity();
+        var mat = transform
+            .substring(7, transform.length - 1)
+            .split(', ')
+            .map(parseFloat);
+        out.elements[0] = mat[0];
+        out.elements[1] = mat[1];
+        out.elements[4] = mat[2];
+        out.elements[5] = mat[3];
+        out.elements[12] = mat[4];
+        out.elements[13] = mat[5];
+    }
+    else if (transform.indexOf('matrix3d(') == 0) {
+        var mat = transform
+            .substring(9, transform.length - 1)
+            .split(', ')
+            .map(parseFloat);
+        out.fromArray(mat);
+    }
+    else {
+        return null;
+    }
+    if (out.elements[0] === 0)
+        out.elements[0] = 1e-15;
+    if (out.elements[5] === 0)
+        out.elements[5] = 1e-15;
+    if (out.elements[10] === 0)
+        out.elements[10] = 1e-15;
+    out.elements[12] *= pixelSize;
+    out.elements[13] *= pixelSize * -1;
+    var origin = transformOrigin.split(' ').map(parseFloat);
+    var ox = (origin[0] - width / 2) * pixelSize;
+    var oy = (origin[1] - height / 2) * pixelSize * -1;
+    var oz = origin[2] || 0;
+    var T1 = scratchMat1.identity().makeTranslation(-ox, -oy, -oz);
+    var T2 = scratchMat2.identity().makeTranslation(ox, oy, oz);
+    for (const e of out.elements) {
+        if (isNaN(e))
+            return null;
+    }
+    return out.premultiply(T2).multiply(T1);
+}

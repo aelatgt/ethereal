@@ -48,6 +48,11 @@ export declare class LayerStore extends Dexie {
 }
 export declare class WebLayerManagerBase {
     MINIMUM_RENDER_ATTEMPTS: number;
+    MAX_SERIALIZE_TASK_COUNT: number;
+    MAX_RASTERIZE_TASK_COUNT: number;
+    tasksPending: boolean;
+    serializePendingCount: number;
+    rasterizePendingCount: number;
     WebRenderer: typeof WebRenderer;
     autosave: boolean;
     autosaveDelay: number;
@@ -106,11 +111,6 @@ export declare class WebLayerManagerBase {
     private _texturesRequestedFromStore;
     requestStoredData(hash: StateHash | HTMLMediaElement): Promise<StateData>;
     compressTexture(textureHash: TextureHash): Promise<void>;
-    tasksPending: boolean;
-    serializePendingCount: number;
-    rasterizePendingCount: number;
-    MAX_SERIALIZE_TASK_COUNT: number;
-    MAX_RASTERIZE_TASK_COUNT: number;
     scheduleTasksIfNeeded(): void;
     private _runTasks;
     addToSerializeQueue(layer: WebLayer): ReturnType<typeof WebLayerManagerBase.prototype.serialize>;

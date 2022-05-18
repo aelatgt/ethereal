@@ -7,6 +7,9 @@ export class KTX2Encoder {
     constructor() {
         this.pool.setWorkerCreator(() => new Worker(workerURL));
     }
+    setWorkerLimit(limit) {
+        this.pool.setWorkerLimit(limit);
+    }
     async encode(imageData) {
         const responseMessage = await this.pool.postMessage(imageData, [imageData.data.buffer]);
         if (responseMessage.data.error)

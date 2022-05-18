@@ -1,4 +1,4 @@
-import { Bounds, downloadBlob, Edges, getBorder, getBounds, getMargin, getPadding } from "./dom-utils";
+import { Bounds, downloadBlob, Edges, getBorder, getBounds, getMargin, getPadding, parseCSSTransform } from "./dom-utils";
 import Dexie from 'dexie';
 // @ts-ignore
 import { KTX2Encoder } from './textures/KTX2Encoder.bundle.js';
@@ -9,6 +9,7 @@ import { bufferToHex } from "./hex-utils";
 import { Packr, Unpackr } from 'msgpackr';
 import { compress, decompress } from 'fflate';
 import { Matrix4 } from "three/src/math/Matrix4";
+import { getAllEmbeddedStyles } from "./serialization/getAllEmbeddedStyles";
 const scratchMatrix = new Matrix4;
 export class LayerStore extends Dexie {
     states;
@@ -29,6 +30,11 @@ function nextPowerOf2(n) {
 }
 export class WebLayerManagerBase {
     MINIMUM_RENDER_ATTEMPTS = 3;
+    MAX_SERIALIZE_TASK_COUNT = 10;
+    MAX_RASTERIZE_TASK_COUNT = 5;
+    tasksPending = false;
+    serializePendingCount = 0;
+    rasterizePendingCount = 0;
     WebRenderer = WebRenderer;
     autosave = true;
     autosaveDelay = 10 * 1000;
@@ -237,11 +243,6 @@ export class WebLayerManagerBase {
         textureData.texture = bufferData;
         this._unsavedTextureData.set(textureHash, textureData);
     }
-    tasksPending = false;
-    serializePendingCount = 0;
-    rasterizePendingCount = 0;
-    MAX_SERIALIZE_TASK_COUNT = 10;
-    MAX_RASTERIZE_TASK_COUNT = 5;
     scheduleTasksIfNeeded() {
         if (this.tasksPending ||
             (this.serializeQueue.length === 0 && this.rasterizeQueue.length === 0))
@@ -270,8 +271,8 @@ export class WebLayerManagerBase {
                 resolve(undefined);
                 if (this._autosaveTimer)
                     clearTimeout(this._autosaveTimer);
-                if (this.autosave)
-                    this._autosaveTimer = setTimeout(() => { this.saveStore(); }, this.autosaveDelay);
+                if (this.autosave && this._unsavedTextureData.size)
+                    this._autosaveTimer = setTimeout(() => { this.saveStore(); }, this.autosaveDelay / this._unsavedTextureData.size);
             });
         }
         this.tasksPending = false;
@@ -311,7 +312,7 @@ export class WebLayerManagerBase {
         let cssTransform = null;
         if (transform && transform !== 'none') {
             const pixelSize = 1 / this.pixelsPerMeter;
-            cssTransform = WebRenderer.parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix);
+            cssTransform = parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix);
         }
         if (layer.isMediaElement) {
             result.stateKey = layerElement;
@@ -322,7 +323,7 @@ export class WebLayerManagerBase {
             const needsInlineBlock = computedStyle.display === 'inline';
             WebRenderer.updateInputAttributes(layerElement);
             const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, pixelRatio);
-            const svgCSS = await WebRenderer.getAllEmbeddedStyles(layerElement);
+            const svgCSS = await getAllEmbeddedStyles(layerElement);
             let layerHTML = await serializeToString(layerElement);
             layerHTML = layerHTML.replace(layerAttribute, `${layerAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
                 `${needsInlineBlock ? `${WebRenderer.RENDERING_INLINE_ATTRIBUTE}="" ` : ' '} ` +
@@ -395,8 +396,8 @@ export class WebLayerManagerBase {
             throw new Error('Rasterization Failed');
         }
         await svgImage.decode();
-        const sourceWidth = Math.floor(fullWidth * pixelRatio);
-        const sourceHeight = Math.floor(fullHeight * pixelRatio);
+        const sourceWidth = fullWidth * pixelRatio;
+        const sourceHeight = fullHeight * pixelRatio;
         const hashCanvas = await this.rasterizeToCanvas(svgImage, sourceWidth, sourceHeight, 30, 30);
         const hashData = this.getImageData(hashCanvas);
         const textureHashBuffer = await crypto.subtle.digest('SHA-1', hashData.data);

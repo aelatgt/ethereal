@@ -1,4 +1,4 @@
-import { ClampToEdgeWrapping, DoubleSide, LinearFilter, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, TextureLoader, CanvasTexture } from "three";
+import { ClampToEdgeWrapping, DoubleSide, Mesh, MeshBasicMaterial, MeshDepthMaterial, Object3D, PlaneGeometry, RGBADepthPacking, Vector3, VideoTexture, TextureLoader, CanvasTexture, LinearFilter } from "three";
 import { WebRenderer } from "../core/WebRenderer";
 import { Bounds, Edges } from "../core/dom-utils";
 export const ON_BEFORE_UPDATE = Symbol('ON_BEFORE_UPDATE');
@@ -243,7 +243,6 @@ export class WebLayer3D extends Object3D {
                 this.depthMaterial.needsUpdate = true;
             }
         }
-        material.transparent = true;
         // handle layer visibility or removal
         const mat = mesh.material;
         const isHidden = mat.opacity < 0.005;

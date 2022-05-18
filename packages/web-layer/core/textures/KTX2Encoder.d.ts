@@ -7,5 +7,6 @@ export declare type EncodeResponse = {
 export declare class KTX2Encoder {
     pool: WorkerPool;
     constructor();
+    setWorkerLimit(limit: number): void;
     encode(imageData: ImageDataType): Promise<ArrayBuffer>;
 }

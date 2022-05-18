@@ -1,4 +1,5 @@
 // Based on https://github.com/cburgmer/xmlserializer 
+import { getEmbeddedDataURL } from "./serialization/getEmbeddedDataURL";
 import { WebRenderer } from "./WebRenderer";
 function removeInvalidCharacters(content) {
     return content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
@@ -48,7 +49,7 @@ async function serializeTag(node, options) {
     for (const attr of node.attributes) {
         if (attr.name === 'src') {
             if (node.nodeName === 'IMG') {
-                output += serializeAttribute(attr.name, await WebRenderer.getDataURL(attr.value));
+                output += serializeAttribute(attr.name, await getEmbeddedDataURL(attr.value));
             }
             else {
                 output += serializeAttribute('data-src', attr.value);
@@ -206,7 +207,7 @@ export function getParentsHTML(layer, fullWidth, fullHeight, pixelRatio) {
  *
  */
 function getPixelRatioStyling(pixelRatio) {
-    const isSafari = isSafariRegex.test(navigator.userAgent);
+    const isSafari = false; // isSafariRegex.test(navigator.userAgent)
     if (isSafari)
         return `zoom:${pixelRatio}; `;
     return `transform: scale(${pixelRatio}); transform-origin: top left; `;

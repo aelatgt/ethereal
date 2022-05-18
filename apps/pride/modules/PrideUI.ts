@@ -10,7 +10,7 @@ class State {
     worldInteraction = false
 
     async get() {
-        await PrideAPI.get()
+        // await PrideAPI.get()
         this.pride = {...PrideAPI.data}
     }
 
@@ -20,7 +20,7 @@ class State {
     }
 
     async done(message?:string) {
-        await PrideAPI.done(message)
+        // await PrideAPI.done(message)
         this.get()
     }
 

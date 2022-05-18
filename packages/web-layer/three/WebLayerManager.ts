@@ -14,7 +14,9 @@ export class WebLayerManager extends WebLayerManagerBase {
     static initialize(renderer:THREE.WebGLRenderer) {
       WebLayerManager.instance = new WebLayerManager()
       WebLayerManager.instance.renderer = renderer
+      // WebLayerManager.instance.ktx2Loader.setWorkerLimit(2)
       WebLayerManager.instance.ktx2Loader.detectSupport(renderer)
+      WebLayerManager.instance.ktx2Encoder.setWorkerLimit(1)
     }
 
     static instance:WebLayerManager
@@ -78,7 +80,7 @@ export class WebLayerManager extends WebLayerManagerBase {
         const t = new CanvasTexture(canvas)
         t.wrapS = ClampToEdgeWrapping
         t.wrapT = ClampToEdgeWrapping
-        t.minFilter = LinearFilter
+        t.minFilter = LinearMipmapLinearFilter
         t.encoding = this.textureEncoding
         t.flipY = false
         threeTextureData.canvasTexture = t

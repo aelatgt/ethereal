@@ -1,6 +1,6 @@
 
 <template>
-    <div id="pride" xr-pixel-ratio="0.01" v-bind:class="{ xr: immersiveMode }">
+    <div id="pride" xr-pixel-ratio="0.8" v-bind:class="{ xr: immersiveMode }">
         <link crossorigin="anonymous" href="https://fonts.googleapis.com/css?family=Inconsolata:400,700" rel="stylesheet"/>
         <link rel="stylesheet" href="./modules/Pride.css"/>
         <div xr-layer id="procedure"><img xr-layer class="logo" :src="logo"/>Procedure: {{pride.procedure}}</div>

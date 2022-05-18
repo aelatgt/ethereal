@@ -14,6 +14,10 @@ export class KTX2Encoder {
 		this.pool.setWorkerCreator(() => new Worker(workerURL))
 	}
 
+	setWorkerLimit(limit: number) { 
+		this.pool.setWorkerLimit(limit)
+	}
+
 	async encode(imageData: ImageDataType) : Promise<ArrayBuffer> {
 		const responseMessage = 
 			await this.pool.postMessage<EncodeResponse>(imageData, [imageData.data.buffer])

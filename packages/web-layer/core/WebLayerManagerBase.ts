@@ -1,4 +1,4 @@
-import { Bounds, downloadBlob, Edges, getBorder, getBounds, getMargin, getPadding } from "./dom-utils"
+import { Bounds, downloadBlob, Edges, getBorder, getBounds, getMargin, getPadding, parseCSSTransform } from "./dom-utils"
 import Dexie, { Table } from 'dexie'
 
 // @ts-ignore
@@ -14,6 +14,7 @@ import { Packr, Unpackr } from 'msgpackr'
 
 import { compress, decompress } from 'fflate'
 import { Matrix4 } from "three/src/math/Matrix4"
+import { getAllEmbeddedStyles } from "./serialization/getAllEmbeddedStyles"
 
 
 const scratchMatrix = new Matrix4
@@ -101,6 +102,13 @@ function nextPowerOf2(n:number) {
 export class WebLayerManagerBase {
 
     MINIMUM_RENDER_ATTEMPTS = 3
+
+    MAX_SERIALIZE_TASK_COUNT = 10
+    MAX_RASTERIZE_TASK_COUNT = 5
+
+    tasksPending = false
+    serializePendingCount = 0
+    rasterizePendingCount = 0
 
     WebRenderer = WebRenderer
 
@@ -326,13 +334,6 @@ export class WebLayerManagerBase {
         textureData.texture = bufferData
         this._unsavedTextureData.set(textureHash, textureData)
     }
-
-    tasksPending = false
-    serializePendingCount = 0
-    rasterizePendingCount = 0
-
-    MAX_SERIALIZE_TASK_COUNT = 10
-    MAX_RASTERIZE_TASK_COUNT = 5
   
     scheduleTasksIfNeeded() {
       if (this.tasksPending ||
@@ -364,7 +365,7 @@ export class WebLayerManagerBase {
                 this.rasterizePendingCount--
                 resolve(undefined)
                 if (this._autosaveTimer) clearTimeout(this._autosaveTimer)
-                if (this.autosave) this._autosaveTimer = setTimeout(() => { this.saveStore() }, this.autosaveDelay)
+                if (this.autosave && this._unsavedTextureData.size) this._autosaveTimer = setTimeout(() => { this.saveStore() }, this.autosaveDelay / this._unsavedTextureData.size)
             })
         }
         
@@ -413,7 +414,7 @@ export class WebLayerManagerBase {
         let cssTransform = null as Matrix4 | null
         if (transform && transform !== 'none') {
             const pixelSize = 1 / this.pixelsPerMeter
-            cssTransform = WebRenderer.parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix)
+            cssTransform = parseCSSTransform(computedStyle, width, height, pixelSize, scratchMatrix)
         }
 
         if (layer.isMediaElement) {
@@ -426,7 +427,7 @@ export class WebLayerManagerBase {
             WebRenderer.updateInputAttributes(layerElement)
             
             const parentsHTML = getParentsHTML(layer, fullWidth, fullHeight, pixelRatio)
-            const svgCSS = await WebRenderer.getAllEmbeddedStyles(layerElement)
+            const svgCSS = await getAllEmbeddedStyles(layerElement)
             let layerHTML = await serializeToString(layerElement)
             layerHTML = layerHTML.replace(layerAttribute,
                 `${layerAttribute} ${WebRenderer.RENDERING_ATTRIBUTE}="" ` +
@@ -517,8 +518,8 @@ export class WebLayerManagerBase {
 
         await svgImage.decode()
 
-        const sourceWidth = Math.floor(fullWidth*pixelRatio)
-        const sourceHeight = Math.floor(fullHeight*pixelRatio)
+        const sourceWidth = fullWidth*pixelRatio
+        const sourceHeight = fullHeight*pixelRatio
 
         const hashCanvas = await this.rasterizeToCanvas(svgImage, sourceWidth, sourceHeight, 30, 30)
         const hashData = this.getImageData(hashCanvas)

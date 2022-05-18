@@ -55,27 +55,27 @@ export default class AppBase {
 
     areaImage = this.imageLoader.load(SMAAEffect.areaImageDataURL)
     searchImage = this.imageLoader.load(SMAAEffect.searchImageDataURL)
-    smaaEffect = new SMAAEffect(this.searchImage, this.areaImage, SMAAPreset.ULTRA)
+    // smaaEffect = new SMAAEffect(this.searchImage, this.areaImage, SMAAPreset.ULTRA)
 
-    ssaoEffect = new SSAOEffect(this.camera, this.normalPass.renderTarget.texture, {
-		blendFunction: BlendFunction.MULTIPLY,
-		//blendFunction: BlendFunction.ALPHA,
-		samples: 11,
-		rings: 4,
-		distanceThreshold: 0.0,
-		distanceFalloff: 1.0,
-		rangeThreshold: 0.0,
-		rangeFalloff: 1.0,
-		luminanceInfluence: 0.2,
-		radius: 18.0,
-		scale: 0.6,
-		bias: 0.8
-    })
+    // ssaoEffect = new SSAOEffect(this.camera, this.normalPass.renderTarget.texture, {
+	// 	blendFunction: BlendFunction.MULTIPLY,
+	// 	//blendFunction: BlendFunction.ALPHA,
+	// 	samples: 11,
+	// 	rings: 4,
+	// 	distanceThreshold: 0.0,
+	// 	distanceFalloff: 1.0,
+	// 	rangeThreshold: 0.0,
+	// 	rangeFalloff: 1.0,
+	// 	luminanceInfluence: 0.2,
+	// 	radius: 18.0,
+	// 	scale: 0.6,
+	// 	bias: 0.8
+    // })
     
     bloomEffect = new BloomEffect()
     
     // effectPass = new EffectPass(this.camera, this.smaaEffect)
-    effectPass = new EffectPass(this.camera, this.smaaEffect, this.ssaoEffect)
+    effectPass = new EffectPass(this.camera)//, this.smaaEffect, this.ssaoEffect)
 
     pointer = new THREE.Vector2()
     raycaster = new THREE.Raycaster()

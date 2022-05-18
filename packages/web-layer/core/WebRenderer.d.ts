@@ -1,5 +1,4 @@
 import { EventCallback, WebLayer } from './WebLayer';
-import { Matrix4 } from 'three';
 import { WebLayerManagerBase } from './WebLayerManagerBase';
 export interface WebLayerOptions {
     manager: WebLayerManagerBase;
@@ -40,12 +39,15 @@ export declare class WebRenderer {
     private static resizeObservers;
     static rootNodeObservers: Map<Document | ShadowRoot, MutationObserver>;
     private static containerStyleElement;
+    static dataURLMap: Map<string, Promise<string>>;
+    static embeddedCSSMap: Map<string, string>;
+    static embeddedStyles: Map<Document | ShadowRoot, Map<Element, Promise<string>>>;
+    static fontStyles: Map<string, HTMLStyleElement>;
     static initRootNodeObservation(element: Element): void;
     static setLayerNeedsRefresh(layer: WebLayer): void;
     static createLayerTree(element: Element, options: WebLayerOptions, eventCallback: EventCallback): Element;
     static disposeLayer(layer: WebLayer): void;
     static getClosestLayer(element: Element, inclusive?: boolean): WebLayer | undefined;
-    static parseCSSTransform(computedStyle: CSSStyleDeclaration, width: number, height: number, pixelSize: number, out?: Matrix4): Matrix4 | null;
     static pauseMutationObservers(): void;
     static resumeMutationObservers(): void;
     private static startMutationObserver;
@@ -54,15 +56,7 @@ export declare class WebRenderer {
     static arrayBufferToBase64(bytes: Uint8Array): string;
     static attributeCSS(name: string, value?: string): string;
     static attributeHTML(name: string, value?: string): string;
-    static generateEmbeddedCSS(url: string, css: string): Promise<string>;
-    private static embeddedStyles;
-    private static fontStyles;
-    static getAllEmbeddedStyles(el: Element): Promise<string[]>;
     static deleteEmbeddedStyle(style: HTMLStyleElement): void;
-    static dataURLMap: Map<string, Promise<string>>;
-    static getDataURL(url: string, accept?: string): Promise<string>;
-    static embeddedCSSMap: Map<string, string>;
-    static getEmbeddedCSS(url: string): Promise<string>;
     static updateInputAttributes(element: Element): void;
     static _updateInputAttribute(inputElement: HTMLInputElement): void;
     static isBlankImage(imageData: Uint8ClampedArray): boolean;
