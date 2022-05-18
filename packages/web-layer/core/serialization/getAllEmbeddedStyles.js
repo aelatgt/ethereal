@@ -6,7 +6,7 @@ export async function getAllEmbeddedStyles(el) {
     const embedded = WebRenderer.embeddedStyles;
     const styleElements = Array.from(rootNode.querySelectorAll("style, link[type='text/css'], link[rel='stylesheet']"));
     const inShadow = el.getRootNode() instanceof ShadowRoot;
-    // let foundNewStyles = false
+    const elementData = [];
     for (const element of styleElements) {
         if (!embedded.has(element)) {
             // foundNewStyles = true
@@ -38,7 +38,7 @@ export async function getAllEmbeddedStyles(el) {
                 return { serialized: cssText, hash: bufferToHex(hashBuffer) };
             }));
         }
+        elementData.push(embedded.get(element));
     }
-    // if (foundNewStyles) this._addDynamicPseudoClassRules(rootNode)
-    return Promise.all(embedded.values());
+    return Promise.all(elementData);
 }

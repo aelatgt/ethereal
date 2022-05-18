@@ -30,7 +30,6 @@
     "npm": ">=7.6"
   },
   "license": "MIT",
-  "private": true,
   "scripts": {
     "prebuild": "npx ultra --build -r build",
     "build": "npm run build:packages && npm run build:apps",
@@ -44,5 +43,6 @@
     "packages/*",
     "apps/*"
   ],
-  "version": "0.0.2"
+  "version": "0.0.0",
+  "private": true
 }
