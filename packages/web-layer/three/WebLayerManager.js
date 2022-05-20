@@ -6,7 +6,7 @@ export class WebLayerManager extends WebLayerManagerBase {
     static initialize(renderer) {
         WebLayerManager.instance = new WebLayerManager();
         WebLayerManager.instance.renderer = renderer;
-        // WebLayerManager.instance.ktx2Loader.setWorkerLimit(2)
+        WebLayerManager.instance.ktx2Loader.setWorkerLimit(2);
         WebLayerManager.instance.ktx2Loader.detectSupport(renderer);
         WebLayerManager.instance.ktx2Encoder.setWorkerLimit(1);
     }

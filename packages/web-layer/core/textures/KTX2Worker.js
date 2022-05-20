@@ -1,7 +1,6 @@
-import init from './basis_encoder_low_memory/basis_encoder.wasm';
+import BasisEncoderWASMBinary from './basis_encoder_low_memory/basis_encoder.wasm';
 import BasisEncoderModuleSRC from './basis_encoder_low_memory/basis_encoder.js.txt';
-const BasisEncoderModule = (0, eval)(BasisEncoderModuleSRC);
-const wasmBinaryPromise = init({});
+(0, eval)(BasisEncoderModuleSRC);
 const worker = self;
 worker.onmessage = async (msg) => {
     try {
@@ -23,10 +22,9 @@ worker.onmessage = async (msg) => {
  * @returns {BasisFile, KTX2File} promise
  */
 async function loadBasisEncoder(options) {
-    const wasmBinary = await wasmBinaryPromise;
-    options.wasmBinary = wasmBinary;
+    options.wasmBinary = BasisEncoderWASMBinary;
     // if you try to return BasisModule the browser crashes!
-    const { initializeBasis, BasisFile, KTX2File, BasisEncoder } = await BasisEncoderModule(options);
+    const { initializeBasis, BasisFile, KTX2File, BasisEncoder } = await BASIS(options);
     initializeBasis();
     return { BasisFile, KTX2File, BasisEncoder };
 }
@@ -35,7 +33,7 @@ async function loadBasisEncoder(options) {
  * @param image
  * @param options
  */
-export async function encodeKTX2BasisTexture(image, options = {}) {
+async function encodeKTX2BasisTexture(image, options = {}) {
     const { useSRGB = false, qualityLevel = 10, encodeUASTC = false, mipmaps = false } = options;
     let basisEncoder;
     try {
