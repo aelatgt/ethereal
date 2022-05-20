@@ -1,11 +1,11 @@
 
 import type { ImageDataType } from '@loaders.gl/images'
 import type { EncodeResponse } from './KTX2Encoder'
-import init from './basis_encoder_low_memory/basis_encoder.wasm'
+import BasisEncoderWASMBinary from './basis_encoder_low_memory/basis_encoder.wasm'
 import BasisEncoderModuleSRC from './basis_encoder_low_memory/basis_encoder.js.txt'
 
-const BasisEncoderModule = (0, eval)(BasisEncoderModuleSRC)
-const wasmBinaryPromise = init({})
+(0, eval)(BasisEncoderModuleSRC)
+declare const BASIS : any
 
 const worker: Worker = self as any
 
@@ -30,10 +30,9 @@ worker.onmessage = async (msg:MessageEvent<ImageDataType>) => {
  * @returns {BasisFile, KTX2File} promise
  */
  async function loadBasisEncoder(options:any) {
-    const wasmBinary = await wasmBinaryPromise
-    options.wasmBinary = wasmBinary
+    options.wasmBinary = BasisEncoderWASMBinary
     // if you try to return BasisModule the browser crashes!
-    const {initializeBasis, BasisFile, KTX2File, BasisEncoder} = await BasisEncoderModule(options)
+    const {initializeBasis, BasisFile, KTX2File, BasisEncoder} = await BASIS(options)
     initializeBasis()
     return {BasisFile, KTX2File, BasisEncoder}
 }
@@ -44,7 +43,7 @@ worker.onmessage = async (msg:MessageEvent<ImageDataType>) => {
  * @param image
  * @param options
  */
-export async function encodeKTX2BasisTexture(
+async function encodeKTX2BasisTexture(
     image: ImageDataType,
     options: {useSRGB?:boolean, qualityLevel?:number, encodeUASTC?:boolean, mipmaps?:boolean} = {}
   ): Promise<ArrayBuffer> {

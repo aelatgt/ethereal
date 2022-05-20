@@ -30,7 +30,7 @@
   },
   "scripts": {
     "build": "tsc && npm run build:worker && npm run build:encoder",
-    "build:worker": "node ./build-ktx2-worker",
+    "build:worker": "esbuild core/textures/KTX2Worker.ts --bundle --format=esm --outfile=core/textures/KTX2Worker.bundle.txt --loader:.wasm=binary",
     "build:encoder": "esbuild core/textures/KTX2Encoder.ts --bundle --format=esm --outfile=core/textures/KTX2Encoder.bundle.js"
   },
   "type": "module"

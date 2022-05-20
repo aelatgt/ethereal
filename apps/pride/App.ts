@@ -60,7 +60,7 @@ export default class AppBase {
     constructor(private _config: AppConfig) {
 
         WebLayerManager.initialize(this.renderer)
-        WebLayerManager.instance.importCache('./public/web.pride.cache')
+        // WebLayerManager.instance.importCache('./public/web.pride.cache')
 
         this.scene.add(this.camera)
 
