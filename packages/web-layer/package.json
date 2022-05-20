@@ -20,7 +20,6 @@
     "@juggle/resize-observer": "^3.2.0",
     "@loaders.gl/core": "^3.1.4",
     "@loaders.gl/images": "^3.1.4",
-    "@loaders.gl/textures": "^3.1.4",
     "@zip.js/zip.js": "^2.4.4",
     "dexie": "^3.2.0",
     "fflate": "^0.7.3",
@@ -31,7 +30,7 @@
   },
   "scripts": {
     "build": "tsc && npm run build:worker && npm run build:encoder",
-    "build:worker": "esbuild core/textures/KTX2Worker.ts --bundle --outfile=core/textures/KTX2Worker.bundle.txt",
+    "build:worker": "node ./build-ktx2-worker",
     "build:encoder": "esbuild core/textures/KTX2Encoder.ts --bundle --format=esm --outfile=core/textures/KTX2Encoder.bundle.js"
   },
   "type": "module"
