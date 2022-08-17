@@ -214,6 +214,13 @@ export function getParentsHTML(layer: WebLayer, fullWidth:number, fullHeight:num
  * Since Safari is the odd one out, we'll test for that. 
  * 
  */
- function getPixelScaleStyling(scaleX:number, scaleY:number) {
+function getPixelScaleStyling(scaleX:number, scaleY:number) {
+    const isSafari = isSafariRegex.test(navigator.userAgent)
+    if (isSafari) {
+        const largestScale = Math.max(scaleX, scaleY)
+        return `zoom:${largestScale}; transform: scale(${scaleX/largestScale},${scaleY/largestScale}); transform-origin: top left; `
+    }
     return `transform: scale(${scaleX},${scaleY}); transform-origin: top left; `
-  }
+}
+const isSafariRegex = /^((?!chrome|android).)*safari/i
+  

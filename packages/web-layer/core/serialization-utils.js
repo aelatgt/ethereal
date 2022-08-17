@@ -207,5 +207,11 @@ export function getParentsHTML(layer, fullWidth, fullHeight, textureWidth, textu
  *
  */
 function getPixelScaleStyling(scaleX, scaleY) {
+    const isSafari = isSafariRegex.test(navigator.userAgent);
+    if (isSafari) {
+        const largestScale = Math.max(scaleX, scaleY);
+        return `zoom:${largestScale}; transform: scale(${scaleX / largestScale},${scaleY / largestScale}); transform-origin: top left; `;
+    }
     return `transform: scale(${scaleX},${scaleY}); transform-origin: top left; `;
 }
+const isSafariRegex = /^((?!chrome|android).)*safari/i;
